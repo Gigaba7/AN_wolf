@@ -31,7 +31,7 @@ async function createRoomAndStartGame(players, config) {
     // ルーム作成
     console.log('Creating room...');
     const roomId = await createRoom({
-      gmName: config.gmName || 'GM',
+      hostName: config.hostName || 'プレイヤー',
       maxPlayers: config.maxPlayers || 8,
       stageMinChapter: config.stageMinChapter,
       stageMaxChapter: config.stageMaxChapter,

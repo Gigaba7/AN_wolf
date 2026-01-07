@@ -17,9 +17,9 @@
 
         <main class="home-layout">
           <section class="home-card">
-            <h2>モード選択</h2>
+            <h2>ルーム</h2>
             <div class="mode-selection" style="display: flex; gap: 8px; margin-bottom: 12px;">
-              <button id="btn-create-room" class="btn primary">ルーム作成（GM）</button>
+              <button id="btn-create-room" class="btn primary">ルーム作成</button>
               <button id="btn-join-room" class="btn secondary">ルーム参加</button>
             </div>
             <div id="room-info" class="room-info" style="display: none; margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
@@ -29,6 +29,10 @@
               </div>
               <button id="btn-copy-room-id" class="btn ghost small" style="width: 100%;">ルームIDをコピー</button>
               <p style="margin: 12px 0 0 0; font-size: 12px; color: #a0a4ba; text-align: center;">このルームIDを参加者に共有してください</p>
+            </div>
+            <div id="create-room-form" class="create-room-form" style="display: none; margin-top: 12px;">
+              <input type="text" id="host-name-input" placeholder="あなたの名前を入力" class="host-name-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-align: center;" />
+              <button id="btn-create-room-confirm" class="btn primary" style="width: 100%;">ルーム作成</button>
             </div>
             <div id="join-room-form" class="join-room-form" style="display: none; margin-top: 12px;">
               <input type="text" id="room-id-input" placeholder="ルームIDを入力（6文字）" class="room-id-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-transform: uppercase; text-align: center; letter-spacing: 0.1em;" maxlength="6" />

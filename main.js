@@ -73,23 +73,45 @@ function setupHomeScreen() {
   tosBtn?.addEventListener("click", () => openModal("tos-modal"));
   
   // ルーム作成/参加ボタン
-  $("#btn-create-room")?.addEventListener("click", async () => {
+  $("#btn-create-room")?.addEventListener("click", () => {
     $("#join-room-form")?.style.setProperty("display", "none");
+    $("#room-info")?.style.setProperty("display", "none");
+    $("#create-room-form")?.style.setProperty("display", "block");
+  });
+  
+  $("#btn-create-room-confirm")?.addEventListener("click", async () => {
+    const hostNameInput = $("#host-name-input");
+    if (!hostNameInput) return;
     
-    // ルームIDを生成して表示（ワンクッション）
+    const hostName = hostNameInput.value.trim();
+    if (!hostName) {
+      alert("名前を入力してください。");
+      return;
+    }
+    
     try {
-      const currentUser = getCurrentUser();
+      let currentUser = getCurrentUser();
       if (!currentUser) {
-        // 認証が必要な場合は先に認証
+        console.log('Signing in anonymously for room creation...');
         await signInAnonymously();
+        currentUser = getCurrentUser();
+        if (!currentUser) {
+          throw new Error('認証に失敗しました');
+        }
       }
       
-      // ルームIDを生成（実際のルーム作成はゲーム開始時に行う）
-      const roomId = generateRoomId ? generateRoomId() : (typeof window !== 'undefined' && window.generateRoomId ? window.generateRoomId() : null);
+      console.log('Creating room for host:', hostName);
       
-      if (!roomId) {
-        throw new Error('Failed to generate room ID');
-      }
+      // ルームを作成（ホストとして）
+      const roomId = await createRoomAndStartGame([], {
+        hostName: hostName,
+        maxPlayers: 8,
+        stageMinChapter: GameState.options.stageMinChapter,
+        stageMaxChapter: GameState.options.stageMaxChapter,
+        wolfActionTexts: GameState.options.wolfActionTexts,
+      });
+      
+      console.log('Room created successfully with ID:', roomId);
       
       // ルームIDをグローバルに保存
       if (typeof window !== 'undefined' && window.setCurrentRoomId) {
@@ -105,11 +127,24 @@ function setupHomeScreen() {
       if (roomInfo) {
         roomInfo.style.display = "block";
       }
+      $("#create-room-form")?.style.setProperty("display", "none");
       
-      console.log('Room ID generated:', roomId);
+      // メイン画面に切り替え
+      switchScreen("home-screen", "main-screen");
+      renderAll();
+      
+      console.log('Room ID displayed:', roomId);
     } catch (error) {
-      console.error('Failed to generate room ID:', error);
-      alert('ルームIDの生成に失敗しました: ' + error.message);
+      console.error('Failed to create room:', error);
+      const errorMessage = error.message || '不明なエラーが発生しました';
+      alert('ルーム作成に失敗しました:\n\n' + errorMessage + '\n\n詳細はブラウザのコンソール（F12）を確認してください。');
+    }
+  });
+  
+  // ルーム作成フォームでEnterキーを押したときも作成
+  $("#host-name-input")?.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      $("#btn-create-room-confirm")?.click();
     }
   });
   

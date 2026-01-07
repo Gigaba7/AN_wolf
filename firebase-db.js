@@ -3,8 +3,7 @@ import { collection, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp
 import { firestore } from "./firebase-config.js";
 import { getCurrentUserId } from "./firebase-auth.js";
 
-let userRole = null; // 'gm' | 'player'
-let isGM = false;
+// GM機能を削除：全員が同等のプレイヤー
 
 /**
  * ルームを作成（GM用）
@@ -41,9 +40,9 @@ async function createRoom(roomConfig) {
     randomResults: {},
   };
   
-  // GMをプレイヤーとして追加
+  // ホスト（最初のプレイヤー）を追加
   roomData.players[userId] = {
-    name: roomConfig.gmName || 'GM',
+    name: roomConfig.hostName || 'プレイヤー',
     role: null, // 役職は後で割り当て
     status: 'ready',
     resources: {
@@ -51,7 +50,7 @@ async function createRoom(roomConfig) {
       doctorPunchRemaining: 5,
       doctorPunchAvailableThisTurn: true,
     },
-    isGM: true,
+    isHost: true, // ホストフラグ（権限は同じ）
   };
   
   console.log('Setting room document...');
@@ -62,10 +61,6 @@ async function createRoom(roomConfig) {
     console.error('Error setting room document:', error);
     throw error;
   }
-  
-  // 自分のロールを設定
-  userRole = 'gm';
-  isGM = true;
   
   return roomId;
 }
@@ -80,11 +75,21 @@ async function joinRoom(roomId, playerName) {
     throw new Error('User not authenticated');
   }
   
+  console.log('Attempting to join room:', roomId);
+  console.log('User ID:', userId);
+  
   const roomRef = doc(firestore, 'rooms', roomId);
   const roomDoc = await getDoc(roomRef);
   
+  console.log('Room document exists:', roomDoc.exists());
+  
   if (!roomDoc.exists()) {
-    throw new Error('Room not found');
+    console.error('Room not found. Room ID:', roomId);
+    console.error('Please check:');
+    console.error('1. ルームIDが正しく入力されているか（大文字小文字を確認）');
+    console.error('2. GMがルームを作成しているか');
+    console.error('3. Firestoreにルームが存在するか');
+    throw new Error(`ルームが見つかりません (Room ID: ${roomId})\n\n確認事項:\n1. ルームIDが正しく入力されているか\n2. GMがルームを作成しているか\n3. ルームIDが共有されているか`);
   }
   
   const roomData = roomDoc.data();
@@ -107,14 +112,13 @@ async function joinRoom(roomId, playerName) {
           doctorPunchRemaining: 5,
           doctorPunchAvailableThisTurn: true,
         },
-        isGM: false,
+        isHost: false,
       },
     });
   }
   
-  // 自分のロールを設定
-  userRole = 'player';
-  isGM = roomData.config.createdBy === userId;
+  // ホストかどうかを確認（権限は同じ）
+  const isHost = roomData.config.createdBy === userId;
   
   return roomData;
 }
@@ -148,13 +152,9 @@ function subscribeToRoom(roomId, callback) {
 }
 
 /**
- * ゲーム状態を更新（GMのみ）
+ * ゲーム状態を更新（システム依存：全員が更新可能）
  */
 async function updateGameState(roomId, updates) {
-  if (!isGM) {
-    throw new Error('Only GM can update game state');
-  }
-  
   const updatesWithTimestamp = {
     ...updates,
     'gameState.updatedAt': serverTimestamp(),
@@ -169,8 +169,8 @@ async function updateGameState(roomId, updates) {
 async function updatePlayerState(roomId, userId, updates) {
   const currentUserId = getCurrentUserId();
   
-  // 自分のデータのみ更新可能（GMは全員更新可能）
-  if (userId !== currentUserId && !isGM) {
+  // 自分のデータのみ更新可能
+  if (userId !== currentUserId) {
     throw new Error('Cannot update other player\'s state');
   }
   

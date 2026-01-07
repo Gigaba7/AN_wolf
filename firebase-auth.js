@@ -3,8 +3,7 @@ import { signInAnonymously as firebaseSignInAnonymously, onAuthStateChanged as f
 import { auth } from "./firebase-config.js";
 
 let currentUser = null;
-let userRole = null; // 'gm' | 'player'
-let isGM = false;
+// GM機能を削除：全員が同等のプレイヤー
 
 /**
  * 匿名認証でログイン
