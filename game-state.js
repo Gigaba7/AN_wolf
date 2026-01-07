@@ -10,14 +10,16 @@
 const GameState = {
   players: /** @type {Player[]} */ ([]),
   currentPlayerIndex: 0,
+  playerOrder: /** @type {string[]|null} */ (null),
   turn: 1,
   maxTurns: 5,
+  phase: "waiting", // waiting | revealing | playing | finished
   whiteStars: 0,
   blackStars: 0,
   wolfActionsRemaining: 5,
   doctorPunchRemaining: 5,
   doctorPunchAvailableThisTurn: true,
-  pendingFailure: null, // { playerIndex:number } | null
+  pendingFailure: null, // { playerId?:string, playerIndex?:number } | null
   doctorFailed: false,
   currentStage: null,
   options: {

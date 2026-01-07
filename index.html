@@ -162,9 +162,7 @@
           <aside class="panel control-panel">
             <h2>操作</h2>
             <div class="control-group">
-              <button id="btn-next-player" class="btn primary wide">
-                次のプレイヤー
-              </button>
+              <!-- 次のプレイヤーは自動進行のため削除 -->
             </div>
             <div class="control-group">
               <button id="btn-success" class="btn success wide">
@@ -377,6 +375,9 @@
           <h2>あなたの役職</h2>
           <p id="self-role-text" class="result-summary" style="text-align: center; font-size: 20px; margin-top: 12px;">
             （取得中…）
+          </p>
+          <p id="self-role-waiting" class="result-summary hidden" style="text-align:center; margin-top: 10px; color:#a0a4ba;">
+            開始待機中…
           </p>
           <div class="modal-actions">
             <button id="self-role-ok" class="btn primary">OK</button>

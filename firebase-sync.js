@@ -1,8 +1,9 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyWolfAction as applyWolfActionDB } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
 import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { createRoomClient } from "./room-client.js";
 
 let currentRoomId = null;
 let roomUnsubscribe = null;
@@ -13,6 +14,25 @@ if (typeof window !== 'undefined') {
   window.getCurrentRoomId = () => currentRoomId;
   window.setCurrentRoomId = (id) => { currentRoomId = id; };
 }
+
+// 同期処理を「デフォルト」にする RoomClient
+const roomClient = createRoomClient({
+  getRoomId: () => currentRoomId,
+  setRoomId: (id) => {
+    currentRoomId = id;
+    if (typeof window !== "undefined" && window.setCurrentRoomId) {
+      window.setCurrentRoomId(id);
+    }
+  },
+  subscribe: (roomId, cb) => subscribeToRoom(roomId, cb),
+  handlers: {
+    success: (roomId, payload) => handleSuccessAction(payload, roomId),
+    fail: (roomId, payload) => handleFailAction(payload, roomId),
+    doctorPunch: (roomId, payload) => handleDoctorPunchAction(payload, roomId),
+    wolfAction: (roomId, payload) => handleWolfActionAction(payload, roomId),
+    stageRoulette: (roomId, payload) => handleStageRouletteAction(payload, roomId),
+  },
+});
 
 /**
  * ルーム作成とゲーム開始
@@ -154,14 +174,17 @@ function syncGameStateFromFirebase(roomData) {
   }
   
   // ゲーム状態を同期
+  GameState.phase = gameState.phase || "waiting";
   GameState.turn = gameState.turn || 1;
   GameState.whiteStars = gameState.whiteStars || 0;
   GameState.blackStars = gameState.blackStars || 0;
   GameState.currentPlayerIndex = gameState.currentPlayerIndex || 0;
   GameState.currentStage = gameState.currentStage;
+  GameState.pendingFailure = gameState.pendingFailure || null;
+  GameState.playerOrder = gameState.playerOrder || null;
   
   // プレイヤー情報を同期
-  GameState.players = Object.entries(players).map(([playerId, playerData]) => ({
+  let playersArr = Object.entries(players).map(([playerId, playerData]) => ({
     id: playerId,
     name: playerData.name,
     avatarLetter: playerData.name[0] || '?',
@@ -169,6 +192,18 @@ function syncGameStateFromFirebase(roomData) {
     role: playerData.role,
     resources: playerData.resources || {},
   }));
+
+  // プレイ順がある場合はその順に並べる
+  if (Array.isArray(gameState.playerOrder) && gameState.playerOrder.length) {
+    const orderIndex = new Map(gameState.playerOrder.map((id, idx) => [id, idx]));
+    playersArr.sort((a, b) => {
+      const ai = orderIndex.has(a.id) ? orderIndex.get(a.id) : 9999;
+      const bi = orderIndex.has(b.id) ? orderIndex.get(b.id) : 9999;
+      return ai - bi;
+    });
+  }
+
+  GameState.players = playersArr;
   
   // 自分のリソース情報を同期
   if (players[userId]) {
@@ -204,13 +239,28 @@ function handlePhaseUI(roomData) {
 
     // 自分の役職
     const myRole = roomData.players?.[userId]?.role || null;
-    if (myRole && !alreadyAcked) {
+    if (myRole) {
       const modal = document.getElementById("self-role-modal");
       const roleText = document.getElementById("self-role-text");
+      const okBtn = document.getElementById("self-role-ok");
+      const waitText = document.getElementById("self-role-waiting");
+
       if (roleText) {
         roleText.textContent =
           myRole === "wolf" ? "人狼（レユニオン）" : myRole === "doctor" ? "ドクター" : "市民";
       }
+
+      if (alreadyAcked) {
+        okBtn?.setAttribute("disabled", "true");
+        okBtn && (okBtn.textContent = "OK済み");
+        waitText && (waitText.textContent = "開始待機中…（全員のOKを待っています）");
+        waitText?.classList.remove("hidden");
+      } else {
+        okBtn?.removeAttribute("disabled");
+        okBtn && (okBtn.textContent = "OK");
+        waitText?.classList.add("hidden");
+      }
+
       modal?.classList.remove("hidden");
     }
 
@@ -250,34 +300,8 @@ async function acknowledgeRoleReveal(roomId) {
  * ローカルの変更をFirebaseに送信
  */
 async function syncToFirebase(action, data) {
-  const roomId = data.roomId || currentRoomId;
-  if (!roomId) {
-    return;
-  }
-  
   try {
-    switch (action) {
-      case 'success':
-        await handleSuccessAction(data, roomId);
-        break;
-      case 'fail':
-        await handleFailAction(data, roomId);
-        break;
-      case 'doctorPunch':
-        await handleDoctorPunchAction(data, roomId);
-        break;
-      case 'wolfAction':
-        await handleWolfActionAction(data, roomId);
-        break;
-      case 'nextPlayer':
-        await handleNextPlayerAction(roomId);
-        break;
-      case 'stageRoulette':
-        await handleStageRouletteAction(data, roomId);
-        break;
-      default:
-        console.warn('Unknown action:', action);
-    }
+    await roomClient.dispatch(action, data || {});
   } catch (error) {
     console.error('Failed to sync to Firebase:', error);
     throw error;
@@ -289,22 +313,8 @@ async function syncToFirebase(action, data) {
  */
 async function handleSuccessAction(data, roomId) {
   const userId = getCurrentUserId();
-  const GameState = typeof window !== 'undefined' ? window.GameState : null;
-  if (!GameState) return;
-  
-  // 次のプレイヤーに進む
-  const currentIndex = GameState.currentPlayerIndex;
-  const nextIndex = (currentIndex + 1) % GameState.players.length;
-  
-  await updateGameState(roomId, {
-    'gameState.currentPlayerIndex': nextIndex,
-  });
-  
-  await addLog(roomId, {
-    type: 'success',
-    message: `${data.playerName} がステージ攻略に成功しました。`,
-    playerId: userId,
-  });
+  await applySuccessDB(roomId);
+  await addLog(roomId, { type: "success", message: `${data.playerName} がステージ攻略に成功しました。`, playerId: userId });
 }
 
 /**
@@ -312,28 +322,8 @@ async function handleSuccessAction(data, roomId) {
  */
 async function handleFailAction(data, roomId) {
   const userId = getCurrentUserId();
-  
-  await addLog(roomId, {
-    type: 'fail',
-    message: `${data.playerName} がステージ攻略に失敗しました。`,
-    playerId: userId,
-  });
-  
-  const GameState = typeof window !== 'undefined' ? window.GameState : null;
-  if (!GameState) return;
-  
-  // ドクター神拳が使用可能な場合は保留状態
-  if (GameState.doctorPunchRemaining > 0) {
-    await updateGameState(roomId, {
-      'gameState.pendingFailure': {
-        playerId: userId,
-        playerIndex: data.playerIndex,
-      },
-    });
-  } else {
-    // 失敗が確定
-    await confirmFailure(data, roomId);
-  }
+  await applyFailDB(roomId);
+  await addLog(roomId, { type: "fail", message: `${data.playerName} がステージ攻略に失敗しました。`, playerId: userId });
 }
 
 /**
@@ -341,25 +331,8 @@ async function handleFailAction(data, roomId) {
  */
 async function handleDoctorPunchAction(data, roomId) {
   const userId = getCurrentUserId();
-  const GameState = typeof window !== 'undefined' ? window.GameState : null;
-  if (!GameState) return;
-  
-  // リソースを消費
-  await updatePlayerState(roomId, userId, {
-    'resources.doctorPunchRemaining': GameState.doctorPunchRemaining - 1,
-    'resources.doctorPunchAvailableThisTurn': false,
-  });
-  
-  // 保留中の失敗を解除
-  await updateGameState(roomId, {
-    'gameState.pendingFailure': null,
-  });
-  
-  await addLog(roomId, {
-    type: 'doctorPunch',
-    message: `ドクター神拳発動！ ${data.playerName} の失敗はなかったことになりました。`,
-    playerId: userId,
-  });
+  await applyDoctorPunchDB(roomId);
+  await addLog(roomId, { type: "doctorPunch", message: `ドクター神拳発動！ ${data.playerName} の失敗はなかったことになりました。`, playerId: userId });
 }
 
 /**
@@ -367,41 +340,16 @@ async function handleDoctorPunchAction(data, roomId) {
  */
 async function handleWolfActionAction(data, roomId) {
   const userId = getCurrentUserId();
-  const GameState = typeof window !== 'undefined' ? window.GameState : null;
-  if (!GameState) return;
-  
+  await applyWolfActionDB(roomId);
   // 乱数結果を保存（既にクライアント側で選択済み）
-  await saveRandomResult(roomId, `wolfAction_${Date.now()}`, {
-    action: data.action,
-    timestamp: Date.now(),
-  });
-  
-  // リソースを消費
-  await updatePlayerState(roomId, userId, {
-    'resources.wolfActionsRemaining': GameState.wolfActionsRemaining - 1,
-  });
-  
-  await addLog(roomId, {
-    type: 'wolfAction',
-    message: `人狼妨害: ${data.action} が発動されました。`,
-    playerId: userId,
-  });
+  await saveRandomResult(roomId, `wolfAction_${Date.now()}`, { action: data.action, timestamp: Date.now() });
+  await addLog(roomId, { type: "wolfAction", message: `人狼妨害: ${data.action} が発動されました。`, playerId: userId });
 }
 
 /**
  * 次のプレイヤーアクションの処理
  */
-async function handleNextPlayerAction(roomId) {
-  const GameState = typeof window !== 'undefined' ? window.GameState : null;
-  if (!GameState) return;
-  
-  const currentIndex = GameState.currentPlayerIndex;
-  const nextIndex = (currentIndex + 1) % GameState.players.length;
-  
-  await updateGameState(roomId, {
-    'gameState.currentPlayerIndex': nextIndex,
-  });
-}
+// nextPlayer は削除（自動進行）
 
 /**
  * ステージルーレットアクションの処理
@@ -476,3 +424,6 @@ function stopRoomSync() {
 
 // エクスポート
 export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal };
+
+// 新しいデフォルト同期API（チャット追加もここにぶら下げる想定）
+export { roomClient };

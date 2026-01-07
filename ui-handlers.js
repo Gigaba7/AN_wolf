@@ -7,7 +7,7 @@ import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost,
 import { signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./game-roles.js";
 import { renderAll, renderWaitingScreen } from "./ui-render.module.js";
-import { onNextPlayer, onSuccess, onFail, onDoctorPunch, onWolfAction } from "./game-logic.js";
+import { onSuccess, onFail, onDoctorPunch, onWolfAction } from "./game-logic.js";
 import { startStageRoulette, startWolfRoulette } from "./game-roulette.js";
 
 function setupHomeScreen() {
@@ -251,7 +251,6 @@ function setupHomeScreen() {
 }
 
 function setupMainScreen() {
-  $("#btn-next-player")?.addEventListener("click", onNextPlayer);
   $("#btn-success")?.addEventListener("click", onSuccess);
   $("#btn-fail")?.addEventListener("click", onFail);
   $("#btn-doctor-punch")?.addEventListener("click", onDoctorPunch);

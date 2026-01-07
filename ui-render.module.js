@@ -23,6 +23,7 @@ function renderAll() {
 
   renderStatus();
   renderPlayers();
+  updateControlPermissions();
 }
 
 // firebase-sync.js が最初の onSnapshot で UI 更新を呼ぶ前に参照できるように、
@@ -65,10 +66,33 @@ function renderPlayers() {
 
   listEl.innerHTML = "";
 
-  GameState.players.forEach((p, idx) => {
+  // 表示順：Firestoreで同期された playerOrder を最優先
+  const order =
+    (Array.isArray(GameState.playerOrder) && GameState.playerOrder.length
+      ? GameState.playerOrder
+      : typeof window !== "undefined" && Array.isArray(window.RoomInfo?.gameState?.playerOrder)
+      ? window.RoomInfo.gameState.playerOrder
+      : null) || null;
+
+  const orderIndex = order ? new Map(order.map((id, idx) => [id, idx])) : null;
+  const playersToRender = [...(GameState.players || [])];
+  if (orderIndex) {
+    playersToRender.sort((a, b) => {
+      const ai = orderIndex.has(a.id) ? orderIndex.get(a.id) : 9999;
+      const bi = orderIndex.has(b.id) ? orderIndex.get(b.id) : 9999;
+      return ai - bi;
+    });
+  }
+
+  // 現在プレイヤーは index ではなく id で特定（並べ替えに強くする）
+  const currentId = order
+    ? order[Math.max(0, Math.min(GameState.currentPlayerIndex, order.length - 1))]
+    : GameState.players?.[GameState.currentPlayerIndex]?.id || null;
+
+  playersToRender.forEach((p) => {
     const card = document.createElement("div");
     card.className = "player-card";
-    if (idx === GameState.currentPlayerIndex) {
+    if (currentId && p.id === currentId) {
       card.classList.add("current");
     }
 
@@ -84,6 +108,40 @@ function renderPlayers() {
     card.appendChild(name);
     listEl.appendChild(card);
   });
+}
+
+function updateControlPermissions() {
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const phase = typeof window !== "undefined" ? window.RoomInfo?.gameState?.phase : null;
+
+  const btnSuccess = $("#btn-success");
+  const btnFail = $("#btn-fail");
+  const btnWolf = $("#btn-wolf-action");
+  const btnDoc = $("#btn-doctor-punch");
+
+  const currentPlayer = GameState.players?.[GameState.currentPlayerIndex] || null;
+  const isCurrent = !!(myId && currentPlayer?.id && currentPlayer.id === myId);
+  const myRole = myId ? GameState.players.find((p) => p.id === myId)?.role : null;
+
+  const inPlaying = phase === "playing";
+
+  // 成功/失敗は「プレイ中の本人のみ」
+  if (btnSuccess) btnSuccess.disabled = !(inPlaying && isCurrent);
+  if (btnFail) btnFail.disabled = !(inPlaying && isCurrent);
+
+  // 人狼妨害は人狼のみ（プレイ中）
+  if (btnWolf) btnWolf.disabled = !(inPlaying && myRole === "wolf" && GameState.wolfActionsRemaining > 0);
+
+  // ドクター神拳はドクターのみ（プレイ中・失敗保留あり・残数あり）
+  const hasPendingFailure = !!GameState.pendingFailure;
+  if (btnDoc)
+    btnDoc.disabled = !(
+      inPlaying &&
+      myRole === "doctor" &&
+      hasPendingFailure &&
+      GameState.doctorPunchAvailableThisTurn &&
+      GameState.doctorPunchRemaining > 0
+    );
 }
 
 function renderWaitingScreen(roomId) {

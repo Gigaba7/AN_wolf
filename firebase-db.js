@@ -247,7 +247,7 @@ async function releaseLock(roomId) {
 }
 
 // エクスポート
-export { createRoom, joinRoom, generateRoomId, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, acquireLock, releaseLock, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAcked };
+export { createRoom, joinRoom, generateRoomId, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, acquireLock, releaseLock, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAcked, applySuccess, applyFail, applyDoctorPunch, applyWolfAction };
 
 /**
  * ホストのみ：ゲーム開始（役職をランダム割当→revealフェーズへ）
@@ -351,9 +351,194 @@ async function advanceToPlayingIfAllAcked(roomId) {
     const allAcked = playerIds.length > 0 && playerIds.every((pid) => acks[pid] === true);
     if (!allAcked) return;
 
+    // プレイ順をランダム決定（ホストのみ）
+    const order = [...playerIds];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+
     tx.update(roomRef, {
       "gameState.phase": "playing",
       "gameState.revealAcks": {},
+      "gameState.playerOrder": order,
+      "gameState.currentPlayerIndex": 0,
+    });
+  });
+}
+
+/**
+ * プレイ中の成功を確定（現在プレイヤーのみ）
+ */
+async function applySuccess(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    const playersObj = data?.players || {};
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+    const idx = Number(data?.gameState?.currentPlayerIndex || 0);
+    const currentPlayerId = order[idx];
+    if (currentPlayerId !== userId) throw new Error("Only current player can submit success/fail");
+
+    const white = Number(data?.gameState?.whiteStars || 0) + 1;
+    const black = Number(data?.gameState?.blackStars || 0);
+    const nextIndex = (idx + 1) % order.length;
+    const nextTurn = Math.min(Number(data?.gameState?.maxTurns || 5), white + black + 1);
+
+    // 次の行動に向けてドクター神拳のターン内使用可をリセット（ドクターが存在する場合のみ）
+    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+
+    /** @type {Record<string, any>} */
+    const updates = {
+      "gameState.whiteStars": white,
+      "gameState.currentPlayerIndex": nextIndex,
+      "gameState.turn": nextTurn,
+      "gameState.pendingFailure": null,
+    };
+    if (doctorId) {
+      updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+    }
+
+    tx.update(roomRef, updates);
+  });
+}
+
+/**
+ * プレイ中の失敗入力（現在プレイヤーのみ）
+ * ドクター神拳が使用可能なら pendingFailure にして保留、不可なら黒星確定。
+ */
+async function applyFail(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    const playersObj = data?.players || {};
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+    const idx = Number(data?.gameState?.currentPlayerIndex || 0);
+    const currentPlayerId = order[idx];
+    if (currentPlayerId !== userId) throw new Error("Only current player can submit success/fail");
+
+    if (data?.gameState?.pendingFailure) {
+      throw new Error("A failure is already pending");
+    }
+
+    // ドクターがいて、神拳が使えるなら保留にする
+    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+    const doctorRes = doctorId ? (playersObj?.[doctorId]?.resources || {}) : null;
+    const docRemain = doctorRes ? Number(doctorRes.doctorPunchRemaining || 0) : 0;
+    const docAvail = doctorRes ? doctorRes.doctorPunchAvailableThisTurn !== false : false;
+
+    if (doctorId && docRemain > 0 && docAvail) {
+      tx.update(roomRef, {
+        "gameState.pendingFailure": { playerId: userId },
+      });
+      return;
+    }
+
+    // 神拳が無いので黒星確定
+    const white = Number(data?.gameState?.whiteStars || 0);
+    const black = Number(data?.gameState?.blackStars || 0) + 1;
+    const nextIndex = (idx + 1) % order.length;
+    const nextTurn = Math.min(Number(data?.gameState?.maxTurns || 5), white + black + 1);
+
+    /** @type {Record<string, any>} */
+    const updates = {
+      "gameState.blackStars": black,
+      "gameState.currentPlayerIndex": nextIndex,
+      "gameState.turn": nextTurn,
+      "gameState.pendingFailure": null,
+    };
+    if (doctorId) {
+      updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+    }
+
+    tx.update(roomRef, updates);
+  });
+}
+
+/**
+ * ドクター神拳（ドクターのみ）
+ */
+async function applyDoctorPunch(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    const playersObj = data?.players || {};
+    const me = playersObj?.[userId];
+    if (!me || me.role !== "doctor") throw new Error("Only doctor can use Doctor Punch");
+
+    const pending = data?.gameState?.pendingFailure;
+    if (!pending) throw new Error("No pending failure");
+
+    const res = me.resources || {};
+    const remain = Number(res.doctorPunchRemaining || 0);
+    const avail = res.doctorPunchAvailableThisTurn !== false;
+    if (remain <= 0 || !avail) throw new Error("Doctor Punch not available");
+
+    tx.update(roomRef, {
+      "gameState.pendingFailure": null,
+      [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
+      [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
+    });
+  });
+}
+
+/**
+ * 人狼妨害（人狼のみ）
+ */
+async function applyWolfAction(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    const playersObj = data?.players || {};
+    const me = playersObj?.[userId];
+    if (!me || me.role !== "wolf") throw new Error("Only werewolf can use obstruction");
+
+    const res = me.resources || {};
+    const remain = Number(res.wolfActionsRemaining || 0);
+    if (remain <= 0) throw new Error("No remaining wolf actions");
+
+    tx.update(roomRef, {
+      [`players.${userId}.resources.wolfActionsRemaining`]: remain - 1,
     });
   });
 }

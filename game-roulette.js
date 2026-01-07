@@ -46,16 +46,12 @@ function startWolfRoulette() {
 }
 
 async function useWolfAction(action) {
-  GameState.wolfActionsRemaining -= 1;
-
   // Firebase同期
   const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
   if (roomId) {
     try {
       await syncToFirebase('wolfAction', { 
         action: action,
-        newWolfActionsRemaining: GameState.wolfActionsRemaining,
-        logMessage: `人狼妨害: ${action} が発動されました。`,
         roomId
       });
     } catch (error) {
@@ -63,10 +59,7 @@ async function useWolfAction(action) {
     }
   }
 
-  logTurn(`人狼妨害: ${action} が発動されました。`);
-  
-  // UIを更新
-  renderAll();
+  // ログ・UI更新はsnapshot反映に追従
 }
 
 function startStageRoulette() {
