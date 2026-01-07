@@ -2,14 +2,10 @@
 
 import { GameState, $ } from "./game-state.js";
 
-// renderAllをグローバルに公開（firebase-sync.jsからアクセス可能にする）
-let renderAllFunction = null;
-
 function renderAll() {
   // グローバルに公開（firebase-sync.jsからアクセス可能にする）
   if (typeof window !== 'undefined') {
     window.renderAll = renderAll;
-    renderAllFunction = renderAll;
   }
   
   // 待機画面が表示されている場合は待機画面も更新
@@ -24,6 +20,12 @@ function renderAll() {
   
   renderStatus();
   renderPlayers();
+}
+
+// firebase-sync.js が最初の onSnapshot で UI 更新を呼ぶ前に参照できるように、
+// モジュール評価時点でも公開しておく
+if (typeof window !== 'undefined') {
+  window.renderAll = renderAll;
 }
 
 function renderStatus() {
@@ -87,30 +89,40 @@ function renderWaitingScreen(roomId) {
   const playersCountEl = $("#waiting-players-count");
   const startBtn = $("#btn-start-game-from-waiting");
   
-  // ルームIDを表示
+  // ルームIDは画面に表示しない（視聴者乱入防止）。コピー用にdata属性へ保持。
   if (roomIdEl && roomId) {
-    roomIdEl.textContent = roomId;
+    roomIdEl.textContent = "••••••";
+    roomIdEl.dataset.roomId = roomId;
   }
   
   // プレイヤーリストを更新（Firebaseから取得）
   if (playersListEl) {
-    const GameState = typeof window !== 'undefined' ? window.GameState : null;
     if (GameState && GameState.players) {
       playersListEl.innerHTML = "";
-      
-      GameState.players.forEach((player) => {
-        const playerItem = document.createElement("div");
-        playerItem.className = "waiting-player-item";
-        playerItem.innerHTML = `
-          <div class="waiting-player-avatar">${player.avatarLetter || '?'}</div>
-          <div class="waiting-player-name">${player.name || 'プレイヤー'}</div>
-        `;
-        playersListEl.appendChild(playerItem);
-      });
+
+      if (!GameState.players.length) {
+        const empty = document.createElement("div");
+        empty.style.gridColumn = "1 / -1";
+        empty.style.textAlign = "center";
+        empty.style.color = "#a0a4ba";
+        empty.style.padding = "12px 0";
+        empty.textContent = "参加者を同期中…";
+        playersListEl.appendChild(empty);
+      } else {
+        GameState.players.forEach((player) => {
+          const playerItem = document.createElement("div");
+          playerItem.className = "waiting-player-item";
+          playerItem.innerHTML = `
+            <div class="waiting-player-avatar">${player.avatarLetter || '?'}</div>
+            <div class="waiting-player-name">${player.name || 'プレイヤー'}</div>
+          `;
+          playersListEl.appendChild(playerItem);
+        });
+      }
       
       // 参加者数を更新
       if (playersCountEl) {
-        playersCountEl.textContent = GameState.players.length;
+        playersCountEl.textContent = String(GameState.players.length || 0);
       }
       
       // ゲーム開始ボタンの有効/無効を切り替え
@@ -123,7 +135,6 @@ function renderWaitingScreen(roomId) {
           startBtn.textContent = `ゲーム開始 (最低3人必要 / 現在${GameState.players.length}人)`;
         }
       }
-    }
   }
 }
 

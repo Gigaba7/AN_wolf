@@ -85,6 +85,19 @@ function setupHomeScreen() {
       
       // 待機画面に切り替え
       switchScreen("home-screen", "waiting-screen");
+
+      // 初回スナップショット前でもホストが参加者として見えるようにローカル反映
+      if (currentUser?.uid) {
+        GameState.players = [
+          {
+            id: currentUser.uid,
+            name: hostName,
+            avatarLetter: hostName[0] || "?",
+            avatarImage: null,
+            role: /** @type {any} */ (null),
+          },
+        ];
+      }
       renderWaitingScreen(roomId);
     } catch (error) {
       console.error('Failed to create room:', error);
@@ -121,6 +134,20 @@ function setupHomeScreen() {
       await joinRoomAndSync(roomId, playerName);
       // 参加後は待機画面に切り替え
       switchScreen("home-screen", "waiting-screen");
+
+      // 初回スナップショット前でも自分が参加者として見えるようにローカル反映
+      const currentUser = getCurrentUser();
+      if (currentUser?.uid) {
+        GameState.players = [
+          {
+            id: currentUser.uid,
+            name: playerName,
+            avatarLetter: playerName[0] || "?",
+            avatarImage: null,
+            role: /** @type {any} */ (null),
+          },
+        ];
+      }
       renderWaitingScreen(roomId);
     } catch (error) {
       alert("ルームへの参加に失敗しました: " + error.message);
@@ -140,12 +167,23 @@ function setupHomeScreen() {
     }
   });
   
+  const setCopiedFeedback = (btn) => {
+    if (!btn) return;
+    const prev = btn.textContent;
+    btn.textContent = "コピーしました";
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = prev;
+      btn.disabled = false;
+    }, 900);
+  };
+
   $("#btn-copy-room-id")?.addEventListener("click", () => {
     const roomIdDisplay = $("#room-id-display");
     if (roomIdDisplay && roomIdDisplay.textContent) {
       const roomId = roomIdDisplay.textContent;
       navigator.clipboard.writeText(roomId).then(() => {
-        alert("ルームIDをコピーしました: " + roomId);
+        setCopiedFeedback($("#btn-copy-room-id"));
       }).catch(() => {
         // フォールバック
         const textarea = document.createElement("textarea");
@@ -154,7 +192,7 @@ function setupHomeScreen() {
         textarea.select();
         document.execCommand("copy");
         document.body.removeChild(textarea);
-        alert("ルームIDをコピーしました: " + roomId);
+        setCopiedFeedback($("#btn-copy-room-id"));
       });
     }
   });
@@ -162,19 +200,19 @@ function setupHomeScreen() {
   // 待機画面のボタン
   $("#btn-copy-waiting-room-id")?.addEventListener("click", () => {
     const roomIdEl = $("#waiting-room-id");
-    if (roomIdEl && roomIdEl.textContent) {
-      const roomId = roomIdEl.textContent;
-      navigator.clipboard.writeText(roomId).then(() => {
-        alert("ルームIDをコピーしました: " + roomId);
+    const actualRoomId = roomIdEl?.dataset?.roomId || (typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null);
+    if (actualRoomId) {
+      navigator.clipboard.writeText(actualRoomId).then(() => {
+        setCopiedFeedback($("#btn-copy-waiting-room-id"));
       }).catch(() => {
         // フォールバック
         const textarea = document.createElement("textarea");
-        textarea.value = roomId;
+        textarea.value = actualRoomId;
         document.body.appendChild(textarea);
         textarea.select();
         document.execCommand("copy");
         document.body.removeChild(textarea);
-        alert("ルームIDをコピーしました: " + roomId);
+        setCopiedFeedback($("#btn-copy-waiting-room-id"));
       });
     }
   });
