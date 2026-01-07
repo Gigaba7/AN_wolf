@@ -2,7 +2,7 @@
 
 import { GameState } from "./game-state.js";
 import { syncToFirebase } from "./firebase-sync.js";
-import { renderAll } from "./ui-render.js";
+import { renderAll } from "./ui-render.module.js";
 import { logSuccess, logFail, logTurn } from "./game-logging.js";
 import { checkGameEnd } from "./game-result.js";
 

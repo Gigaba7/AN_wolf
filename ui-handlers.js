@@ -6,7 +6,7 @@ import { logSystem, logTurn } from "./game-logging.js";
 import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync } from "./firebase-sync.js";
 import { signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./game-roles.js";
-import { renderAll, renderWaitingScreen } from "./ui-render.js";
+import { renderAll, renderWaitingScreen } from "./ui-render.module.js";
 import { onNextPlayer, onSuccess, onFail, onDoctorPunch, onWolfAction } from "./game-logic.js";
 import { startStageRoulette, startWolfRoulette } from "./game-roulette.js";
 

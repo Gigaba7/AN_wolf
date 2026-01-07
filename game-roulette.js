@@ -4,7 +4,7 @@ import { GameState, $, $$ } from "./game-state.js";
 import { closeAllRouletteModals } from "./ui-modals.js";
 import { syncToFirebase } from "./firebase-sync.js";
 import { logSystem, logTurn } from "./game-logging.js";
-import { renderAll } from "./ui-render.js";
+import { renderAll } from "./ui-render.module.js";
 
 function startWolfRoulette() {
   const itemsEl = $("#wolf-roulette-items");
