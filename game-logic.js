@@ -2,13 +2,27 @@
 
 import { GameState } from "./game-state.js";
 import { syncToFirebase } from "./firebase-sync.js";
-import { renderAll } from "./ui-render.module.js";
-import { logSuccess, logFail, logTurn } from "./game-logging.js";
-import { checkGameEnd } from "./game-result.js";
+
+function getOrderedCurrentPlayer() {
+  const order =
+    (Array.isArray(GameState.playerOrder) && GameState.playerOrder.length
+      ? GameState.playerOrder
+      : typeof window !== "undefined" && Array.isArray(window.RoomInfo?.gameState?.playerOrder)
+      ? window.RoomInfo.gameState.playerOrder
+      : null) || null;
+
+  const currentPlayerId = order
+    ? order[Math.max(0, Math.min(GameState.currentPlayerIndex, order.length - 1))]
+    : GameState.players?.[GameState.currentPlayerIndex]?.id || null;
+
+  const player = currentPlayerId ? GameState.players.find((p) => p.id === currentPlayerId) : null;
+  return { player, currentPlayerId };
+}
 
 async function onSuccess() {
   if (!GameState.players.length || GameState.resultLocked) return;
-  const player = GameState.players[GameState.currentPlayerIndex];
+  const { player } = getOrderedCurrentPlayer();
+  if (!player) return;
 
   // Firebase同期
   const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
@@ -26,10 +40,10 @@ async function onSuccess() {
 
 async function onFail() {
   if (!GameState.players.length || GameState.resultLocked) return;
-  if (GameState.pendingFailure) return; // 二重押下防止
 
-  const idx = GameState.currentPlayerIndex;
-  const player = GameState.players[idx];
+  const { player } = getOrderedCurrentPlayer();
+  if (!player) return;
+  const isConfirm = !!GameState.pendingFailure; // 失敗保留中なら「失敗確定（神拳なし）」
 
   // Firebase同期
   const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
@@ -37,6 +51,7 @@ async function onFail() {
     try {
       await syncToFirebase('fail', { 
         playerName: player.name,
+        isConfirm,
         roomId
       });
     } catch (error) {
@@ -50,14 +65,18 @@ async function onDoctorPunch() {
   if (!GameState.pendingFailure) return;
   if (!GameState.doctorPunchAvailableThisTurn) return;
   if (GameState.doctorPunchRemaining <= 0) return;
-  const player = GameState.players[GameState.currentPlayerIndex] || { name: "プレイヤー" };
+
+  // 神拳対象は「失敗保留中のプレイヤー」
+  const targetId = GameState.pendingFailure?.playerId || null;
+  const targetPlayer = targetId ? GameState.players.find((p) => p.id === targetId) : null;
+  const targetName = targetPlayer?.name || "プレイヤー";
 
   // Firebase同期
   const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
   if (roomId) {
     try {
       await syncToFirebase('doctorPunch', { 
-        playerName: player.name,
+        targetPlayerName: targetName,
         roomId
       });
     } catch (error) {

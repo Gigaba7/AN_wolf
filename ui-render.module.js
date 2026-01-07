@@ -89,6 +89,8 @@ function renderPlayers() {
     ? order[Math.max(0, Math.min(GameState.currentPlayerIndex, order.length - 1))]
     : GameState.players?.[GameState.currentPlayerIndex]?.id || null;
 
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+
   playersToRender.forEach((p) => {
     const card = document.createElement("div");
     card.className = "player-card";
@@ -100,12 +102,38 @@ function renderPlayers() {
     avatar.className = "player-avatar";
     avatar.textContent = p.avatarLetter || "?";
 
+    const meta = document.createElement("div");
+    meta.className = "player-meta";
+
     const name = document.createElement("div");
     name.className = "player-name";
     name.textContent = p.name || "プレイヤー";
 
+    // 自分の名前を太字に
+    const isMe = !!(myId && p.id === myId);
+    if (isMe) {
+      name.classList.add("player-name-self");
+    }
+
+    // 自分の役職のみ表示（他者は非表示）
+    if (isMe && p.role) {
+      const roleLabel =
+        p.role === "doctor" ? "ドクター" : p.role === "wolf" ? "人狼" : "市民";
+      const roleClass =
+        p.role === "doctor"
+          ? "role-doctor"
+          : p.role === "wolf"
+          ? "role-wolf"
+          : "role-citizen";
+      const roleTag = document.createElement("span");
+      roleTag.className = `player-role-tag ${roleClass}`;
+      roleTag.textContent = roleLabel;
+      name.appendChild(roleTag);
+    }
+
     card.appendChild(avatar);
-    card.appendChild(name);
+    meta.appendChild(name);
+    card.appendChild(meta);
     listEl.appendChild(card);
   });
 }
@@ -119,21 +147,39 @@ function updateControlPermissions() {
   const btnWolf = $("#btn-wolf-action");
   const btnDoc = $("#btn-doctor-punch");
 
-  const currentPlayer = GameState.players?.[GameState.currentPlayerIndex] || null;
+  // 現在プレイヤーは playerOrder + currentPlayerIndex で決める（配列並び替えに強くする）
+  const order =
+    (Array.isArray(GameState.playerOrder) && GameState.playerOrder.length
+      ? GameState.playerOrder
+      : typeof window !== "undefined" && Array.isArray(window.RoomInfo?.gameState?.playerOrder)
+      ? window.RoomInfo.gameState.playerOrder
+      : null) || null;
+  const currentPlayerId = order
+    ? order[Math.max(0, Math.min(GameState.currentPlayerIndex, order.length - 1))]
+    : GameState.players?.[GameState.currentPlayerIndex]?.id || null;
+  const currentPlayer = currentPlayerId
+    ? GameState.players.find((p) => p.id === currentPlayerId) || null
+    : null;
+
   const isCurrent = !!(myId && currentPlayer?.id && currentPlayer.id === myId);
   const myRole = myId ? GameState.players.find((p) => p.id === myId)?.role : null;
 
   const inPlaying = phase === "playing";
+  const hasPendingFailure = !!GameState.pendingFailure;
+  const pendingForMe = !!(hasPendingFailure && myId && GameState.pendingFailure?.playerId === myId);
 
-  // 成功/失敗は「プレイ中の本人のみ」
-  if (btnSuccess) btnSuccess.disabled = !(inPlaying && isCurrent);
-  if (btnFail) btnFail.disabled = !(inPlaying && isCurrent);
+  // 成功/失敗は「プレイ中の現在プレイヤーのみ」
+  // ただし失敗後は「神拳使用フェーズ」になるため、成功は無効・失敗は「失敗確定（神拳なし）」のみ可能
+  if (btnSuccess) btnSuccess.disabled = !(inPlaying && isCurrent && !hasPendingFailure);
+  if (btnFail) {
+    btnFail.disabled = !(inPlaying && isCurrent && (!hasPendingFailure || pendingForMe));
+    btnFail.textContent = hasPendingFailure ? "失敗確定（神拳なし）" : "失敗";
+  }
 
   // 人狼妨害は人狼のみ（プレイ中）
   if (btnWolf) btnWolf.disabled = !(inPlaying && myRole === "wolf" && GameState.wolfActionsRemaining > 0);
 
-  // ドクター神拳はドクターのみ（プレイ中・失敗保留あり・残数あり）
-  const hasPendingFailure = !!GameState.pendingFailure;
+  // ドクター神拳はドクターのみ（プレイ中・失敗保留あり・残数あり・ターン内未使用）
   if (btnDoc)
     btnDoc.disabled = !(
       inPlaying &&

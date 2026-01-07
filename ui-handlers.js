@@ -3,18 +3,52 @@
 import { GameState, $ } from "./game-state.js";
 import { openModal, switchScreen, closeModal } from "./ui-modals.js";
 import { logSystem, logTurn } from "./game-logging.js";
-import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost, acknowledgeRoleReveal } from "./firebase-sync.js";
+import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, syncToFirebase } from "./firebase-sync.js";
 import { signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./game-roles.js";
 import { renderAll, renderWaitingScreen } from "./ui-render.module.js";
 import { onSuccess, onFail, onDoctorPunch, onWolfAction } from "./game-logic.js";
-import { startStageRoulette, startWolfRoulette } from "./game-roulette.js";
+import { startWolfRoulette, startStageRoulette } from "./game-roulette.js";
+
+function refreshOptionsModalControls() {
+  const soundEl = $("#opt-sound");
+  const minEl = $("#opt-stage-min");
+  const maxEl = $("#opt-stage-max");
+  const wolfEl = $("#opt-wolf-actions");
+
+  if (soundEl instanceof HTMLInputElement) {
+    soundEl.checked = GameState.options.sound;
+  }
+  if (minEl instanceof HTMLSelectElement) {
+    minEl.value = String(GameState.options.stageMinChapter);
+  }
+  if (maxEl instanceof HTMLSelectElement) {
+    maxEl.value = String(GameState.options.stageMaxChapter);
+  }
+  if (wolfEl instanceof HTMLTextAreaElement) {
+    wolfEl.value = GameState.options.wolfActionTexts.join("\n");
+  }
+
+  // 共有項目（ステージ範囲/妨害内容）はホストのみ編集可
+  const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+  const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const isHost = !!(roomId && createdBy && myId && createdBy === myId);
+  const inRoom = !!roomId;
+
+  if (minEl instanceof HTMLSelectElement) minEl.disabled = inRoom && !isHost;
+  if (maxEl instanceof HTMLSelectElement) maxEl.disabled = inRoom && !isHost;
+  if (wolfEl instanceof HTMLTextAreaElement) wolfEl.disabled = inRoom && !isHost;
+}
 
 function setupHomeScreen() {
   const optBtn = $("#open-options");
   const tosBtn = $("#open-tos");
 
-  optBtn?.addEventListener("click", () => openModal("options-modal"));
+  optBtn?.addEventListener("click", () => {
+    refreshOptionsModalControls();
+    openModal("options-modal");
+  });
   tosBtn?.addEventListener("click", () => openModal("tos-modal"));
   
   // ルーム作成/参加ボタン
@@ -255,7 +289,10 @@ function setupMainScreen() {
   $("#btn-fail")?.addEventListener("click", onFail);
   $("#btn-doctor-punch")?.addEventListener("click", onDoctorPunch);
   $("#btn-wolf-action")?.addEventListener("click", onWolfAction);
-  $("#main-options-btn")?.addEventListener("click", () => openModal("options-modal"));
+  $("#main-options-btn")?.addEventListener("click", () => {
+    refreshOptionsModalControls();
+    openModal("options-modal");
+  });
 }
 
 function setupModals() {
@@ -272,6 +309,11 @@ function setupModals() {
 
   // ステージルーレット
   $("#stage-roulette-start")?.addEventListener("click", () => {
+    // 旧挙動：ホストがボタンでルーレット開始（結果は同期）
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isHost = !!(createdBy && myId && createdBy === myId);
+    if (!isHost) return;
     startStageRoulette();
   });
 
@@ -322,6 +364,24 @@ function setupModals() {
         GameState.options.wolfActionTexts = lines;
       }
     }
+
+    // 共有項目だけルームに同期（ホストのみ）
+    const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isHost = !!(roomId && createdBy && myId && createdBy === myId);
+    if (roomId && isHost) {
+      syncToFirebase("updateConfig", {
+        stageMinChapter: GameState.options.stageMinChapter,
+        stageMaxChapter: GameState.options.stageMaxChapter,
+        wolfActionTexts: GameState.options.wolfActionTexts,
+        roomId,
+      }).catch((e) => {
+        console.error("Failed to update config:", e);
+        alert(`オプション同期に失敗しました: ${e.message}`);
+      });
+    }
+
     closeModal("options-modal");
     logSystem("オプションを保存しました。");
   });

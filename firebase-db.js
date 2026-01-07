@@ -192,12 +192,14 @@ async function updatePlayerState(roomId, userId, updates) {
  * ログを追加
  */
 async function addLog(roomId, logEntry) {
+  // NOTE: arrayUnion の要素に serverTimestamp() を含めると Firestore が拒否するため、
+  // timestamp は数値（ms）で保存する。将来は rooms/{roomId}/logs サブコレクション化が推奨。
   const logData = {
     ...logEntry,
-    timestamp: serverTimestamp(),
+    timestamp: Date.now(),
     userId: getCurrentUserId(),
   };
-  
+
   await updateDoc(doc(firestore, 'rooms', roomId), {
     logs: arrayUnion(logData),
   });
@@ -299,6 +301,9 @@ async function startGameAsHost(roomId) {
       "gameState.blackStars": 0,
       "gameState.currentPlayerIndex": 0,
       "gameState.currentStage": null,
+      "gameState.playerOrder": null,
+      "gameState.pendingFailure": null,
+      "gameState.stageTurn": null,
     };
 
     playerIds.forEach((pid, idx) => {
@@ -363,8 +368,72 @@ async function advanceToPlayingIfAllAcked(roomId) {
       "gameState.revealAcks": {},
       "gameState.playerOrder": order,
       "gameState.currentPlayerIndex": 0,
+      "gameState.pendingFailure": null,
+      "gameState.currentStage": null,
+      "gameState.stageTurn": null,
     });
   });
+}
+
+/**
+ * ターンを確定して次ターンへ進める（○ or × を追加し、順番を再抽選、ステージをクリア）
+ * - ○: 1周（=全員行動）が完了したとき
+ * - ×: 失敗して「神拳を使わない」が確定したとき（即次ターン）
+ * @param {any} tx
+ * @param {any} roomRef
+ * @param {any} data
+ * @param {any} playersObj
+ * @param {string[]} order
+ * @param {boolean} isFailureTurn
+ * @param {Record<string, any>} extraUpdates
+ */
+function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTurn, extraUpdates = {}) {
+  const maxTurns = Number(data?.gameState?.maxTurns || 5);
+  const turn = Number(data?.gameState?.turn || 1);
+
+  let whiteStars = Number(data?.gameState?.whiteStars || 0);
+  let blackStars = Number(data?.gameState?.blackStars || 0);
+
+  if (isFailureTurn) blackStars += 1;
+  else whiteStars += 1;
+
+  const completedTurns = whiteStars + blackStars;
+  const finished = completedTurns >= maxTurns;
+
+  let nextTurn = turn + 1;
+  if (finished) nextTurn = maxTurns;
+
+  // 次ターンの順番を再抽選（ゲーム終了時はそのままでもOKだが、一応整える）
+  const nextOrder = [...order];
+  for (let i = nextOrder.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [nextOrder[i], nextOrder[j]] = [nextOrder[j], nextOrder[i]];
+  }
+
+  /** @type {Record<string, any>} */
+  const updates = {
+    ...extraUpdates,
+    "gameState.whiteStars": whiteStars,
+    "gameState.blackStars": blackStars,
+    "gameState.turn": nextTurn,
+    "gameState.playerOrder": nextOrder,
+    "gameState.currentPlayerIndex": 0,
+    "gameState.pendingFailure": null,
+    "gameState.currentStage": null,
+    "gameState.stageTurn": null,
+  };
+
+  // ターン開始時にドクター神拳を「使用可能」に戻す
+  const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+  if (doctorId) {
+    updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+  }
+
+  if (finished) {
+    updates["gameState.phase"] = "finished";
+  }
+
+  tx.update(roomRef, updates);
 }
 
 /**
@@ -391,32 +460,28 @@ async function applySuccess(roomId) {
     const currentPlayerId = order[idx];
     if (currentPlayerId !== userId) throw new Error("Only current player can submit success/fail");
 
-    const white = Number(data?.gameState?.whiteStars || 0) + 1;
-    const black = Number(data?.gameState?.blackStars || 0);
-    const nextIndex = (idx + 1) % order.length;
-    const nextTurn = Math.min(Number(data?.gameState?.maxTurns || 5), white + black + 1);
-
-    // 次の行動に向けてドクター神拳のターン内使用可をリセット（ドクターが存在する場合のみ）
-    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
-
-    /** @type {Record<string, any>} */
-    const updates = {
-      "gameState.whiteStars": white,
-      "gameState.currentPlayerIndex": nextIndex,
-      "gameState.turn": nextTurn,
-      "gameState.pendingFailure": null,
-    };
-    if (doctorId) {
-      updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+    if (data?.gameState?.pendingFailure) {
+      throw new Error("A failure is pending");
     }
 
-    tx.update(roomRef, updates);
+    const nextIndex = (idx + 1) % order.length;
+    // 1周したら「○」でターン終了（=全員完了）
+    if (nextIndex === 0) {
+      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false);
+      return;
+    }
+
+    tx.update(roomRef, {
+      "gameState.currentPlayerIndex": nextIndex,
+    });
   });
 }
 
 /**
  * プレイ中の失敗入力（現在プレイヤーのみ）
- * ドクター神拳が使用可能なら pendingFailure にして保留、不可なら黒星確定。
+ * - ドクター神拳が使用可能なら「神拳使用フェーズ」（pendingFailure）へ
+ * - 神拳を使う → 成功扱いで次のプレイヤーへ
+ * - 神拳を使わない → ×確定で即次ターンへ
  */
 async function applyFail(roomId) {
   const userId = getCurrentUserId();
@@ -439,9 +504,7 @@ async function applyFail(roomId) {
     const currentPlayerId = order[idx];
     if (currentPlayerId !== userId) throw new Error("Only current player can submit success/fail");
 
-    if (data?.gameState?.pendingFailure) {
-      throw new Error("A failure is already pending");
-    }
+    const pending = data?.gameState?.pendingFailure || null;
 
     // ドクターがいて、神拳が使えるなら保留にする
     const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
@@ -449,6 +512,18 @@ async function applyFail(roomId) {
     const docRemain = doctorRes ? Number(doctorRes.doctorPunchRemaining || 0) : 0;
     const docAvail = doctorRes ? doctorRes.doctorPunchAvailableThisTurn !== false : false;
 
+    // すでに保留なら「神拳を使わない（失敗確定）」＝×で即次ターン
+    if (pending) {
+      if (pending.playerId !== userId) {
+        throw new Error("A failure is already pending");
+      }
+      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, {
+        "gameState.pendingFailure": null,
+      });
+      return;
+    }
+
+    // 神拳が使えるなら保留にする（進行は止まる）
     if (doctorId && docRemain > 0 && docAvail) {
       tx.update(roomRef, {
         "gameState.pendingFailure": { playerId: userId },
@@ -456,24 +531,10 @@ async function applyFail(roomId) {
       return;
     }
 
-    // 神拳が無いので黒星確定
-    const white = Number(data?.gameState?.whiteStars || 0);
-    const black = Number(data?.gameState?.blackStars || 0) + 1;
-    const nextIndex = (idx + 1) % order.length;
-    const nextTurn = Math.min(Number(data?.gameState?.maxTurns || 5), white + black + 1);
-
-    /** @type {Record<string, any>} */
-    const updates = {
-      "gameState.blackStars": black,
-      "gameState.currentPlayerIndex": nextIndex,
-      "gameState.turn": nextTurn,
+    // 神拳が無いので失敗確定：×で即次ターン
+    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, {
       "gameState.pendingFailure": null,
-    };
-    if (doctorId) {
-      updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
-    }
-
-    tx.update(roomRef, updates);
+    });
   });
 }
 
@@ -505,7 +566,32 @@ async function applyDoctorPunch(roomId) {
     const avail = res.doctorPunchAvailableThisTurn !== false;
     if (remain <= 0 || !avail) throw new Error("Doctor Punch not available");
 
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+    const idx = Number(data?.gameState?.currentPlayerIndex || 0);
+
+    // 失敗保留は「現在プレイヤーの失敗」である必要がある（進行が止まっている前提）
+    const currentPlayerId = order[idx];
+    if (pending?.playerId && pending.playerId !== currentPlayerId) {
+      throw new Error("Pending failure is not for current player");
+    }
+
+    const nextIndex = (idx + 1) % order.length;
+
+    // 神拳使用＝成功扱いで次へ進む（ターン内は1回まで）
+    if (nextIndex === 0) {
+      // 1周完了なので「○」でターン終了（次ターンでは使用可に戻す）
+      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false, {
+        "gameState.pendingFailure": null,
+        [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
+        // 次ターン開始時に true に戻すので、ここでは設定しない
+      });
+      return;
+    }
+
     tx.update(roomRef, {
+      "gameState.currentPlayerIndex": nextIndex,
       "gameState.pendingFailure": null,
       [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,

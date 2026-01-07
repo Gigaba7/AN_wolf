@@ -3,8 +3,6 @@
 import { GameState, $, $$ } from "./game-state.js";
 import { closeAllRouletteModals } from "./ui-modals.js";
 import { syncToFirebase } from "./firebase-sync.js";
-import { logSystem, logTurn } from "./game-logging.js";
-import { renderAll } from "./ui-render.module.js";
 
 function startWolfRoulette() {
   const itemsEl = $("#wolf-roulette-items");
@@ -103,25 +101,16 @@ function startStageRoulette() {
     });
 
     setTimeout(() => {
-      closeAllRouletteModals();
-      GameState.currentStage = selected;
-
-      // Firebase同期
-      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      // Firebase同期（結果はsnapshotで全員に反映）
+      const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
       if (roomId) {
-        syncToFirebase('stageSelected', { 
+        syncToFirebase("stageRoulette", {
           stageName: selected,
-          logMessage: `ターン${GameState.turn}のステージ: ${selected}`,
-          roomId
-        }).catch(error => {
-          console.error('Failed to sync stage:', error);
+          roomId,
+        }).catch((error) => {
+          console.error("Failed to sync stage:", error);
         });
       }
-
-      logSystem(`ターン${GameState.turn}のステージ: ${selected}`);
-      
-      // UIを更新
-      renderAll();
     }, 1000);
   }, 2000);
 }
