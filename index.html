@@ -71,6 +71,39 @@
         </main>
       </section>
 
+      <!-- 待機画面 -->
+      <section id="waiting-screen" class="screen">
+        <div class="waiting-layout">
+          <div class="waiting-content">
+            <h1 class="waiting-title">ルーム待機中</h1>
+            <p class="waiting-subtitle">参加者を待っています...</p>
+            
+            <div class="waiting-room-id-section">
+              <p class="waiting-label">ルームID</p>
+              <div class="waiting-room-id-display">
+                <strong id="waiting-room-id" class="waiting-room-id-text"></strong>
+                <button id="btn-copy-waiting-room-id" class="btn ghost small">コピー</button>
+              </div>
+              <p class="waiting-hint">このルームIDを参加者に共有してください</p>
+            </div>
+            
+            <div class="waiting-players-section">
+              <h2 class="waiting-section-title">参加者 (<span id="waiting-players-count">1</span>人)</h2>
+              <div id="waiting-players-list" class="waiting-players-list">
+                <!-- JSで参加者を描画 -->
+              </div>
+            </div>
+            
+            <div class="waiting-actions">
+              <button id="btn-start-game-from-waiting" class="btn primary" disabled>
+                ゲーム開始 (最低3人必要)
+              </button>
+              <button id="btn-leave-room" class="btn ghost">ルームを退出</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- メイン GM 画面 -->
       <section id="main-screen" class="screen">
         <div class="main-layout">

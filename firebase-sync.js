@@ -31,11 +31,12 @@ async function createRoomAndStartGame(players, config) {
     // ルーム作成
     console.log('Creating room...');
     const roomId = await createRoom({
-      hostName: config.hostName || 'プレイヤー',
+      hostName: config.hostName || 'ホスト',
       maxPlayers: config.maxPlayers || 8,
       stageMinChapter: config.stageMinChapter,
       stageMaxChapter: config.stageMaxChapter,
       wolfActionTexts: config.wolfActionTexts,
+      roomId: config.roomId, // 既に生成されたルームIDを渡す
     });
     console.log('Room created with ID:', roomId);
     
@@ -125,6 +126,15 @@ function startRoomSync(roomId) {
  * Firebaseから取得したデータをローカル状態に同期
  */
 function syncGameStateFromFirebase(roomData) {
+  // GameStateとrenderAllをグローバルから取得
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  const renderAll = typeof window !== 'undefined' ? window.renderAll : null;
+  
+  if (!GameState) {
+    console.error('GameState is not available');
+    return;
+  }
+  
   const gameState = roomData.gameState;
   const players = roomData.players;
   const userId = getCurrentUserId();
@@ -155,7 +165,9 @@ function syncGameStateFromFirebase(roomData) {
   }
   
   // UIを更新
-  renderAll();
+  if (renderAll && typeof renderAll === 'function') {
+    renderAll();
+  }
   
   // ログを同期
   if (roomData.logs && roomData.logs.length > 0) {
@@ -206,6 +218,8 @@ async function syncToFirebase(action, data) {
  */
 async function handleSuccessAction(data, roomId) {
   const userId = getCurrentUserId();
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  if (!GameState) return;
   
   // 次のプレイヤーに進む
   const currentIndex = GameState.currentPlayerIndex;
@@ -234,6 +248,9 @@ async function handleFailAction(data, roomId) {
     playerId: userId,
   });
   
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  if (!GameState) return;
+  
   // ドクター神拳が使用可能な場合は保留状態
   if (GameState.doctorPunchRemaining > 0) {
     await updateGameState(roomId, {
@@ -253,6 +270,8 @@ async function handleFailAction(data, roomId) {
  */
 async function handleDoctorPunchAction(data, roomId) {
   const userId = getCurrentUserId();
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  if (!GameState) return;
   
   // リソースを消費
   await updatePlayerState(roomId, userId, {
@@ -277,6 +296,8 @@ async function handleDoctorPunchAction(data, roomId) {
  */
 async function handleWolfActionAction(data, roomId) {
   const userId = getCurrentUserId();
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  if (!GameState) return;
   
   // 乱数結果を保存（既にクライアント側で選択済み）
   await saveRandomResult(roomId, `wolfAction_${Date.now()}`, {
@@ -300,6 +321,9 @@ async function handleWolfActionAction(data, roomId) {
  * 次のプレイヤーアクションの処理
  */
 async function handleNextPlayerAction(roomId) {
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  if (!GameState) return;
+  
   const currentIndex = GameState.currentPlayerIndex;
   const nextIndex = (currentIndex + 1) % GameState.players.length;
   
@@ -312,6 +336,9 @@ async function handleNextPlayerAction(roomId) {
  * ステージルーレットアクションの処理
  */
 async function handleStageRouletteAction(data, roomId) {
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  if (!GameState) return;
+  
   // 乱数結果を保存（既にクライアント側で選択済み）
   await saveRandomResult(roomId, `stage_${GameState.turn}`, {
     stage: data.stage,
@@ -333,6 +360,9 @@ async function handleStageRouletteAction(data, roomId) {
  * 失敗を確定
  */
 async function confirmFailure(data, roomId) {
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  if (!GameState) return;
+  
   await updateGameState(roomId, {
     'gameState.blackStars': GameState.blackStars + 1,
     'gameState.pendingFailure': null,
@@ -374,4 +404,4 @@ function stopRoomSync() {
 }
 
 // エクスポート
-export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync };
+export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, updateGameState };
