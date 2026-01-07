@@ -41,7 +41,6 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 // Firebaseモジュールのインポート
 import { onAuthStateChanged, signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { createRoomAndStartGame, joinRoomAndSync, syncToFirebase } from "./firebase-sync.js";
-import { generateRoomId } from "./firebase-db.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   // 認証状態を監視
@@ -73,10 +72,31 @@ function setupHomeScreen() {
   tosBtn?.addEventListener("click", () => openModal("tos-modal"));
   
   // ルーム作成/参加ボタン
-  $("#btn-create-room")?.addEventListener("click", () => {
-    $("#join-room-form")?.style.setProperty("display", "none");
-    $("#room-info")?.style.setProperty("display", "none");
-    $("#create-room-form")?.style.setProperty("display", "block");
+  $("#btn-create-room")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('ルーム作成ボタンがクリックされました');
+    
+    const joinForm = $("#join-room-form");
+    const roomInfo = $("#room-info");
+    const createForm = $("#create-room-form");
+    
+    console.log('フォーム要素:', { joinForm, roomInfo, createForm });
+    
+    if (joinForm) {
+      joinForm.style.display = "none";
+      console.log('参加フォームを非表示にしました');
+    }
+    if (roomInfo) {
+      roomInfo.style.display = "none";
+      console.log('ルーム情報を非表示にしました');
+    }
+    if (createForm) {
+      createForm.style.display = "block";
+      console.log('作成フォームを表示しました');
+    } else {
+      console.error('create-room-form要素が見つかりません');
+    }
   });
   
   $("#btn-create-room-confirm")?.addEventListener("click", async () => {
