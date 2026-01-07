@@ -358,8 +358,6 @@ async function advanceToPlayingIfAllAcked(roomId) {
   });
 }
 
-export { startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAcked };
-
 // generateRoomIdをグローバルにも公開（main.jsから直接使用可能にする）
 if (typeof window !== 'undefined') {
   window.generateRoomId = generateRoomId;
