@@ -341,7 +341,12 @@ function setupModals() {
     if (!roomId) return;
     try {
       await acknowledgeRoleReveal(roomId);
-      closeModal("self-role-modal");
+      // OK後はモーダルを閉じず、「開始待機中…」を表示する（全員OKで自動的に開始）
+      const okBtn = $("#self-role-ok");
+      const waitText = $("#self-role-waiting");
+      okBtn?.setAttribute("disabled", "true");
+      if (okBtn) okBtn.textContent = "OK済み";
+      waitText?.classList.remove("hidden");
     } catch (e) {
       console.error("Failed to acknowledge role:", e);
     }

@@ -31,6 +31,12 @@ const roomClient = createRoomClient({
     doctorPunch: (roomId, payload) => handleDoctorPunchAction(payload, roomId),
     wolfAction: (roomId, payload) => handleWolfActionAction(payload, roomId),
     stageRoulette: (roomId, payload) => handleStageRouletteAction(payload, roomId),
+    log: async (roomId, payload) => {
+      const type = payload?.logType || "system";
+      const message = payload?.logMessage || "";
+      if (!message) return;
+      await addLog(roomId, { type, message });
+    },
   },
 });
 
@@ -264,8 +270,13 @@ function handlePhaseUI(roomData) {
       modal?.classList.remove("hidden");
     }
 
-    // 全員OKならホストがplayingに進める
-    advanceToPlayingIfAllAckedDB(currentRoomId).catch(() => {});
+    // 全員OKならホストがplayingに進める（ホスト以外はトランザクションを叩かない）
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isHost = !!(createdBy && myId && createdBy === myId);
+    if (isHost) {
+      advanceToPlayingIfAllAckedDB(currentRoomId).catch(() => {});
+    }
   }
 
   // playing: 待機画面→メイン画面へ全員同期
