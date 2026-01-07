@@ -3,7 +3,7 @@
 import { GameState, $ } from "./game-state.js";
 import { openModal, switchScreen, closeModal } from "./ui-modals.js";
 import { logSystem, logTurn } from "./game-logging.js";
-import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync } from "./firebase-sync.js";
+import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost, acknowledgeRoleReveal } from "./firebase-sync.js";
 import { signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./game-roles.js";
 import { renderAll, renderWaitingScreen } from "./ui-render.module.js";
@@ -218,44 +218,22 @@ function setupHomeScreen() {
   });
   
   $("#btn-start-game-from-waiting")?.addEventListener("click", async () => {
-    const GameState = typeof window !== 'undefined' ? window.GameState : null;
-    if (!GameState || !GameState.players) {
-      alert("プレイヤー情報が取得できません。");
-      return;
-    }
-    
-    if (GameState.players.length < 3 || GameState.players.length > 8) {
-      alert("プレイヤー人数は3〜8人にしてください。");
-      return;
-    }
-    
-    // 役職を割り当て
-    assignRoles(GameState.players);
-    
-    // 役職をFirebaseに保存
     const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    if (roomId) {
-      try {
-        await saveRolesToFirebase(roomId, GameState.players);
-      } catch (error) {
-        console.error('Failed to save roles:', error);
-      }
+    if (!roomId) return;
+
+    const createdBy = typeof window !== 'undefined' && window.RoomInfo?.config?.createdBy ? window.RoomInfo.config.createdBy : null;
+    const myId = typeof window !== 'undefined' ? window.__uid : null;
+    if (!createdBy || createdBy !== myId) {
+      alert("ゲーム開始はホストのみが実行できます。");
+      return;
     }
-    
-    // ゲーム状態をplayingに変更
-    if (roomId) {
-      try {
-        await updateGameStateFromWaiting(roomId);
-      } catch (error) {
-        console.error('Failed to update game state:', error);
-      }
+
+    try {
+      await startGameAsHost(roomId);
+      logSystem("ホストがゲーム開始（役職配布）を実行しました。");
+    } catch (e) {
+      alert(e?.message || "ゲーム開始に失敗しました。");
     }
-    
-    // メイン画面に切り替え
-    switchScreen("waiting-screen", "main-screen");
-    renderAll();
-    logSystem(`ゲーム開始。プレイヤー数: ${GameState.players.length}人`);
-    logTurn(`ターン1開始`);
   });
   
   $("#btn-leave-room")?.addEventListener("click", () => {
@@ -357,6 +335,18 @@ function setupModals() {
   $("#opt-open-tos")?.addEventListener("click", () => openModal("tos-modal"));
   $("#open-tos")?.addEventListener("click", () => openModal("tos-modal"));
   $("#result-reset")?.addEventListener("click", () => location.reload());
+
+  // 自分の役職確認OK
+  $("#self-role-ok")?.addEventListener("click", async () => {
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (!roomId) return;
+    try {
+      await acknowledgeRoleReveal(roomId);
+      closeModal("self-role-modal");
+    } catch (e) {
+      console.error("Failed to acknowledge role:", e);
+    }
+  });
 }
 
 export { setupHomeScreen, setupMainScreen, setupModals };

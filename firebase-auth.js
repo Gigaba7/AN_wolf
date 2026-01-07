@@ -33,6 +33,10 @@ function getCurrentUserId() {
 function onAuthStateChanged(callback) {
   return firebaseOnAuthStateChanged(auth, (user) => {
     currentUser = user;
+    // UI側で参照できるようにuidを公開（ホスト判定など）
+    if (typeof window !== 'undefined') {
+      window.__uid = user ? user.uid : null;
+    }
     callback(user);
   });
 }

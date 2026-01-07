@@ -129,9 +129,21 @@ function renderWaitingScreen(roomId) {
 
     // ゲーム開始ボタンの有効/無効を切り替え
     if (startBtn) {
-      const canStart = GameState.players.length >= 3 && GameState.players.length <= 8;
+      const phase = typeof window !== "undefined" ? window.RoomInfo?.gameState?.phase : null;
+      const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+      const myId = typeof window !== "undefined" ? window.__uid : null;
+      const isHost = !!(createdBy && myId && createdBy === myId);
+
+      const canStartCount = GameState.players.length >= 3 && GameState.players.length <= 8;
+      const canStartPhase = !phase || phase === "waiting";
+      const canStart = isHost && canStartCount && canStartPhase;
+
       startBtn.disabled = !canStart;
-      if (canStart) {
+      if (!isHost) {
+        startBtn.textContent = "ゲーム開始（ホストのみ）";
+      } else if (!canStartPhase) {
+        startBtn.textContent = "ゲーム開始（進行中）";
+      } else if (canStartCount) {
         startBtn.textContent = `ゲーム開始 (${GameState.players.length}人)`;
       } else {
         startBtn.textContent = `ゲーム開始 (最低3人必要 / 現在${GameState.players.length}人)`;

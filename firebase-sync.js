@@ -1,5 +1,5 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
 import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -144,6 +144,14 @@ function syncGameStateFromFirebase(roomData) {
   const gameState = roomData.gameState;
   const players = roomData.players;
   const userId = getCurrentUserId();
+
+  // ルーム情報をグローバルに保持（UI側のhost判定などに利用）
+  if (typeof window !== 'undefined') {
+    window.RoomInfo = {
+      config: roomData.config || {},
+      gameState: roomData.gameState || {},
+    };
+  }
   
   // ゲーム状態を同期
   GameState.turn = gameState.turn || 1;
@@ -174,11 +182,68 @@ function syncGameStateFromFirebase(roomData) {
   if (renderAll && typeof renderAll === 'function') {
     renderAll();
   }
+
+  // フェーズに応じたUI制御（モーダル表示/画面遷移）
+  handlePhaseUI(roomData);
   
   // ログを同期
   if (roomData.logs && roomData.logs.length > 0) {
     syncLogs(roomData.logs);
   }
+}
+
+function handlePhaseUI(roomData) {
+  const gameState = roomData.gameState || {};
+  const phase = gameState.phase;
+  const userId = getCurrentUserId();
+
+  // revealing: 自分の役職を表示し、OKを待つ
+  if (phase === 'revealing') {
+    const acks = gameState.revealAcks || {};
+    const alreadyAcked = userId ? acks[userId] === true : false;
+
+    // 自分の役職
+    const myRole = roomData.players?.[userId]?.role || null;
+    if (myRole && !alreadyAcked) {
+      const modal = document.getElementById("self-role-modal");
+      const roleText = document.getElementById("self-role-text");
+      if (roleText) {
+        roleText.textContent =
+          myRole === "wolf" ? "人狼（レユニオン）" : myRole === "doctor" ? "ドクター" : "市民";
+      }
+      modal?.classList.remove("hidden");
+    }
+
+    // 全員OKならホストがplayingに進める
+    advanceToPlayingIfAllAckedDB(currentRoomId).catch(() => {});
+  }
+
+  // playing: 待機画面→メイン画面へ全員同期
+  if (phase === 'playing') {
+    // role modalを閉じる
+    document.getElementById("self-role-modal")?.classList.add("hidden");
+
+    const waiting = document.getElementById("waiting-screen");
+    const main = document.getElementById("main-screen");
+    if (waiting?.classList.contains("active")) {
+      waiting.classList.remove("active");
+      main?.classList.add("active");
+    }
+  }
+}
+
+/**
+ * ホストのみ：ゲーム開始（役職割当→revealへ）
+ */
+async function startGameAsHost(roomId) {
+  await startGameAsHostDB(roomId);
+}
+
+/**
+ * 自分の役職確認OK
+ */
+async function acknowledgeRoleReveal(roomId) {
+  await acknowledgeRoleRevealDB(roomId);
 }
 
 /**
@@ -410,4 +475,4 @@ function stopRoomSync() {
 }
 
 // エクスポート
-export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, updateGameState };
+export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal };

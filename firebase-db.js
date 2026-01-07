@@ -1,5 +1,5 @@
 // Firestoreデータベース操作
-import { collection, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp, arrayUnion, FieldValue } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { collection, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { firestore } from "./firebase-config.js";
 import { getCurrentUserId } from "./firebase-auth.js";
 
@@ -247,7 +247,118 @@ async function releaseLock(roomId) {
 }
 
 // エクスポート
-export { createRoom, joinRoom, generateRoomId, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, acquireLock, releaseLock };
+export { createRoom, joinRoom, generateRoomId, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, acquireLock, releaseLock, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAcked };
+
+/**
+ * ホストのみ：ゲーム開始（役職をランダム割当→revealフェーズへ）
+ */
+async function startGameAsHost(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) {
+      throw new Error("Only host can start the game");
+    }
+
+    const phase = data?.gameState?.phase || "waiting";
+    if (phase !== "waiting") {
+      throw new Error(`Game already started (phase: ${phase})`);
+    }
+
+    const playersObj = data?.players || {};
+    const playerIds = Object.keys(playersObj);
+    const count = playerIds.length;
+    if (count < 3 || count > 8) {
+      throw new Error("Player count must be 3-8 to start");
+    }
+
+    // 役職：1狼 + 1ドクター + 残り市民
+    const roles = ["wolf", "doctor"];
+    while (roles.length < count) roles.push("citizen");
+
+    // シャッフル
+    for (let i = roles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [roles[i], roles[j]] = [roles[j], roles[i]];
+    }
+
+    /** @type {Record<string, any>} */
+    const updates = {
+      "gameState.phase": "revealing",
+      "gameState.revealAcks": {}, // uid -> true
+      "gameState.turn": 1,
+      "gameState.whiteStars": 0,
+      "gameState.blackStars": 0,
+      "gameState.currentPlayerIndex": 0,
+      "gameState.currentStage": null,
+    };
+
+    playerIds.forEach((pid, idx) => {
+      updates[`players.${pid}.role`] = roles[idx];
+      updates[`players.${pid}.status`] = "ready";
+    });
+
+    tx.update(roomRef, updates);
+  });
+}
+
+/**
+ * 役職確認のOK（revealAck）を送信
+ */
+async function acknowledgeRoleReveal(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  await updateDoc(doc(firestore, "rooms", roomId), {
+    [`gameState.revealAcks.${userId}`]: true,
+  });
+}
+
+/**
+ * ホストのみ：全員OKならplayingへ
+ */
+async function advanceToPlayingIfAllAcked(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) {
+      return; // ホスト以外は何もしない
+    }
+
+    const phase = data?.gameState?.phase;
+    if (phase !== "revealing") return;
+
+    const playersObj = data?.players || {};
+    const playerIds = Object.keys(playersObj);
+    const acks = data?.gameState?.revealAcks || {};
+
+    const allAcked = playerIds.length > 0 && playerIds.every((pid) => acks[pid] === true);
+    if (!allAcked) return;
+
+    tx.update(roomRef, {
+      "gameState.phase": "playing",
+      "gameState.revealAcks": {},
+    });
+  });
+}
+
+export { startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAcked };
 
 // generateRoomIdをグローバルにも公開（main.jsから直接使用可能にする）
 if (typeof window !== 'undefined') {
