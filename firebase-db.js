@@ -19,9 +19,15 @@ async function createRoom(roomConfig) {
     throw new Error('User not authenticated');
   }
   
+  // Firestoreはundefinedを保存できないため、undefined値を取り除く
+  const cleanedRoomConfig = Object.fromEntries(
+    Object.entries(roomConfig || {}).filter(([, v]) => v !== undefined)
+  );
+
   const roomData = {
     config: {
-      ...roomConfig,
+      ...cleanedRoomConfig,
+      roomId, // 必ず実体のroomIdを保存（undefinedを避ける）
       createdBy: userId,
       createdAt: serverTimestamp(),
     },
@@ -42,7 +48,7 @@ async function createRoom(roomConfig) {
   
   // ホスト（最初のプレイヤー）を追加
   roomData.players[userId] = {
-    name: roomConfig.hostName || 'プレイヤー',
+    name: cleanedRoomConfig.hostName || 'プレイヤー',
     role: null, // 役職は後で割り当て
     status: 'ready',
     resources: {

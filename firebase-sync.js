@@ -30,14 +30,20 @@ async function createRoomAndStartGame(players, config) {
     
     // ルーム作成
     console.log('Creating room...');
-    const roomId = await createRoom({
+    /** @type {any} */
+    const roomPayload = {
       hostName: config.hostName || 'ホスト',
       maxPlayers: config.maxPlayers || 8,
       stageMinChapter: config.stageMinChapter,
       stageMaxChapter: config.stageMaxChapter,
       wolfActionTexts: config.wolfActionTexts,
-      roomId: config.roomId, // 既に生成されたルームIDを渡す
-    });
+    };
+    // 既に生成されたルームIDがある場合のみ渡す（undefinedを避ける）
+    if (config.roomId) {
+      roomPayload.roomId = config.roomId;
+    }
+
+    const roomId = await createRoom(roomPayload);
     console.log('Room created with ID:', roomId);
     
     currentRoomId = roomId;
