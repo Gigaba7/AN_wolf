@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>アークナイツ人狼 GMツール</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- ホーム画面 -->
+      <section id="home-screen" class="screen active">
+        <header class="app-header">
+          <h1>アークナイツ人狼 GMツール</h1>
+          <p class="subtitle">☆3以下限定・レユニオン人狼 用ファンメイド支援ツール</p>
+        </header>
+
+        <main class="home-layout">
+          <section class="home-card">
+            <h2>モード選択</h2>
+            <div class="mode-selection" style="display: flex; gap: 8px; margin-bottom: 12px;">
+              <button id="btn-create-room" class="btn primary">ルーム作成（GM）</button>
+              <button id="btn-join-room" class="btn secondary">ルーム参加</button>
+            </div>
+            <div id="room-info" class="room-info" style="display: none; margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+              <p style="margin: 0 0 12px 0; font-size: 14px; color: #a0a4ba;">ルームID</p>
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                <strong id="room-id-display" style="font-family: monospace; font-size: 24px; letter-spacing: 0.1em; color: #f5f5f7; flex: 1; text-align: center; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 6px;"></strong>
+              </div>
+              <button id="btn-copy-room-id" class="btn ghost small" style="width: 100%;">ルームIDをコピー</button>
+              <p style="margin: 12px 0 0 0; font-size: 12px; color: #a0a4ba; text-align: center;">このルームIDを参加者に共有してください</p>
+            </div>
+            <div id="join-room-form" class="join-room-form" style="display: none; margin-top: 12px;">
+              <input type="text" id="room-id-input" placeholder="ルームIDを入力（6文字）" class="room-id-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-transform: uppercase; text-align: center; letter-spacing: 0.1em;" maxlength="6" />
+              <input type="text" id="player-name-input" placeholder="あなたの名前を入力" class="player-name-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-align: center;" />
+              <button id="btn-join-room-confirm" class="btn primary" style="width: 100%;">参加</button>
+            </div>
+          </section>
+
+          <section class="home-card">
+            <h2>ルール説明動画</h2>
+            <div class="video-wrapper">
+              <!-- 利用者が差し替え想定のダミー埋め込み -->
+              <iframe
+                src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+                title="ルール説明動画"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <div class="home-links">
+              <button id="open-options" class="btn ghost">オプション</button>
+              <button id="open-tos" class="btn ghost">利用規約</button>
+            </div>
+          </section>
+
+          <section class="home-card disclaimer-card">
+            <h2>注意事項</h2>
+            <ul>
+              <li>本ツールは個人が制作した <strong>非公式ファンツール</strong> です。</li>
+              <li>Hypergryph / Yostar とは一切関係ありません。</li>
+              <li>利用は<strong>自己責任</strong>でお願いします。</li>
+            </ul>
+            <button id="start-game" class="btn primary start-btn" style="display: none;">ゲーム開始</button>
+          </section>
+        </main>
+      </section>
+
+      <!-- メイン GM 画面 -->
+      <section id="main-screen" class="screen">
+        <div class="main-layout">
+          <!-- ④ プレーヤー表示 -->
+          <aside class="panel players-panel">
+            <h2>プレイヤー</h2>
+            <div id="players-list" class="players-list">
+              <!-- JSでプレイヤーを描画 -->
+            </div>
+          </aside>
+
+          <!-- 中央メインエリア -->
+          <section class="panel center-panel">
+            <!-- ① 状態表示 -->
+            <div class="status-bar">
+              <div class="status-main">
+                <div class="status-main-item">
+                  <span class="status-main-label">ターン</span>
+                  <span id="status-turn" class="status-main-value">1 / 5</span>
+                </div>
+                <div class="status-main-item">
+                  <span class="status-main-label">進行状況</span>
+                  <span id="status-stars" class="status-main-stars">☆☆☆☆☆</span>
+                </div>
+                <div class="status-main-item">
+                  <span class="status-main-label">ステージ</span>
+                  <span id="status-stage" class="status-main-value status-stage-value">未選出</span>
+                </div>
+              </div>
+              <button id="main-options-btn" class="icon-button" title="オプション">
+                ⚙
+              </button>
+            </div>
+            
+            <!-- プレイ映像用 16:9 透明エリア（背景レイヤー） -->
+            <div class="play-video-wrapper">
+              <div class="play-video-area">
+              </div>
+            </div>
+
+            <!-- UI要素（前面レイヤー） -->
+            <div class="center-ui-content">
+              <!-- ③ ログエリア -->
+              <div class="log-panel">
+                <div id="log-list" class="log-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ② 操作パネル -->
+          <aside class="panel control-panel">
+            <h2>操作</h2>
+            <div class="control-group">
+              <button id="btn-next-player" class="btn primary wide">
+                次のプレイヤー
+              </button>
+            </div>
+            <div class="control-group">
+              <button id="btn-success" class="btn success wide">
+                成功
+              </button>
+              <button id="btn-fail" class="btn danger wide">
+                失敗
+              </button>
+            </div>
+            <div class="control-group">
+              <button id="btn-wolf-action" class="btn warning wide">
+                人狼妨害使用 <span id="wolf-remaining-in-button">(残り 5 回)</span>
+              </button>
+              <small id="wolf-hint" class="hint">
+                ※1ターンに1回まで
+              </small>
+            </div>
+            <div class="control-group">
+              <button id="btn-doctor-punch" class="btn info wide">
+                ドクター神拳使用
+              </button>
+              <small id="doctor-hint" class="hint">
+                ※1ターンに1回まで / 失敗時のみ有効
+              </small>
+            </div>
+          </aside>
+        </div>
+
+        <!-- フッターのクレジット -->
+        <footer class="app-footer">
+          <p>
+            本ツールは非公式ファンツールです。Hypergryph / Yostar とは一切関係ありません。
+          </p>
+        </footer>
+      </section>
+
+      <!-- ステージルーレットポップアップ -->
+      <div id="stage-roulette-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+          <h2>ステージルーレット</h2>
+          <p class="modal-subtitle">
+            設定された範囲からランダムにステージを選出します。
+          </p>
+          <div id="stage-roulette-items" class="roulette-list">
+            <!-- JSで候補を表示 -->
+          </div>
+          <div class="modal-actions">
+            <button id="stage-roulette-start" class="btn primary">
+              ルーレット開始
+            </button>
+            <button data-close-modal="stage-roulette-modal" class="btn ghost">
+              閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 妨害ルーレットポップアップ -->
+      <div id="wolf-roulette-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+          <h2>人狼妨害ルーレット</h2>
+          <p class="modal-subtitle">
+            カスタム設定からランダムで1件選ばれます。
+          </p>
+          <div id="wolf-roulette-items" class="roulette-list">
+            <!-- JSで候補を表示 -->
+          </div>
+          <div class="modal-actions">
+            <button id="wolf-roulette-start" class="btn primary">
+              ルーレット開始
+            </button>
+            <button data-close-modal="wolf-roulette-modal" class="btn ghost">
+              閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- オプションポップアップ -->
+      <div id="options-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content wide">
+          <h2>オプション</h2>
+          <section class="options-section">
+            <h3>サウンド</h3>
+            <label class="toggle">
+              <input type="checkbox" id="opt-sound" />
+              <span>効果音を有効にする (デフォルトOFF)</span>
+            </label>
+          </section>
+
+          <section class="options-section">
+            <h3>ゲーム設定</h3>
+            <div class="options-row">
+              <label>
+                対象ステージ範囲 (章)
+                <div class="inline-inputs">
+                  <select id="opt-stage-min">
+                    <option value="2">2章</option>
+                    <option value="3">3章</option>
+                    <option value="4">4章</option>
+                    <option value="5">5章</option>
+                  </select>
+                  <span>〜</span>
+                  <select id="opt-stage-max">
+                    <option value="2">2章</option>
+                    <option value="3" selected>3章</option>
+                    <option value="4">4章</option>
+                    <option value="5">5章</option>
+                  </select>
+                </div>
+              </label>
+            </div>
+
+            <div class="options-row">
+              <label>
+                人狼妨害カスタム (1行につき1項目)
+                <textarea
+                  id="opt-wolf-actions"
+                  rows="5"
+                  placeholder="例：&#10;編成人数10人&#10;強襲ステージ&#10;推し+☆2以下編成&#10;ドクター神拳使用不可"
+                ></textarea>
+              </label>
+            </div>
+
+            <button id="opt-back-home" class="btn ghost small">
+              ホーム画面に戻る
+            </button>
+          </section>
+
+          <section class="options-section">
+            <h3>利用規約</h3>
+            <p>
+              詳細な注意事項は
+              <button id="opt-open-tos" class="link-button">
+                利用規約ページ
+              </button>
+              をご確認ください。
+            </p>
+          </section>
+
+          <div class="modal-actions">
+            <button id="opt-save" class="btn primary">保存</button>
+            <button data-close-modal="options-modal" class="btn ghost">
+              閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 利用規約ポップアップ -->
+      <div id="tos-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content wide scrollable">
+          <h2>利用規約 / 免責事項</h2>
+          <div class="tos-body">
+            <p>
+              本ツールは個人が制作した<strong>非公式ファンツール</strong>です。<br />
+              Hypergryph / Yostar とは一切関係ありません。
+            </p>
+            <ul>
+              <li>
+                本ツールの利用は<strong>自己責任</strong>でお願いいたします。利用により発生したいかなる損害についても制作者は責任を負いません。
+              </li>
+              <li>
+                ゲーム画面・キャラクター・名称等の権利は各権利者に帰属します。
+              </li>
+              <li>
+                本ツールは画像・テキストなどのデータ取得は行っていませんが、データの取り扱いには十分ご注意ください。
+              </li>
+              <li>
+                配信・動画での使用は自由ですが、公式と誤認されない形でご利用ください。
+              </li>
+            </ul>
+            <p>
+              詳細なガイドラインや二次創作ポリシーについては、各公式サイトの規約をご確認ください。
+            </p>
+          </div>
+          <div class="modal-actions">
+            <button data-close-modal="tos-modal" class="btn primary">
+              閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 役職確認モーダル（ゲーム開始前） -->
+      <div id="role-confirmation-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content wide">
+          <h2>役職確認</h2>
+          <p class="modal-subtitle">
+            役職がランダムに割り当てられました。確認してからゲームを開始してください。
+          </p>
+          <div id="role-confirmation-list" class="role-confirmation-list">
+            <!-- JSで役職リストを生成 -->
+          </div>
+          <div class="modal-actions">
+            <button id="role-confirmation-start" class="btn primary">ゲーム開始</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 勝敗結果ポップアップ -->
+      <div id="result-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+          <h2 id="result-title">結果</h2>
+          <p id="result-summary" class="result-summary"></p>
+          <div id="result-extra" class="result-extra"></div>
+          <div id="result-roles" class="result-roles"></div>
+          <div class="modal-actions">
+            <button id="result-reset" class="btn primary">リセットして終了</button>
+            <button data-close-modal="result-modal" class="btn ghost">
+              閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Firebase設定とモジュール（ES Modules） -->
+    <script type="module" src="./firebase-config.js"></script>
+    <script type="module" src="./firebase-auth.js"></script>
+    <script type="module" src="./firebase-db.js"></script>
+    <script type="module" src="./firebase-sync.js"></script>
+    
+    <!-- メインロジック -->
+    <script type="module" src="./main.js"></script>
+  </body>
+  </html>
+
