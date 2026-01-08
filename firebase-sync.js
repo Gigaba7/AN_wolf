@@ -344,8 +344,11 @@ function handlePhaseUI(roomData) {
         waitText?.classList.add("hidden");
       }
 
-      // GMの場合でも、self-role-modalを表示（役職一覧モーダルと同時に表示可能）
-      modal?.classList.remove("hidden");
+      // GMの場合でも、self-role-modalを常に表示（役職一覧モーダルと同時に表示可能）
+      // revealingフェーズ中は、OK済みでもモーダルを閉じない
+      if (modal) {
+        modal.classList.remove("hidden");
+      }
     }
     
     // GM：全員の役職を周知（OBSアナウンス→役職一覧）
