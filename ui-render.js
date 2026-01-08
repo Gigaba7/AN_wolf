@@ -39,12 +39,24 @@
       players.forEach((player) => {
         const playerItem = document.createElement("div");
         playerItem.className = "waiting-player-item";
-        playerItem.innerHTML =
-          '<div class="waiting-player-avatar">' +
-          (player.avatarLetter || "?") +
-          '</div><div class="waiting-player-name">' +
-          (player.name || "プレイヤー") +
-          "</div>";
+
+        const av = document.createElement("div");
+        av.className = "waiting-player-avatar";
+        if (player.avatarImage) {
+          const img = document.createElement("img");
+          img.src = player.avatarImage;
+          img.alt = "";
+          av.appendChild(img);
+        } else {
+          av.textContent = player.avatarLetter || "?";
+        }
+
+        const nm = document.createElement("div");
+        nm.className = "waiting-player-name";
+        nm.textContent = player.name || "プレイヤー";
+
+        playerItem.appendChild(av);
+        playerItem.appendChild(nm);
         playersListEl.appendChild(playerItem);
       });
     }

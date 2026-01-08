@@ -22,6 +22,12 @@ function switchScreen(fromId, toId) {
   const to = document.getElementById(toId);
   from?.classList.remove("active");
   to?.classList.add("active");
+
+  // 背景の不透明化：ゲーム画面以外は不透明、ゲーム画面は透明
+  if (typeof document !== "undefined" && document.body) {
+    const shouldOpaque = toId !== "main-screen";
+    document.body.classList.toggle("opaque-bg", shouldOpaque);
+  }
 }
 
 export { openModal, closeModal, closeAllRouletteModals, switchScreen };

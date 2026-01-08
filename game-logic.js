@@ -20,6 +20,15 @@ function getOrderedCurrentPlayer() {
 }
 
 async function onSuccess() {
+  // GMのみ実行可能
+  const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const isGM = !!(createdBy && myId && createdBy === myId);
+  if (!isGM) {
+    alert("成功/失敗の判断はGMのみが実行できます。");
+    return;
+  }
+
   if (!GameState.players.length || GameState.resultLocked) return;
   const { player } = getOrderedCurrentPlayer();
   if (!player) return;
@@ -34,11 +43,21 @@ async function onSuccess() {
       });
     } catch (error) {
       console.error('Failed to sync success:', error);
+      alert(error?.message || "成功の判断に失敗しました。");
     }
   }
 }
 
 async function onFail() {
+  // GMのみ実行可能
+  const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const isGM = !!(createdBy && myId && createdBy === myId);
+  if (!isGM) {
+    alert("成功/失敗の判断はGMのみが実行できます。");
+    return;
+  }
+
   if (!GameState.players.length || GameState.resultLocked) return;
 
   const { player } = getOrderedCurrentPlayer();
@@ -56,6 +75,7 @@ async function onFail() {
       });
     } catch (error) {
       console.error('Failed to sync fail:', error);
+      alert(error?.message || "失敗の判断に失敗しました。");
     }
   }
 }
@@ -89,8 +109,15 @@ async function onWolfAction() {
   if (!GameState.players.length || GameState.resultLocked) return;
   if (GameState.wolfActionsRemaining <= 0) return;
 
+  // 妨害選択モーダルを表示
   const { openModal } = await import("./ui-modals.js");
-  openModal("wolf-roulette-modal");
+  openModal("wolf-action-select-modal");
+  
+  // 妨害リストを描画
+  const { renderWolfActionList } = await import("./ui-render.module.js");
+  if (renderWolfActionList) {
+    renderWolfActionList();
+  }
 }
 
 export { onSuccess, onFail, onDoctorPunch, onWolfAction };

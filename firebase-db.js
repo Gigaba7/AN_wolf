@@ -29,6 +29,7 @@ async function createRoom(roomConfig) {
       ...cleanedRoomConfig,
       roomId, // 必ず実体のroomIdを保存（undefinedを避ける）
       createdBy: userId,
+      gmName: cleanedRoomConfig.hostName || cleanedRoomConfig.gmName || "GM",
       createdAt: serverTimestamp(),
     },
     gameState: {
@@ -39,24 +40,14 @@ async function createRoom(roomConfig) {
       whiteStars: 0,
       blackStars: 0,
       currentPlayerIndex: 0,
+      subphase: "gm_stage", // wolf_decision | wolf_resolving | gm_stage | await_result | await_doctor
+      wolfDecisionPlayerId: null,
+      wolfActionRequest: null, // { playerId, turn }
       lock: null, // 排他制御用
     },
     players: {},
     logs: [],
     randomResults: {},
-  };
-  
-  // ホスト（最初のプレイヤー）を追加
-  roomData.players[userId] = {
-    name: cleanedRoomConfig.hostName || 'プレイヤー',
-    role: null, // 役職は後で割り当て
-    status: 'ready',
-    resources: {
-      wolfActionsRemaining: 5,
-      doctorPunchRemaining: 5,
-      doctorPunchAvailableThisTurn: true,
-    },
-    isHost: true, // ホストフラグ（権限は同じ）
   };
   
   console.log('Setting room document...');
@@ -72,9 +63,30 @@ async function createRoom(roomConfig) {
 }
 
 /**
+ * 次の手番開始時のサブフェーズを計算（妨害フェーズが必要なら wolf_decision）
+ * @param {any} playersObj
+ * @param {string[]} order
+ * @param {number} idx
+ */
+function computeStartSubphase(playersObj, order, idx) {
+  const currentPlayerId = order[Math.max(0, Math.min(idx, order.length - 1))] || null;
+  if (!currentPlayerId) {
+    return { subphase: "gm_stage", wolfDecisionPlayerId: null };
+  }
+  const current = playersObj?.[currentPlayerId] || null;
+  const role = current?.role || null;
+  const res = current?.resources || {};
+  const wolfRemain = Number(res.wolfActionsRemaining || 0);
+  if (role === "wolf" && wolfRemain > 0) {
+    return { subphase: "wolf_decision", wolfDecisionPlayerId: currentPlayerId };
+  }
+  return { subphase: "gm_stage", wolfDecisionPlayerId: null };
+}
+
+/**
  * ルームに参加
  */
-async function joinRoom(roomId, playerName) {
+async function joinRoom(roomId, playerName, avatarImage = null, avatarLetter = null) {
   const userId = getCurrentUserId();
   
   if (!userId) {
@@ -104,6 +116,8 @@ async function joinRoom(roomId, playerName) {
   if (roomData.players[userId]) {
     await updateDoc(roomRef, {
       [`players.${userId}.name`]: playerName,
+      [`players.${userId}.avatarLetter`]: avatarLetter || playerName[0] || "?",
+      [`players.${userId}.avatarImage`]: avatarImage || null,
       [`players.${userId}.status`]: 'ready',
     });
   } else {
@@ -111,10 +125,12 @@ async function joinRoom(roomId, playerName) {
     await updateDoc(roomRef, {
       [`players.${userId}`]: {
         name: playerName,
+        avatarLetter: avatarLetter || playerName[0] || "?",
+        avatarImage: avatarImage || null,
         role: null,
         status: 'ready',
         resources: {
-          wolfActionsRemaining: 5,
+          wolfActionsRemaining: 100, // 総コスト100
           doctorPunchRemaining: 5,
           doctorPunchAvailableThisTurn: true,
         },
@@ -249,7 +265,29 @@ async function releaseLock(roomId) {
 }
 
 // エクスポート
-export { createRoom, joinRoom, generateRoomId, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, acquireLock, releaseLock, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAcked, applySuccess, applyFail, applyDoctorPunch, applyWolfAction };
+export {
+  createRoom,
+  joinRoom,
+  generateRoomId,
+  subscribeToRoom,
+  updateGameState,
+  updatePlayerState,
+  addLog,
+  saveRandomResult,
+  acquireLock,
+  releaseLock,
+  startGameAsHost,
+  acknowledgeRoleReveal,
+  advanceToPlayingIfAllAcked,
+  applySuccess,
+  applyFail,
+  applyDoctorPunch,
+  applyWolfAction,
+  activateWolfAction,
+  wolfDecision,
+  resolveWolfAction,
+  resolveWolfActionRoulette,
+};
 
 /**
  * ホストのみ：ゲーム開始（役職をランダム割当→revealフェーズへ）
@@ -292,6 +330,8 @@ async function startGameAsHost(roomId) {
       [roles[i], roles[j]] = [roles[j], roles[i]];
     }
 
+    const startPhase = computeStartSubphase(playersObj, playerIds, 0);
+
     /** @type {Record<string, any>} */
     const updates = {
       "gameState.phase": "revealing",
@@ -304,6 +344,9 @@ async function startGameAsHost(roomId) {
       "gameState.playerOrder": null,
       "gameState.pendingFailure": null,
       "gameState.stageTurn": null,
+      "gameState.subphase": startPhase.subphase,
+      "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+      "gameState.wolfActionRequest": null,
     };
 
     playerIds.forEach((pid, idx) => {
@@ -363,6 +406,8 @@ async function advanceToPlayingIfAllAcked(roomId) {
       [order[i], order[j]] = [order[j], order[i]];
     }
 
+    const startPhase = computeStartSubphase(playersObj, order, 0);
+
     tx.update(roomRef, {
       "gameState.phase": "playing",
       "gameState.revealAcks": {},
@@ -371,6 +416,9 @@ async function advanceToPlayingIfAllAcked(roomId) {
       "gameState.pendingFailure": null,
       "gameState.currentStage": null,
       "gameState.stageTurn": null,
+      "gameState.subphase": startPhase.subphase,
+      "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+      "gameState.wolfActionRequest": null,
     });
   });
 }
@@ -410,6 +458,8 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     [nextOrder[i], nextOrder[j]] = [nextOrder[j], nextOrder[i]];
   }
 
+  const startPhase = computeStartSubphase(playersObj, nextOrder, 0);
+
   /** @type {Record<string, any>} */
   const updates = {
     ...extraUpdates,
@@ -421,6 +471,9 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     "gameState.pendingFailure": null,
     "gameState.currentStage": null,
     "gameState.stageTurn": null,
+    "gameState.subphase": startPhase.subphase,
+    "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+    "gameState.wolfActionRequest": null,
   };
 
   // ターン開始時にドクター神拳を「使用可能」に戻す
@@ -452,13 +505,22 @@ async function applySuccess(roomId) {
 
     if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
 
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) throw new Error("Only GM can submit success/fail");
+
     const playersObj = data?.players || {};
     const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
       ? data.gameState.playerOrder
       : Object.keys(playersObj);
     const idx = Number(data?.gameState?.currentPlayerIndex || 0);
-    const currentPlayerId = order[idx];
-    if (currentPlayerId !== userId) throw new Error("Only current player can submit success/fail");
+
+    if (data?.gameState?.subphase !== "await_result") {
+      throw new Error("Not ready to judge (stage selection not completed)");
+    }
+
+    if (!data?.gameState?.currentStage) {
+      throw new Error("Stage not selected");
+    }
 
     if (data?.gameState?.pendingFailure) {
       throw new Error("A failure is pending");
@@ -471,8 +533,14 @@ async function applySuccess(roomId) {
       return;
     }
 
+    const startPhase = computeStartSubphase(playersObj, order, nextIndex);
     tx.update(roomRef, {
       "gameState.currentPlayerIndex": nextIndex,
+      "gameState.currentStage": null,
+      "gameState.stageTurn": null,
+      "gameState.subphase": startPhase.subphase,
+      "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+      "gameState.wolfActionRequest": null,
     });
   });
 }
@@ -496,13 +564,18 @@ async function applyFail(roomId) {
 
     if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
 
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) throw new Error("Only GM can submit success/fail");
+
     const playersObj = data?.players || {};
     const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
       ? data.gameState.playerOrder
       : Object.keys(playersObj);
     const idx = Number(data?.gameState?.currentPlayerIndex || 0);
-    const currentPlayerId = order[idx];
-    if (currentPlayerId !== userId) throw new Error("Only current player can submit success/fail");
+
+    if (!data?.gameState?.currentStage) {
+      throw new Error("Stage not selected");
+    }
 
     const pending = data?.gameState?.pendingFailure || null;
 
@@ -514,9 +587,6 @@ async function applyFail(roomId) {
 
     // すでに保留なら「神拳を使わない（失敗確定）」＝×で即次ターン
     if (pending) {
-      if (pending.playerId !== userId) {
-        throw new Error("A failure is already pending");
-      }
       endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, {
         "gameState.pendingFailure": null,
       });
@@ -526,7 +596,8 @@ async function applyFail(roomId) {
     // 神拳が使えるなら保留にする（進行は止まる）
     if (doctorId && docRemain > 0 && docAvail) {
       tx.update(roomRef, {
-        "gameState.pendingFailure": { playerId: userId },
+        "gameState.pendingFailure": { playerId: order[idx] },
+        "gameState.subphase": "await_doctor",
       });
       return;
     }
@@ -593,14 +664,180 @@ async function applyDoctorPunch(roomId) {
     tx.update(roomRef, {
       "gameState.currentPlayerIndex": nextIndex,
       "gameState.pendingFailure": null,
+      "gameState.currentStage": null,
+      "gameState.stageTurn": null,
       [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
+      ...(() => {
+        const startPhase = computeStartSubphase(playersObj, order, nextIndex);
+        return {
+          "gameState.subphase": startPhase.subphase,
+          "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+          "gameState.wolfActionRequest": null,
+        };
+      })(),
     });
   });
 }
 
 /**
- * 人狼妨害（人狼のみ）
+ * 人狼：手番開始時の妨害使用可否を決定（wolf_decision フェーズ）
+ * @param {string} roomId
+ * @param {"use"|"skip"} decision
+ */
+async function wolfDecision(roomId, decision) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    const playersObj = data?.players || {};
+    const me = playersObj?.[userId];
+    if (!me || me.role !== "wolf") throw new Error("Only werewolf can decide obstruction");
+
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+    const idx = Number(data?.gameState?.currentPlayerIndex || 0);
+    const currentPlayerId = order[idx];
+    if (currentPlayerId !== userId) throw new Error("Only current player can decide obstruction");
+
+    if (data?.gameState?.subphase !== "wolf_decision") throw new Error("Not in wolf decision phase");
+    if (data?.gameState?.wolfDecisionPlayerId && data.gameState.wolfDecisionPlayerId !== userId) {
+      throw new Error("Not your wolf decision");
+    }
+
+    if (decision === "skip") {
+      // スキップ：妨害を使用しない（直接gm_stageへ）
+      tx.update(roomRef, {
+        "gameState.subphase": "gm_stage",
+        "gameState.wolfDecisionPlayerId": null,
+        "gameState.wolfActionRequest": null,
+      });
+      return;
+    }
+
+    // use: 旧実装（後方互換性のため保持）
+    // 新実装では activateWolfAction を直接呼ぶため、この分岐は使用されない
+    tx.update(roomRef, {
+      "gameState.subphase": "gm_stage",
+      "gameState.wolfDecisionPlayerId": null,
+      "gameState.wolfActionRequest": null,
+    });
+  });
+}
+
+/**
+ * GM：人狼妨害の選出結果を確定し、ログに記載する（旧実装、後方互換性のため保持）
+ * @param {string} roomId
+ * @param {string} actionText
+ */
+async function resolveWolfAction(roomId, actionText) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) throw new Error("Only GM can resolve obstruction");
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+    if (data?.gameState?.subphase !== "wolf_resolving") throw new Error("Not in obstruction resolving phase");
+
+    const req = data?.gameState?.wolfActionRequest || null;
+    const wolfId = req?.playerId || null;
+    if (!wolfId) throw new Error("No obstruction request");
+
+    const playersObj = data?.players || {};
+    const wolf = playersObj?.[wolfId];
+    if (!wolf || wolf.role !== "wolf") throw new Error("Requester is not wolf");
+
+    const res = wolf.resources || {};
+    const remain = Number(res.wolfActionsRemaining || 0);
+    if (remain <= 0) throw new Error("No remaining wolf actions");
+
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+    const idx = Number(data?.gameState?.currentPlayerIndex || 0);
+    const currentPlayerId = order[idx];
+    if (currentPlayerId !== wolfId) throw new Error("Obstruction requester is not current player");
+
+    const logData = {
+      type: "wolfAction",
+      message: `人狼妨害：${actionText}`,
+      timestamp: Date.now(),
+      userId,
+      playerId: wolfId,
+    };
+
+    tx.update(roomRef, {
+      [`players.${wolfId}.resources.wolfActionsRemaining`]: remain - 1,
+      "gameState.subphase": "gm_stage",
+      "gameState.wolfActionRequest": null,
+      logs: arrayUnion(logData),
+    });
+  });
+}
+
+/**
+ * GM：職業ルーレットの結果を確定し、ログに記載する（ランダム職業使用禁止用）
+ * @param {string} roomId
+ * @param {string} selectedJob
+ */
+async function resolveWolfActionRoulette(roomId, selectedJob) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) throw new Error("Only GM can resolve roulette");
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+    if (data?.gameState?.subphase !== "wolf_resolving") throw new Error("Not in roulette resolving phase");
+
+    const req = data?.gameState?.wolfActionRequest || null;
+    const wolfId = req?.playerId || null;
+    const actionText = req?.actionText || "ランダム職業使用禁止";
+    if (!wolfId) throw new Error("No obstruction request");
+
+    const playersObj = data?.players || {};
+    const wolf = playersObj?.[wolfId];
+    if (!wolf || wolf.role !== "wolf") throw new Error("Requester is not wolf");
+
+    const logData = {
+      type: "wolfAction",
+      message: `妨害『${actionText}』が発動されました（使用禁止職業: ${selectedJob}）`,
+      timestamp: Date.now(),
+      userId,
+      playerId: wolfId,
+    };
+
+    tx.update(roomRef, {
+      "gameState.wolfActionNotification": { text: `${actionText}（使用禁止職業: ${selectedJob}）`, timestamp: Date.now() },
+      "gameState.subphase": "gm_stage",
+      "gameState.wolfActionRequest": null,
+      logs: arrayUnion(logData),
+    });
+  });
+}
+
+/**
+ * 人狼妨害（人狼のみ） - 旧実装（後方互換性のため保持）
  */
 async function applyWolfAction(roomId) {
   const userId = getCurrentUserId();
@@ -625,6 +862,83 @@ async function applyWolfAction(roomId) {
 
     tx.update(roomRef, {
       [`players.${userId}.resources.wolfActionsRemaining`]: remain - 1,
+    });
+  });
+}
+
+/**
+ * 人狼妨害の即時発動（新実装：任意選択→即時発動）
+ * @param {string} roomId
+ * @param {string} actionText
+ * @param {number} actionCost
+ * @param {boolean} requiresRoulette - ルーレットが必要な場合true
+ * @param {string[]} rouletteOptions - ルーレットの選択肢（requiresRouletteがtrueの場合）
+ */
+async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    const playersObj = data?.players || {};
+    const me = playersObj?.[userId];
+    if (!me || me.role !== "wolf") throw new Error("Only werewolf can activate obstruction");
+
+    const res = me.resources || {};
+    const currentCost = Number(res.wolfActionsRemaining || 0);
+    if (currentCost < actionCost) {
+      throw new Error(`Insufficient cost: need ${actionCost}, have ${currentCost}`);
+    }
+
+    // 同一ターン中に複数妨害は使用不可（1ターン1回制限）
+    const turn = Number(data?.gameState?.turn || 1);
+    const lastUsedTurn = Number(res.wolfActionLastUsedTurn || 0);
+    if (lastUsedTurn === turn) {
+      throw new Error("Only one obstruction per turn is allowed");
+    }
+
+    // ルーレットが必要な場合は、GM画面でルーレットを実行する必要がある
+    if (requiresRoulette && Array.isArray(rouletteOptions) && rouletteOptions.length > 0) {
+      // ルーレットリクエストを設定（GM画面でルーレットを実行）
+      tx.update(roomRef, {
+        [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
+        [`players.${userId}.resources.wolfActionLastUsedTurn`]: turn,
+        "gameState.wolfActionRequest": {
+          playerId: userId,
+          actionText: actionText,
+          rouletteOptions: rouletteOptions,
+          timestamp: Date.now(),
+        },
+        "gameState.subphase": "wolf_resolving",
+        "gameState.wolfDecisionPlayerId": null,
+      });
+      return;
+    }
+
+    const logData = {
+      type: "wolfAction",
+      message: `妨害『${actionText}』が発動されました`,
+      timestamp: Date.now(),
+      userId,
+      playerId: userId,
+    };
+
+    // 妨害発動後、subphaseをgm_stageに戻す（妨害フェーズ終了）
+    tx.update(roomRef, {
+      [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
+      [`players.${userId}.resources.wolfActionLastUsedTurn`]: turn,
+      "gameState.wolfActionNotification": { text: actionText, timestamp: Date.now() },
+      "gameState.subphase": "gm_stage",
+      "gameState.wolfDecisionPlayerId": null,
+      "gameState.wolfActionRequest": null,
+      logs: arrayUnion(logData),
     });
   });
 }

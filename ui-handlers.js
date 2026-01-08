@@ -9,6 +9,65 @@ import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./
 import { renderAll, renderWaitingScreen } from "./ui-render.module.js";
 import { onSuccess, onFail, onDoctorPunch, onWolfAction } from "./game-logic.js";
 import { startWolfRoulette, startStageRoulette } from "./game-roulette.js";
+import { resolveWolfAction } from "./firebase-sync.js";
+
+async function fileToResizedAvatarDataUrl(file) {
+  if (!file) return null;
+  if (!(file instanceof File)) return null;
+  if (!file.type || !file.type.startsWith("image/")) {
+    throw new Error("画像ファイルを選択してください。");
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    const loaded = new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("画像の読み込みに失敗しました。"));
+    });
+    img.src = url;
+    await loaded;
+
+    const max = 128;
+    const scale = Math.min(1, max / Math.max(img.width || 1, img.height || 1));
+    const w = Math.max(1, Math.round((img.width || 1) * scale));
+    const h = Math.max(1, Math.round((img.height || 1) * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, w, h);
+
+    let dataUrl = "";
+    try {
+      dataUrl = canvas.toDataURL("image/webp", 0.85);
+    } catch {}
+    if (!dataUrl || !dataUrl.startsWith("data:image/webp")) {
+      try {
+        dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      } catch {}
+    }
+    return dataUrl || null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function setAvatarPreview(previewImg, letterEl, dataUrl, fallbackLetter) {
+  if (letterEl) letterEl.textContent = fallbackLetter || "?";
+  if (!(previewImg instanceof HTMLImageElement)) return;
+  if (dataUrl) {
+    previewImg.src = dataUrl;
+    previewImg.classList.remove("hidden");
+    if (letterEl) letterEl.classList.add("hidden");
+  } else {
+    previewImg.removeAttribute("src");
+    previewImg.classList.add("hidden");
+    if (letterEl) letterEl.classList.remove("hidden");
+  }
+}
 
 function refreshOptionsModalControls() {
   const soundEl = $("#opt-sound");
@@ -44,6 +103,61 @@ function refreshOptionsModalControls() {
 function setupHomeScreen() {
   const optBtn = $("#open-options");
   const tosBtn = $("#open-tos");
+
+  // アバター（ホーム画面で選択 → ルーム作成/参加時にFirestoreへ保存）
+  let pendingHostAvatarImage = null;
+  let pendingPlayerAvatarImage = null;
+  const hostPreview = $("#host-avatar-preview");
+  const hostLetter = $("#host-avatar-letter");
+  const hostFile = $("#host-avatar-file");
+  const playerPreview = $("#player-avatar-preview");
+  const playerLetter = $("#player-avatar-letter");
+  const playerFile = $("#player-avatar-file");
+  const hostNameInputEl = $("#host-name-input");
+  const playerNameInputEl = $("#player-name-input");
+
+  const updateLetterFromName = (name, letterEl) => {
+    if (!letterEl) return;
+    const t = (name || "").trim();
+    letterEl.textContent = t ? t[0] : "?";
+  };
+
+  hostNameInputEl?.addEventListener("input", (e) => {
+    const v = e?.target?.value || "";
+    updateLetterFromName(v, hostLetter);
+  });
+  playerNameInputEl?.addEventListener("input", (e) => {
+    const v = e?.target?.value || "";
+    updateLetterFromName(v, playerLetter);
+  });
+
+  if (hostFile instanceof HTMLInputElement) {
+    hostFile.addEventListener("change", async () => {
+      try {
+        const file = hostFile.files?.[0] || null;
+        pendingHostAvatarImage = await fileToResizedAvatarDataUrl(file);
+        const name = hostNameInputEl?.value || "";
+        setAvatarPreview(hostPreview, hostLetter, pendingHostAvatarImage, (name || "").trim()[0] || "?");
+      } catch (e) {
+        console.error(e);
+        alert(e?.message || "アイコン画像の読み込みに失敗しました。");
+      }
+    });
+  }
+
+  if (playerFile instanceof HTMLInputElement) {
+    playerFile.addEventListener("change", async () => {
+      try {
+        const file = playerFile.files?.[0] || null;
+        pendingPlayerAvatarImage = await fileToResizedAvatarDataUrl(file);
+        const name = playerNameInputEl?.value || "";
+        setAvatarPreview(playerPreview, playerLetter, pendingPlayerAvatarImage, (name || "").trim()[0] || "?");
+      } catch (e) {
+        console.error(e);
+        alert(e?.message || "アイコン画像の読み込みに失敗しました。");
+      }
+    });
+  }
 
   optBtn?.addEventListener("click", () => {
     refreshOptionsModalControls();
@@ -91,6 +205,8 @@ function setupHomeScreen() {
       // ルームを作成（ホストとして）
       const roomId = await createRoomAndStartGame([], {
         hostName: hostName,
+        hostAvatarLetter: hostName[0] || "?",
+        hostAvatarImage: pendingHostAvatarImage,
         maxPlayers: 8,
         stageMinChapter: GameState.options.stageMinChapter,
         stageMaxChapter: GameState.options.stageMaxChapter,
@@ -127,7 +243,7 @@ function setupHomeScreen() {
             id: currentUser.uid,
             name: hostName,
             avatarLetter: hostName[0] || "?",
-            avatarImage: null,
+            avatarImage: pendingHostAvatarImage,
             role: /** @type {any} */ (null),
           },
         ];
@@ -165,7 +281,7 @@ function setupHomeScreen() {
     }
     
     try {
-      await joinRoomAndSync(roomId, playerName);
+      await joinRoomAndSync(roomId, playerName, pendingPlayerAvatarImage, playerName[0] || "?");
       // 参加後は待機画面に切り替え
       switchScreen("home-screen", "waiting-screen");
 
@@ -177,7 +293,7 @@ function setupHomeScreen() {
             id: currentUser.uid,
             name: playerName,
             avatarLetter: playerName[0] || "?",
-            avatarImage: null,
+            avatarImage: pendingPlayerAvatarImage,
             role: /** @type {any} */ (null),
           },
         ];
@@ -285,14 +401,24 @@ function setupHomeScreen() {
 }
 
 function setupMainScreen() {
+  // GM画面：成功/失敗ボタンのみ
   $("#btn-success")?.addEventListener("click", onSuccess);
   $("#btn-fail")?.addEventListener("click", onFail);
-  $("#btn-doctor-punch")?.addEventListener("click", onDoctorPunch);
-  $("#btn-wolf-action")?.addEventListener("click", onWolfAction);
   $("#main-options-btn")?.addEventListener("click", () => {
     refreshOptionsModalControls();
     openModal("options-modal");
   });
+  
+  // GM画面：ステージ選出開始ボタン
+  $("#btn-open-stage-roulette")?.addEventListener("click", () => {
+    openModal("stage-roulette-modal");
+  });
+}
+
+function setupParticipantScreen() {
+  // 参加者画面：役職ボタンのみ（妨害・神拳）
+  $("#btn-wolf-action")?.addEventListener("click", onWolfAction);
+  $("#btn-doctor-punch")?.addEventListener("click", onDoctorPunch);
 }
 
 function setupModals() {
@@ -307,19 +433,100 @@ function setupModals() {
     });
   });
 
-  // ステージルーレット
+  // ステージルーレット（GMのみ）
   $("#stage-roulette-start")?.addEventListener("click", () => {
-    // 旧挙動：ホストがボタンでルーレット開始（結果は同期）
     const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
     const myId = typeof window !== "undefined" ? window.__uid : null;
-    const isHost = !!(createdBy && myId && createdBy === myId);
-    if (!isHost) return;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    if (!isGM) return;
     startStageRoulette();
   });
 
-  // 人狼妨害ルーレット
-  $("#wolf-roulette-start")?.addEventListener("click", () => {
-    startWolfRoulette();
+  // GM：妨害発動通知のOKボタン
+  $("#gm-wolf-action-ok")?.addEventListener("click", async () => {
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (!roomId) return;
+    
+    try {
+      // 通知をクリア
+      const { syncToFirebase } = await import("./firebase-sync.js");
+      await syncToFirebase("clearWolfActionNotification", { roomId });
+      closeModal("gm-wolf-action-notification-modal");
+    } catch (e) {
+      console.error("Failed to clear notification:", e);
+      closeModal("gm-wolf-action-notification-modal");
+    }
+  });
+
+  // GM：職業ルーレット開始
+  $("#job-roulette-start")?.addEventListener("click", () => {
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    if (!isGM) return;
+    
+    const itemsEl = document.getElementById("job-roulette-items");
+    if (!itemsEl) return;
+    
+    const items = Array.from(itemsEl.querySelectorAll(".roulette-item"));
+    if (items.length === 0) return;
+    
+    // ルーレットアニメーション
+    let currentIndex = 0;
+    const interval = setInterval(() => {
+      items.forEach((el, idx) => {
+        el.classList.toggle("active", idx === currentIndex);
+      });
+      currentIndex = (currentIndex + 1) % items.length;
+    }, 100);
+    
+    setTimeout(() => {
+      clearInterval(interval);
+      const selected = items[Math.floor(Math.random() * items.length)];
+      items.forEach((el) => {
+        el.classList.remove("active");
+        if (el === selected) {
+          el.classList.add("selected");
+        }
+      });
+      
+      setTimeout(async () => {
+        const selectedText = selected.textContent;
+        const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+        if (roomId) {
+          try {
+            const { resolveWolfActionRoulette } = await import("./firebase-sync.js");
+            await resolveWolfActionRoulette(roomId, selectedText);
+            closeModal("job-roulette-modal");
+          } catch (e) {
+            console.error("Failed to resolve job roulette:", e);
+            alert(e?.message || "職業ルーレットの確定に失敗しました。");
+          }
+        }
+      }, 1000);
+    }, 2000);
+  });
+  
+  // 参加者：人狼妨害のスキップ（妨害選択UIから閉じる場合）
+  // 注: 妨害選択UIから直接発動するため、スキップ処理は不要（モーダルを閉じるだけでOK）
+  // ただし、妨害選択UIを閉じた時にスキップする場合は、モーダルの閉じるボタンで処理
+  $("#wolf-action-select-modal")?.addEventListener("click", (e) => {
+    if (e.target.classList.contains("modal-backdrop") || e.target.getAttribute("data-close-modal") === "wolf-action-select-modal") {
+      // モーダルを閉じる = スキップ
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (roomId) {
+        import("./firebase-sync.js").then(({ wolfDecision }) => {
+          wolfDecision(roomId, "skip").catch(() => {
+            // エラーは無視（既にフェーズが変わっている可能性があるため）
+          });
+        });
+      }
+    }
+  });
+  
+  // GM：役職一覧OK
+  $("#gm-roles-ok")?.addEventListener("click", () => {
+    closeModal("gm-roles-modal");
   });
 
   // オプション
@@ -413,4 +620,4 @@ function setupModals() {
   });
 }
 
-export { setupHomeScreen, setupMainScreen, setupModals };
+export { setupHomeScreen, setupMainScreen, setupParticipantScreen, setupModals };
