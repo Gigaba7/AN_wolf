@@ -1074,10 +1074,7 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
   return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions);
 }
 
-async function identifyWolfDB(roomId, suspectedPlayerId) {
-  return await identifyWolfDB(roomId, suspectedPlayerId);
-}
-
+// identifyWolfDBは既にインポートされているので、そのままエクスポート
 export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAckedDB, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal, applyDoctorSkipDB, identifyWolfDB };
 
 // 新しいデフォルト同期API（チャット追加もここにぶら下げる想定）
