@@ -415,6 +415,7 @@ async function advanceToPlayingIfAllAcked(roomId) {
     const playerIds = Object.keys(playersObj);
     const acks = data?.gameState?.revealAcks || {};
 
+    // GMも含めて全員がOKを押したかチェック
     const allAcked = playerIds.length > 0 && playerIds.every((pid) => acks[pid] === true);
     if (!allAcked) return;
 
@@ -506,12 +507,8 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
   let nextTurn = turn + 1;
   if (finished) nextTurn = maxTurns;
 
-  // 次ターンの順番を再抽選（ゲーム終了時はそのままでもOKだが、一応整える）
+  // プレイ順は保持（ターンごとのシャッフルは不要）
   const nextOrder = [...order];
-  for (let i = nextOrder.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [nextOrder[i], nextOrder[j]] = [nextOrder[j], nextOrder[i]];
-  }
 
   const startPhase = computeStartSubphase(playersObj, nextOrder, 0);
 
@@ -589,10 +586,10 @@ async function applySuccess(roomId) {
     }
 
     const startPhase = computeStartSubphase(playersObj, order, nextIndex);
+    // そのターン中はステージを保持（次のプレイヤーに進んでも同じステージ）
     tx.update(roomRef, {
       "gameState.currentPlayerIndex": nextIndex,
-      "gameState.currentStage": null,
-      "gameState.stageTurn": null,
+      // currentStage と stageTurn は保持（そのターン中は固定）
       "gameState.subphase": startPhase.subphase,
       "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
       "gameState.wolfActionRequest": null,
@@ -716,21 +713,17 @@ async function applyDoctorPunch(roomId) {
       return;
     }
 
+    // そのターン中はステージを保持（次のプレイヤーに進んでも同じステージ）
+    const startPhase = computeStartSubphase(playersObj, order, nextIndex);
     tx.update(roomRef, {
       "gameState.currentPlayerIndex": nextIndex,
       "gameState.pendingFailure": null,
-      "gameState.currentStage": null,
-      "gameState.stageTurn": null,
+      // currentStage と stageTurn は保持（そのターン中は固定）
       [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
-      ...(() => {
-        const startPhase = computeStartSubphase(playersObj, order, nextIndex);
-        return {
-          "gameState.subphase": startPhase.subphase,
-          "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
-          "gameState.wolfActionRequest": null,
-        };
-      })(),
+      "gameState.subphase": startPhase.subphase,
+      "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+      "gameState.wolfActionRequest": null,
     });
   });
 }

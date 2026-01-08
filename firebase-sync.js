@@ -268,8 +268,38 @@ function handlePhaseUI(roomData) {
     const myId = typeof window !== "undefined" ? window.__uid : null;
     const isGM = !!(createdBy && myId && createdBy === myId);
 
+    // 全員（GM含む）：自分の役職を確認
+    const acks = gameState.revealAcks || {};
+    const alreadyAcked = userId ? acks[userId] === true : false;
+
+    const myRole = roomData.players?.[userId]?.role || null;
+    if (myRole) {
+      const modal = document.getElementById("self-role-modal");
+      const roleText = document.getElementById("self-role-text");
+      const okBtn = document.getElementById("self-role-ok");
+      const waitText = document.getElementById("self-role-waiting");
+
+      if (roleText) {
+        roleText.textContent =
+          myRole === "wolf" ? "人狼（レユニオン）" : myRole === "doctor" ? "ドクター" : "市民";
+      }
+
+      if (alreadyAcked) {
+        okBtn?.setAttribute("disabled", "true");
+        okBtn && (okBtn.textContent = "OK済み");
+        waitText && (waitText.textContent = "開始待機中…（全員のOKを待っています）");
+        waitText?.classList.remove("hidden");
+      } else {
+        okBtn?.removeAttribute("disabled");
+        okBtn && (okBtn.textContent = "OK");
+        waitText?.classList.add("hidden");
+      }
+
+      modal?.classList.remove("hidden");
+    }
+    
+    // GM：全員の役職を周知（OBSアナウンス→役職一覧）
     if (isGM) {
-      // GM：全員の役職を周知（OBSアナウンス→役職一覧）
       const announcementModal = document.getElementById("gm-announcement-modal");
       const rolesModal = document.getElementById("gm-roles-modal");
       
@@ -283,36 +313,6 @@ function handlePhaseUI(roomData) {
       }
       // アナウンスが閉じられて、役職一覧がまだ表示されていない場合は何もしない
       // （gm-announcement-ok のクリックで showGMRolesModal が呼ばれる）
-    } else {
-      // 参加者：自分の役職のみ表示
-      const acks = gameState.revealAcks || {};
-      const alreadyAcked = userId ? acks[userId] === true : false;
-
-      const myRole = roomData.players?.[userId]?.role || null;
-      if (myRole) {
-        const modal = document.getElementById("self-role-modal");
-        const roleText = document.getElementById("self-role-text");
-        const okBtn = document.getElementById("self-role-ok");
-        const waitText = document.getElementById("self-role-waiting");
-
-        if (roleText) {
-          roleText.textContent =
-            myRole === "wolf" ? "人狼（レユニオン）" : myRole === "doctor" ? "ドクター" : "市民";
-        }
-
-        if (alreadyAcked) {
-          okBtn?.setAttribute("disabled", "true");
-          okBtn && (okBtn.textContent = "OK済み");
-          waitText && (waitText.textContent = "開始待機中…（全員のOKを待っています）");
-          waitText?.classList.remove("hidden");
-        } else {
-          okBtn?.removeAttribute("disabled");
-          okBtn && (okBtn.textContent = "OK");
-          waitText?.classList.add("hidden");
-        }
-
-        modal?.classList.remove("hidden");
-      }
     }
 
     // 全員OKならGMがplayingに進める（GM以外はトランザクションを叩かない）
