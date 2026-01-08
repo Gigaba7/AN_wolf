@@ -71,13 +71,12 @@ function renderStatus() {
   const isGM = !!(createdBy && myId && createdBy === myId);
   
   if (isGM) {
-    // 人狼プレイヤーを探してコストを表示
+    // 人狼プレイヤーを探してコストを表示（残数のみ）
     const wolfPlayer = GameState.players.find(p => p.role === "wolf");
     if (wolfPlayer && wolfPlayer.resources) {
-      const cost = wolfPlayer.resources.wolfActionsRemaining || 0;
-      const maxCost = 5; // デフォルト最大コスト
+      const cost = wolfPlayer.resources.wolfActionsRemaining || 100; // デフォルトは100
       if (wolfCostEl) {
-        wolfCostEl.textContent = `${cost} / ${maxCost}`;
+        wolfCostEl.textContent = String(cost);
       }
       if (wolfCostItem) {
         wolfCostItem.style.display = "flex";
@@ -318,16 +317,13 @@ function renderWaitingScreen(roomId) {
 function renderWolfActionList() {
   const listEl = $("#wolf-action-list");
   const costDisplay = $("#wolf-cost-display");
-  const costMax = $("#wolf-cost-max");
   if (!listEl) return;
 
   const myId = typeof window !== "undefined" ? window.__uid : null;
   const myPlayer = myId ? GameState.players.find(p => p.id === myId) : null;
-  const currentCost = myPlayer?.resources?.wolfActionsRemaining || 0;
-  const maxCost = 5; // デフォルト最大コスト
+  const currentCost = myPlayer?.resources?.wolfActionsRemaining || 100; // デフォルトは100
 
   if (costDisplay) costDisplay.textContent = String(currentCost);
-  if (costMax) costMax.textContent = String(maxCost);
 
   listEl.innerHTML = "";
 
@@ -398,16 +394,13 @@ function renderParticipantInfo() {
     roleDisplay.style.display = "none";
   }
 
-  // コスト表示（人狼のみ）
+  // コスト表示（人狼のみ、残数のみ）
   const costDisplay = $("#participant-cost-display");
   const costValue = $("#participant-cost-value");
-  const costMax = $("#participant-cost-max");
-  if (costDisplay && costValue && costMax) {
+  if (costDisplay && costValue) {
     if (myRole === "wolf" && myPlayer?.resources) {
-      const cost = myPlayer.resources.wolfActionsRemaining || 0;
-      const maxCost = 100; // 総コスト100
+      const cost = myPlayer.resources.wolfActionsRemaining || 100; // デフォルトは100
       costValue.textContent = String(cost);
-      costMax.textContent = String(maxCost);
       costDisplay.style.display = "block";
     } else {
       costDisplay.style.display = "none";

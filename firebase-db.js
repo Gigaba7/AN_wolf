@@ -74,9 +74,19 @@ function computeStartSubphase(playersObj, order, idx) {
     return { subphase: "gm_stage", wolfDecisionPlayerId: null };
   }
   const current = playersObj?.[currentPlayerId] || null;
+  if (!current) {
+    console.warn(`computeStartSubphase: player ${currentPlayerId} not found`);
+    return { subphase: "gm_stage", wolfDecisionPlayerId: null };
+  }
   const role = current?.role || null;
   const res = current?.resources || {};
   const wolfRemain = Number(res.wolfActionsRemaining || 0);
+  
+  // デバッグログ（開発時のみ）
+  if (role === "wolf") {
+    console.log(`computeStartSubphase: player ${currentPlayerId} is wolf, wolfRemain=${wolfRemain}, res=`, res);
+  }
+  
   if (role === "wolf" && wolfRemain > 0) {
     return { subphase: "wolf_decision", wolfDecisionPlayerId: currentPlayerId };
   }
@@ -352,6 +362,15 @@ async function startGameAsHost(roomId) {
     playerIds.forEach((pid, idx) => {
       updates[`players.${pid}.role`] = roles[idx];
       updates[`players.${pid}.status`] = "ready";
+      // resourcesを初期化（役職に応じて）
+      const role = roles[idx];
+      if (role === "wolf") {
+        updates[`players.${pid}.resources.wolfActionsRemaining`] = 100; // 総コスト100
+      }
+      if (role === "doctor") {
+        updates[`players.${pid}.resources.doctorPunchRemaining`] = 5;
+        updates[`players.${pid}.resources.doctorPunchAvailableThisTurn`] = true;
+      }
     });
 
     tx.update(roomRef, updates);
@@ -406,9 +425,45 @@ async function advanceToPlayingIfAllAcked(roomId) {
       [order[i], order[j]] = [order[j], order[i]];
     }
 
-    const startPhase = computeStartSubphase(playersObj, order, 0);
+    // 各プレイヤーのresourcesを確認・初期化（役職に応じて）
+    // トランザクション内で一度に更新するため、updatesオブジェクトにまとめる
+    /** @type {Record<string, any>} */
+    const resourceUpdates = {};
+    const updatedPlayersObj = { ...playersObj };
+    
+    playerIds.forEach((pid) => {
+      const player = playersObj[pid] || {};
+      const role = player.role || null;
+      const res = player.resources || {};
+      
+      // 人狼のコストが設定されていない場合は初期化
+      if (role === "wolf" && (res.wolfActionsRemaining === undefined || res.wolfActionsRemaining === null)) {
+        resourceUpdates[`players.${pid}.resources.wolfActionsRemaining`] = 100; // 総コスト100
+        if (!updatedPlayersObj[pid]) updatedPlayersObj[pid] = {};
+        if (!updatedPlayersObj[pid].resources) updatedPlayersObj[pid].resources = {};
+        updatedPlayersObj[pid].resources.wolfActionsRemaining = 100;
+      }
+      // ドクターのリソースが設定されていない場合は初期化
+      if (role === "doctor") {
+        if (res.doctorPunchRemaining === undefined || res.doctorPunchRemaining === null) {
+          resourceUpdates[`players.${pid}.resources.doctorPunchRemaining`] = 5;
+          if (!updatedPlayersObj[pid]) updatedPlayersObj[pid] = {};
+          if (!updatedPlayersObj[pid].resources) updatedPlayersObj[pid].resources = {};
+          updatedPlayersObj[pid].resources.doctorPunchRemaining = 5;
+        }
+        if (res.doctorPunchAvailableThisTurn === undefined || res.doctorPunchAvailableThisTurn === null) {
+          resourceUpdates[`players.${pid}.resources.doctorPunchAvailableThisTurn`] = true;
+          if (!updatedPlayersObj[pid]) updatedPlayersObj[pid] = {};
+          if (!updatedPlayersObj[pid].resources) updatedPlayersObj[pid].resources = {};
+          updatedPlayersObj[pid].resources.doctorPunchAvailableThisTurn = true;
+        }
+      }
+    });
+
+    const startPhase = computeStartSubphase(updatedPlayersObj, order, 0);
 
     tx.update(roomRef, {
+      ...resourceUpdates,
       "gameState.phase": "playing",
       "gameState.revealAcks": {},
       "gameState.playerOrder": order,

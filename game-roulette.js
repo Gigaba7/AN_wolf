@@ -65,6 +65,7 @@ function startStageRoulette() {
           console.error("Failed to sync stage:", error);
         });
       }
+      // モーダルは自動で閉じる（firebase-sync.js の maybeAutoStageRoulette で処理）
     }, 1000);
   }, 2000);
 }

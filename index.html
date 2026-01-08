@@ -154,7 +154,7 @@
                 </div>
                 <div class="status-main-item" id="status-wolf-cost-item" style="display: none;">
                   <span class="status-main-label">妨害コスト</span>
-                  <span id="status-wolf-cost" class="status-main-value">- / -</span>
+                  <span id="status-wolf-cost" class="status-main-value">-</span>
                 </div>
                 <div class="status-main-item" id="status-doctor-punch-item" style="display: none;">
                   <span class="status-main-label">神拳発動</span>
@@ -195,11 +195,6 @@
                 失敗
               </button>
             </div>
-            <div class="control-group">
-              <button id="btn-open-stage-roulette" class="btn primary wide">
-                ステージ選出開始
-              </button>
-            </div>
           </aside>
         </div>
 
@@ -228,8 +223,6 @@
             <div id="participant-cost-display" class="participant-cost-display" style="display: none;">
               <span class="participant-cost-label">Cost:</span>
               <span id="participant-cost-value" class="participant-cost-value">-</span>
-              <span class="participant-cost-separator">/</span>
-              <span id="participant-cost-max" class="participant-cost-max">-</span>
             </div>
 
             <div class="participant-actions">
@@ -255,14 +248,6 @@
           <div id="stage-roulette-items" class="roulette-list">
             <!-- JSで候補を表示 -->
           </div>
-          <div class="modal-actions">
-            <button id="stage-roulette-start" class="btn primary">
-              ルーレット開始
-            </button>
-            <button data-close-modal="stage-roulette-modal" class="btn ghost">
-              閉じる
-            </button>
-          </div>
         </div>
       </div>
 
@@ -272,7 +257,7 @@
         <div class="modal-content">
           <h2>人狼妨害選択</h2>
           <p class="modal-subtitle">
-            発動する妨害を選択してください（コスト: <span id="wolf-cost-display">-</span> / <span id="wolf-cost-max">-</span>）
+            発動する妨害を選択してください（コスト: <span id="wolf-cost-display">-</span>）
           </p>
           <div id="wolf-action-list" class="wolf-action-list">
             <!-- JSで妨害リストを表示 -->

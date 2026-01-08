@@ -8,7 +8,7 @@ import { signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./game-roles.js";
 import { renderAll, renderWaitingScreen } from "./ui-render.module.js";
 import { onSuccess, onFail, onDoctorPunch, onWolfAction } from "./game-logic.js";
-import { startWolfRoulette, startStageRoulette } from "./game-roulette.js";
+import { startWolfRoulette } from "./game-roulette.js";
 import { resolveWolfAction } from "./firebase-sync.js";
 
 async function fileToResizedAvatarDataUrl(file) {
@@ -409,10 +409,7 @@ function setupMainScreen() {
     openModal("options-modal");
   });
   
-  // GM画面：ステージ選出開始ボタン
-  $("#btn-open-stage-roulette")?.addEventListener("click", () => {
-    openModal("stage-roulette-modal");
-  });
+  // ステージ選出は自動実行のため、ボタンは不要（削除）
 }
 
 function setupParticipantScreen() {
@@ -433,14 +430,7 @@ function setupModals() {
     });
   });
 
-  // ステージルーレット（GMのみ）
-  $("#stage-roulette-start")?.addEventListener("click", () => {
-    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-    const myId = typeof window !== "undefined" ? window.__uid : null;
-    const isGM = !!(createdBy && myId && createdBy === myId);
-    if (!isGM) return;
-    startStageRoulette();
-  });
+  // ステージルーレットは自動実行のため、ボタンイベントは不要（削除）
 
   // GM：妨害発動通知のOKボタン
   $("#gm-wolf-action-ok")?.addEventListener("click", async () => {

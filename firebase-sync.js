@@ -323,7 +323,14 @@ function handlePhaseUI(roomData) {
 
     // 全員OKならGMがplayingに進める（GM以外はトランザクションを叩かない）
     if (isGM) {
-      advanceToPlayingIfAllAckedDB(currentRoomId).catch(() => {});
+      advanceToPlayingIfAllAckedDB(currentRoomId).catch((error) => {
+        // トランザクション競合エラーは無視（他のクライアントが既に処理済みの可能性）
+        if (error?.code === "failed-precondition" || error?.code === "aborted") {
+          console.log("Transaction conflict in advanceToPlayingIfAllAcked (ignored):", error.message);
+          return;
+        }
+        console.error("Failed to advance to playing:", error);
+      });
     }
   }
 
@@ -354,11 +361,11 @@ function handlePhaseUI(roomData) {
       }
     }
 
-    // GMのみ：ステージ選出は手動ボタンで（自動抽選を停止）
-    // 参加者：人狼妨害の手番開始フェーズをチェック
+    // 全員：ステージルーレットをチェック（ターン開始時とターン終了後の自動選出）
+    maybeAutoStageRoulette(roomData);
+    
+    // GM：人狼妨害の選出リクエストをチェック
     if (isGM) {
-      // 自動ステージ抽選を停止（手動ボタンのみ）
-      // GM：人狼妨害の選出リクエストをチェック
       checkWolfActionRequest(roomData);
     } else {
       // 参加者：人狼妨害の手番開始フェーズをチェック
@@ -381,13 +388,22 @@ function checkWolfDecisionPhase(roomData) {
   const gameState = roomData.gameState || {};
   const subphase = gameState.subphase;
   const userId = getCurrentUserId();
+  const players = roomData.players || {};
+  const playerOrder = gameState.playerOrder || [];
+  const currentPlayerIndex = gameState.currentPlayerIndex || 0;
+  
+  // デバッグログ
+  console.log(`checkWolfDecisionPhase: subphase=${subphase}, userId=${userId}, currentPlayerIndex=${currentPlayerIndex}, playerOrder=`, playerOrder);
   
   if (subphase === "wolf_decision") {
     const wolfDecisionPlayerId = gameState.wolfDecisionPlayerId || null;
+    console.log(`checkWolfDecisionPhase: wolf_decision phase, wolfDecisionPlayerId=${wolfDecisionPlayerId}, userId=${userId}`);
+    
     if (wolfDecisionPlayerId === userId) {
       // 自分の手番で妨害フェーズ → 妨害選択UIを表示
       const modal = document.getElementById("wolf-action-select-modal");
       if (modal && modal.classList.contains("hidden")) {
+        console.log(`checkWolfDecisionPhase: showing wolf action select modal for user ${userId}`);
         modal.classList.remove("hidden");
         // 妨害リストを描画
         const { renderWolfActionList } = typeof window !== "undefined" ? window : {};
@@ -402,11 +418,14 @@ function checkWolfDecisionPhase(roomData) {
           });
         }
       }
+    } else {
+      console.log(`checkWolfDecisionPhase: wolf_decision phase but not for current user (wolfDecisionPlayerId=${wolfDecisionPlayerId}, userId=${userId})`);
     }
   } else {
     // フェーズが変わったらモーダルを閉じる
     const modal = document.getElementById("wolf-action-select-modal");
     if (modal && !modal.classList.contains("hidden")) {
+      console.log(`checkWolfDecisionPhase: closing wolf action select modal (subphase=${subphase})`);
       modal.classList.add("hidden");
     }
   }
@@ -522,52 +541,61 @@ function maybeAutoStageRoulette(roomData) {
   const turn = Number(gameState.turn || 1);
   const currentStage = gameState.currentStage || null;
   const stageTurn = gameState.stageTurn ?? null;
+  const subphase = gameState.subphase;
 
   const modal = document.getElementById("stage-roulette-modal");
   const subtitle = modal?.querySelector(".modal-subtitle");
   const items = document.getElementById("stage-roulette-items");
-  const startBtn = document.getElementById("stage-roulette-start");
 
-  // 旧挙動：ホストがボタンで開始
   const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
   const myId = typeof window !== "undefined" ? window.__uid : null;
-  const isHost = !!(createdBy && myId && createdBy === myId);
-  // 自動抽選に戻す：ボタンは使わない（ただし内部的にclickする）
-  if (startBtn) startBtn.style.display = "none";
+  const isGM = !!(createdBy && myId && createdBy === myId);
 
-  // 毎ターンの初めに必ず抽選（currentStageの有無には依存しない）
-  if (lastStageModalTurn !== turn) {
+  // ターン開始時（currentStageがnull、またはstageTurnが現在のターンと異なる）に自動抽選
+  const needsStageSelection = !currentStage || (stageTurn !== null && stageTurn !== turn);
+  
+  // ターンの初め（gm_stage フェーズ）でステージ未選出の場合、自動でルーレット開始
+  // 人狼の妨害フェーズが終わった後（wolf_decision → gm_stage）にも実行される
+  if (needsStageSelection && subphase === "gm_stage" && lastStageModalTurn !== turn) {
     lastStageModalTurn = turn;
     subtitle && (subtitle.textContent = "ステージ抽選中……");
     if (items) items.innerHTML = "";
     modal?.classList.remove("hidden");
     setStageRoulettePendingLog(true);
 
-    // ホストだけが1回だけ抽選を実行（UIハンドラのclickを流用）
-    if (isHost && startBtn && lastStageRequestedTurn !== turn) {
+    // GMだけが1回だけ抽選を実行（自動）
+    if (isGM && lastStageRequestedTurn !== turn) {
       lastStageRequestedTurn = turn;
-      startBtn.click();
+      // 動的インポートで startStageRoulette を呼び出す
+      import("./game-roulette.js").then((module) => {
+        if (module.startStageRoulette) {
+          module.startStageRoulette();
+        }
+      }).catch((error) => {
+        console.error("Failed to import game-roulette:", error);
+      });
     }
   }
 
   // そのターンの抽選が完了したら「抽選中……」表示は消す（結果は上部ステータスに反映）
   const resolvedThisTurn = stageTurn === turn && !!currentStage;
-  if (!resolvedThisTurn) return;
-  setStageRoulettePendingLog(false);
+  if (resolvedThisTurn) {
+    setStageRoulettePendingLog(false);
 
-  // ステージ決定：結果を表示して閉じる
-  if (lastStageModalTurn === turn && modal && !modal.classList.contains("hidden")) {
-    subtitle && (subtitle.textContent = `ステージ決定: ${currentStage}`);
-    if (items) {
-      items.innerHTML = "";
-      const el = document.createElement("div");
-      el.className = "roulette-item selected";
-      el.textContent = currentStage;
-      items.appendChild(el);
+    // ステージ決定：結果を表示して自動で閉じる
+    if (lastStageModalTurn === turn && modal && !modal.classList.contains("hidden")) {
+      subtitle && (subtitle.textContent = `ステージ決定: ${currentStage}`);
+      if (items) {
+        items.innerHTML = "";
+        const el = document.createElement("div");
+        el.className = "roulette-item selected";
+        el.textContent = currentStage;
+        items.appendChild(el);
+      }
+      setTimeout(() => {
+        modal.classList.add("hidden");
+      }, 900);
     }
-    setTimeout(() => {
-      modal.classList.add("hidden");
-    }, 900);
   }
 }
 
