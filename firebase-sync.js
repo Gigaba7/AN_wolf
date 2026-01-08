@@ -5,6 +5,7 @@ import { firestore } from "./firebase-config.js";
 import { doc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { createRoomClient } from "./room-client.js";
 import { $ } from "./game-state.js";
+import { switchScreen } from "./ui-modals.js";
 
 let currentRoomId = null;
 let roomUnsubscribe = null;
@@ -343,6 +344,7 @@ function handlePhaseUI(roomData) {
         waitText?.classList.add("hidden");
       }
 
+      // GMの場合でも、self-role-modalを表示（役職一覧モーダルと同時に表示可能）
       modal?.classList.remove("hidden");
     }
     
@@ -1041,6 +1043,113 @@ function showGameResult(roomData, gameResult) {
   rolesEl.appendChild(rolesList);
   extraEl.innerHTML = "";
   modal.classList.remove("hidden");
+  
+  // ボタンのイベントリスナーを設定
+  setupResultModalButtons(roomData);
+}
+
+/**
+ * 勝利画面のボタンイベントリスナーを設定
+ */
+function setupResultModalButtons(roomData) {
+  const returnLobbyBtn = document.getElementById("result-return-lobby");
+  const disbandBtn = document.getElementById("result-disband");
+  
+  if (returnLobbyBtn) {
+    // 既存のイベントリスナーを削除してから追加
+    const newBtn = returnLobbyBtn.cloneNode(true);
+    returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
+    
+    newBtn.addEventListener("click", async () => {
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (!roomId) return;
+      
+      try {
+        // ゲーム状態をwaitingフェーズにリセット
+        await updateGameState(roomId, {
+          "gameState.phase": "waiting",
+          "gameState.turn": 1,
+          "gameState.whiteStars": 0,
+          "gameState.blackStars": 0,
+          "gameState.currentPlayerIndex": 0,
+          "gameState.currentStage": null,
+          "gameState.stageTurn": null,
+          "gameState.subphase": null,
+          "gameState.pendingFailure": null,
+          "gameState.playerOrder": null,
+          "gameState.wolfDecisionPlayerId": null,
+          "gameState.wolfActionRequest": null,
+          "gameState.gameResult": null,
+          "gameState.turnResult": null,
+          "gameState.doctorHasFailed": false,
+        });
+        
+        // 結果モーダルを閉じる
+        const modal = document.getElementById("result-modal");
+        if (modal) {
+          modal.classList.add("hidden");
+        }
+        
+        // マッチング待機画面に戻る
+        const main = document.getElementById("main-screen");
+        const participant = document.getElementById("participant-screen");
+        
+        if (main && main.classList.contains("active")) {
+          switchScreen("main-screen", "waiting-screen");
+        } else if (participant && participant.classList.contains("active")) {
+          switchScreen("participant-screen", "waiting-screen");
+        } else {
+          switchScreen("home-screen", "waiting-screen");
+        }
+      } catch (e) {
+        console.error("Failed to return to lobby:", e);
+        alert("ロビーに戻るのに失敗しました。");
+      }
+    });
+  }
+  
+  if (disbandBtn) {
+    // 既存のイベントリスナーを削除してから追加
+    const newBtn = disbandBtn.cloneNode(true);
+    disbandBtn.parentNode.replaceChild(newBtn, disbandBtn);
+    
+    newBtn.addEventListener("click", () => {
+      if (confirm("ルームを解散してホームに戻りますか？")) {
+        // ルーム同期を停止
+        stopRoomSync();
+        
+        // 結果モーダルを閉じる
+        const modal = document.getElementById("result-modal");
+        if (modal) {
+          modal.classList.add("hidden");
+        }
+        
+        // ホーム画面に戻る
+        const waiting = document.getElementById("waiting-screen");
+        const main = document.getElementById("main-screen");
+        const participant = document.getElementById("participant-screen");
+        
+        if (waiting && waiting.classList.contains("active")) {
+          switchScreen("waiting-screen", "home-screen");
+        } else if (main && main.classList.contains("active")) {
+          switchScreen("main-screen", "home-screen");
+        } else if (participant && participant.classList.contains("active")) {
+          switchScreen("participant-screen", "home-screen");
+        } else {
+          switchScreen("home-screen", "home-screen");
+        }
+        
+        // フォームをリセット
+        const createForm = document.getElementById("create-room-form");
+        const joinForm = document.getElementById("join-room-form");
+        const roomInfo = document.getElementById("room-info");
+        
+        if (createForm) createForm.style.setProperty("display", "none");
+        if (joinForm) joinForm.style.setProperty("display", "none");
+        if (roomInfo) roomInfo.style.setProperty("display", "none");
+      }
+    });
+  }
 }
 
 // assignRoles関数はmain.jsで定義されているため、ここでは使用しない

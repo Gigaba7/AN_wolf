@@ -44,6 +44,7 @@ function startStageRoulette() {
       }
     });
 
+    // ルーレットの停止位置で1秒停止
     setTimeout(() => {
       // Firebase同期（結果はsnapshotで全員に反映）
       const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
@@ -55,13 +56,11 @@ function startStageRoulette() {
           console.error("Failed to sync stage:", error);
         });
       }
-      // モーダルを自動で閉じる（結果表示後）
-      setTimeout(() => {
-        const modal = document.getElementById("stage-roulette-modal");
-        if (modal) {
-          modal.classList.add("hidden");
-        }
-      }, 900);
+      // モーダルを自動で閉じる（停止位置で1秒停止後）
+      const modal = document.getElementById("stage-roulette-modal");
+      if (modal) {
+        modal.classList.add("hidden");
+      }
     }, 1000);
   }, 2000);
 }
