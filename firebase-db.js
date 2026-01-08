@@ -735,6 +735,47 @@ async function applyDoctorPunch(roomId) {
 }
 
 /**
+ * ドクター神拳をスキップ（使用しない）
+ */
+async function applyDoctorSkip(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    const playersObj = data?.players || {};
+    const me = playersObj?.[userId];
+    if (!me || me.role !== "doctor") throw new Error("Only doctor can skip Doctor Punch");
+
+    const pending = data?.gameState?.pendingFailure;
+    if (!pending) throw new Error("No pending failure");
+
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+    const idx = Number(data?.gameState?.currentPlayerIndex || 0);
+
+    // 失敗保留は「現在プレイヤーの失敗」である必要がある
+    const currentPlayerId = order[idx];
+    if (pending?.playerId && pending.playerId !== currentPlayerId) {
+      throw new Error("Pending failure is not for current player");
+    }
+
+    // 神拳を使わない＝失敗確定で即次ターンへ
+    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, {
+      "gameState.pendingFailure": null,
+    });
+  });
+}
+
+/**
  * 人狼：手番開始時の妨害使用可否を決定（wolf_decision フェーズ）
  * @param {string} roomId
  * @param {"use"|"skip"} decision
