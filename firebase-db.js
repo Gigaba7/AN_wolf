@@ -882,9 +882,13 @@ async function resolveWolfActionRoulette(roomId, selectedJob) {
       playerId: wolfId,
     };
 
+    // ルーレット確定後、subphaseをawait_resultに戻す（妨害フェーズ終了、ステージ選出済みなので結果待ち）
+    const currentStage = data?.gameState?.currentStage || null;
+    const nextSubphase = currentStage ? "await_result" : "gm_stage";
+    
     tx.update(roomRef, {
       "gameState.wolfActionNotification": { text: `${actionText}（使用禁止職業: ${selectedJob}）`, timestamp: Date.now() },
-      "gameState.subphase": "gm_stage",
+      "gameState.subphase": nextSubphase,
       "gameState.wolfActionRequest": null,
       logs: arrayUnion(logData),
     });
@@ -985,12 +989,15 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
       playerId: userId,
     };
 
-    // 妨害発動後、subphaseをgm_stageに戻す（妨害フェーズ終了）
+    // 妨害発動後、subphaseをawait_resultに戻す（妨害フェーズ終了、ステージ選出済みなので結果待ち）
+    const currentStage = data?.gameState?.currentStage || null;
+    const nextSubphase = currentStage ? "await_result" : "gm_stage";
+    
     tx.update(roomRef, {
       [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
       [`players.${userId}.resources.wolfActionLastUsedTurn`]: turn,
       "gameState.wolfActionNotification": { text: actionText, timestamp: Date.now() },
-      "gameState.subphase": "gm_stage",
+      "gameState.subphase": nextSubphase,
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
       logs: arrayUnion(logData),

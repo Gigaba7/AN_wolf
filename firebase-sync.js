@@ -355,9 +355,6 @@ function handlePhaseUI(roomData) {
       }
     }
 
-    // 全員：ステージルーレットをチェック（ターン開始時とターン終了後の自動選出）
-    maybeAutoStageRoulette(roomData);
-    
     // GM：人狼妨害の選出リクエストをチェック
     if (isGM) {
       checkWolfActionRequest(roomData);

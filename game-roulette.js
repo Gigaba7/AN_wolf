@@ -65,7 +65,13 @@ function startStageRoulette() {
           console.error("Failed to sync stage:", error);
         });
       }
-      // モーダルは自動で閉じる（firebase-sync.js の maybeAutoStageRoulette で処理）
+      // モーダルを自動で閉じる（結果表示後）
+      setTimeout(() => {
+        const modal = document.getElementById("stage-roulette-modal");
+        if (modal) {
+          modal.classList.add("hidden");
+        }
+      }, 900);
     }, 1000);
   }, 2000);
 }

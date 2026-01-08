@@ -430,7 +430,27 @@ function setupModals() {
     });
   });
 
-  // ステージルーレットは自動実行のため、ボタンイベントは不要（削除）
+  // GM画面：ステージ選出開始ボタン
+  $("#btn-open-stage-roulette")?.addEventListener("click", () => {
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    if (!isGM) return;
+    
+    // ステージルーレットモーダルを開く
+    const modal = document.getElementById("stage-roulette-modal");
+    if (modal) {
+      modal.classList.remove("hidden");
+      // ルーレットを開始
+      import("./game-roulette.js").then((module) => {
+        if (module.startStageRoulette) {
+          module.startStageRoulette();
+        }
+      }).catch((error) => {
+        console.error("Failed to import game-roulette:", error);
+      });
+    }
+  });
 
   // GM：妨害発動通知のOKボタン
   $("#gm-wolf-action-ok")?.addEventListener("click", async () => {

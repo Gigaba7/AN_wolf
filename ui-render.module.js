@@ -198,12 +198,23 @@ function updateControlPermissions() {
   const subphase = typeof window !== "undefined" ? window.RoomInfo?.gameState?.subphase : null;
 
   if (isGM) {
-    // GM：成功/失敗ボタンのみ（ステージ選出後、結果待ちフェーズで有効）
+    // GM：成功/失敗ボタン（ステージ選出後、結果待ちフェーズで有効）
     const canJudge = inPlaying && subphase === "await_result";
     if (btnSuccess) btnSuccess.disabled = !canJudge || !!GameState.pendingFailure;
     if (btnFail) {
       btnFail.disabled = !canJudge;
       btnFail.textContent = GameState.pendingFailure ? "失敗確定（神拳なし）" : "失敗";
+    }
+    
+    // GM：ステージ選出開始ボタン（ステージ未選出時のみ有効）
+    const btnStageRoulette = $("#btn-open-stage-roulette");
+    if (btnStageRoulette) {
+      const currentStage = GameState.currentStage;
+      const stageTurn = typeof window !== "undefined" ? window.RoomInfo?.gameState?.stageTurn : null;
+      const turn = GameState.turn;
+      // ステージが未選出、または現在のターンと異なるターンのステージの場合に有効
+      const needsStageSelection = !currentStage || (stageTurn !== null && stageTurn !== turn);
+      btnStageRoulette.disabled = !(inPlaying && needsStageSelection && (subphase === "gm_stage" || subphase === null));
     }
   } else {
     // 参加者：役職ボタンのみ
