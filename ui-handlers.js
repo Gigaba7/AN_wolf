@@ -7,8 +7,7 @@ import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost,
 import { signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./game-roles.js";
 import { renderAll, renderWaitingScreen } from "./ui-render.module.js";
-import { onSuccess, onFail, onDoctorPunch, onWolfAction } from "./game-logic.js";
-import { startWolfRoulette } from "./game-roulette.js";
+import { onSuccess, onFail, onDoctorPunch } from "./game-logic.js";
 import { resolveWolfAction } from "./firebase-sync.js";
 
 async function fileToResizedAvatarDataUrl(file) {
@@ -413,9 +412,26 @@ function setupMainScreen() {
 }
 
 function setupParticipantScreen() {
-  // 参加者画面：役職ボタンのみ（妨害・神拳）
-  $("#btn-wolf-action")?.addEventListener("click", onWolfAction);
+  // 参加者画面：役職ボタンのみ（神拳）
+  // 人狼妨害ボタンは削除（常に妨害選択モーダルを表示するため）
   $("#btn-doctor-punch")?.addEventListener("click", onDoctorPunch);
+  $("#btn-doctor-skip")?.addEventListener("click", async () => {
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (!roomId) return;
+    try {
+      const { applyDoctorSkipDB, syncToFirebase } = await import("./firebase-sync.js");
+      const { getCurrentUserId } = await import("./firebase-auth.js");
+      await applyDoctorSkipDB(roomId);
+      await syncToFirebase("log", {
+        type: "doctorSkip",
+        message: "ドクター神拳は使用されませんでした。",
+        playerId: getCurrentUserId(),
+        roomId,
+      });
+    } catch (error) {
+      console.error('Failed to skip doctor punch:', error);
+    }
+  });
 }
 
 function setupModals() {

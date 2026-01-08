@@ -1,5 +1,5 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, computeStartSubphase } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
 import { doc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -197,6 +197,24 @@ function syncGameStateFromFirebase(roomData) {
   GameState.pendingFailure = gameState.pendingFailure || null;
   GameState.playerOrder = gameState.playerOrder || null;
   GameState.subphase = gameState.subphase || null;
+  GameState.turnResult = gameState.turnResult || null;
+  
+  // ターン結果ポップアップを表示
+  if (gameState.turnResult) {
+    const resultModal = document.getElementById("turn-result-modal");
+    const resultTitle = document.getElementById("turn-result-title");
+    const resultMessage = document.getElementById("turn-result-message");
+    if (resultModal && resultTitle && resultMessage) {
+      if (gameState.turnResult === "success") {
+        resultTitle.textContent = "ターン結果";
+        resultMessage.textContent = "このターンは成功しました";
+      } else if (gameState.turnResult === "failure") {
+        resultTitle.textContent = "ターン結果";
+        resultMessage.textContent = "このターンは失敗しました";
+      }
+      resultModal.classList.remove("hidden");
+    }
+  }
   
   // 妨害発動通知をクリア（表示後）
   if (gameState.wolfActionNotification) {
@@ -738,6 +756,10 @@ async function handleStageRouletteAction(data, roomId) {
  * - 共有: stageMinChapter / stageMaxChapter / wolfActionTexts
  * - 非共有: それ以外（クライアントローカル）
  */
+async function handleClearTurnResultAction(data, roomId) {
+  await clearTurnResultDB(roomId);
+}
+
 async function handleUpdateConfigAction(data, roomId) {
   const userId = getCurrentUserId();
   if (!userId) return;
@@ -830,7 +852,11 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
   return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions);
 }
 
-export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAckedDB, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal };
+async function applyDoctorSkipDB(roomId) {
+  return await applyDoctorSkipDB(roomId);
+}
+
+export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAckedDB, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal, applyDoctorSkipDB };
 
 // 新しいデフォルト同期API（チャット追加もここにぶら下げる想定）
 export { roomClient };

@@ -191,7 +191,6 @@ function updateControlPermissions() {
   const btnFail = $("#btn-fail");
 
   // 参加者画面のボタン（役職ボタンのみ）
-  const btnWolf = $("#btn-wolf-action");
   const btnDoc = $("#btn-doctor-punch");
 
   const inPlaying = phase === "playing";
@@ -218,31 +217,42 @@ function updateControlPermissions() {
       btnStageRoulette.disabled = !(inPlaying && needsStageSelection && (subphase === "gm_stage" || subphase === null));
     }
   } else {
-    // 参加者：役職ボタンのみ
+    // 参加者：役職ボタンのみ（その役職のプレイヤーにのみ表示）
     const myRole = myId ? GameState.players.find((p) => p.id === myId)?.role : null;
     const hasPendingFailure = !!GameState.pendingFailure;
     const pendingForMe = !!(hasPendingFailure && myId && GameState.pendingFailure?.playerId === myId);
 
-    // 人狼妨害：手番開始時の妨害フェーズ（wolf_decision）で有効、かつコストが1以上
-    if (btnWolf) {
-      const myPlayer = myId ? GameState.players.find((p) => p.id === myId) : null;
-      const currentCost = myPlayer?.resources?.wolfActionsRemaining || 0;
-      const canUseWolf = inPlaying && subphase === "wolf_decision" && myRole === "wolf" && currentCost > 0;
-      btnWolf.disabled = !canUseWolf;
-    }
-
-    // ドクター神拳：失敗保留時（await_doctorフェーズ）のみ有効
+    // ドクター神拳：ドクターのみ表示
+    const btnDocSkip = document.getElementById("btn-doctor-skip");
     if (btnDoc) {
       const isAwaitDoctor = subphase === "await_doctor";
+      const isDoctor = myRole === "doctor";
+      
+      // ドクターのみ表示
+      btnDoc.style.display = isDoctor && isAwaitDoctor && hasPendingFailure && pendingForMe ? "block" : "none";
       btnDoc.disabled = !(
         inPlaying &&
-        myRole === "doctor" &&
+        isDoctor &&
         isAwaitDoctor &&
         hasPendingFailure &&
         pendingForMe &&
         GameState.doctorPunchAvailableThisTurn &&
         GameState.doctorPunchRemaining > 0
       );
+      
+      // 使用しないボタンもドクターのみ表示
+      if (btnDocSkip) {
+        btnDocSkip.style.display = isDoctor && isAwaitDoctor && hasPendingFailure && pendingForMe ? "block" : "none";
+        btnDocSkip.disabled = !(
+          inPlaying &&
+          isDoctor &&
+          isAwaitDoctor &&
+          hasPendingFailure &&
+          pendingForMe
+        );
+      }
+    } else if (btnDocSkip) {
+      btnDocSkip.style.display = "none";
     }
   }
 }

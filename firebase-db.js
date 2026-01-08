@@ -291,6 +291,7 @@ export {
   applySuccess,
   applyFail,
   applyDoctorPunch,
+  applyDoctorSkip,
   applyWolfAction,
   activateWolfAction,
   wolfDecision,
@@ -538,6 +539,9 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     updates["gameState.phase"] = "finished";
   }
 
+  // ターン終了時に成功/失敗フラグを設定（ポップアップ表示用）
+  updates["gameState.turnResult"] = isFailureTurn ? "failure" : "success";
+
   tx.update(roomRef, updates);
 }
 
@@ -638,6 +642,7 @@ async function applyFail(roomId) {
     const docAvail = doctorRes ? doctorRes.doctorPunchAvailableThisTurn !== false : false;
 
     // すでに保留なら「神拳を使わない（失敗確定）」＝×で即次ターン
+    // これはGMが「失敗確定（神拳なし）」ボタンを押した場合
     if (pending) {
       endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, {
         "gameState.pendingFailure": null,
@@ -713,7 +718,8 @@ async function applyDoctorPunch(roomId) {
       return;
     }
 
-    // そのターン中はステージを保持（次のプレイヤーに進んでも同じステージ）
+    // ドクター神拳発動後は次のプレイヤーの手番開始時に妨害フェーズを設定
+    // 妨害フェーズは各プレイヤーの手番開始時（挑戦の直前）に発動する
     const startPhase = computeStartSubphase(playersObj, order, nextIndex);
     tx.update(roomRef, {
       "gameState.currentPlayerIndex": nextIndex,

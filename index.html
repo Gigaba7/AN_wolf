@@ -231,11 +231,12 @@
             </div>
 
             <div class="participant-actions">
-              <button id="btn-wolf-action" class="btn warning wide">
-                人狼妨害
-              </button>
-              <button id="btn-doctor-punch" class="btn info wide">
+              <!-- 役職ボタンは役職に応じて表示/非表示を制御（ui-render.module.jsで制御） -->
+              <button id="btn-doctor-punch" class="btn info wide" style="display: none;">
                 ドクター神拳
+              </button>
+              <button id="btn-doctor-skip" class="btn ghost wide" style="display: none;">
+                使用しない
               </button>
             </div>
           </div>
@@ -308,6 +309,20 @@
           <p class="modal-subtitle" style="text-align: center; font-size: 18px; margin-top: 12px;">
             ドクターが操作中です
           </p>
+        </div>
+      </div>
+
+      <!-- ターン結果ポップアップ -->
+      <div id="turn-result-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+          <h2 id="turn-result-title">ターン結果</h2>
+          <p id="turn-result-message" class="modal-subtitle" style="text-align: center; font-size: 18px; margin-top: 12px;">
+            （取得中…）
+          </p>
+          <div class="modal-actions">
+            <button id="turn-result-ok" class="btn primary">OK</button>
+          </div>
         </div>
       </div>
 
