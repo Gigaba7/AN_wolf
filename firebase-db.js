@@ -35,7 +35,7 @@ async function createRoom(roomConfig) {
     gameState: {
       turn: 1,
       maxTurns: 5,
-      phase: 'waiting', // waiting | playing | finished
+      phase: 'waiting', // waiting | playing | final_phase | finished
       currentStage: null,
       whiteStars: 0,
       blackStars: 0,
@@ -43,6 +43,7 @@ async function createRoom(roomConfig) {
       subphase: "gm_stage", // wolf_decision | wolf_resolving | gm_stage | await_result | await_doctor
       wolfDecisionPlayerId: null,
       wolfActionRequest: null, // { playerId, turn }
+      doctorHasFailed: false, // ドクターが一度でも失敗したか（神拳で打ち消しても失敗として記録）
       lock: null, // 排他制御用
     },
     players: {},
@@ -300,6 +301,7 @@ export {
   clearWolfActionNotification,
   clearTurnResult,
   computeStartSubphase,
+  identifyWolf,
 };
 
 /**
@@ -513,8 +515,7 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
   // プレイ順は保持（ターンごとのシャッフルは不要）
   const nextOrder = [...order];
 
-  const startPhase = computeStartSubphase(playersObj, nextOrder, 0);
-
+  // ターン開始時は常にステージ選出から始まる（妨害フェーズはステージ選出後に設定される）
   /** @type {Record<string, any>} */
   const updates = {
     ...extraUpdates,
@@ -526,8 +527,8 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     "gameState.pendingFailure": null,
     "gameState.currentStage": null,
     "gameState.stageTurn": null,
-    "gameState.subphase": startPhase.subphase,
-    "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+    "gameState.subphase": "gm_stage", // 常にステージ選出から開始
+    "gameState.wolfDecisionPlayerId": null,
     "gameState.wolfActionRequest": null,
   };
 
@@ -537,8 +538,43 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
   }
 
-  if (finished) {
+  // 勝敗判定
+  const majority = Math.ceil(maxTurns / 2); // 過半数（3ターンの場合は2、5ターンの場合は3）
+  
+  // ○が過半数以上 → 市民勝利
+  if (whiteStars >= majority) {
     updates["gameState.phase"] = "finished";
+    updates["gameState.gameResult"] = "citizen_win";
+  }
+  // ×が過半数以上 → 最終フェーズへ
+  else if (blackStars >= majority) {
+    const doctorHasFailed = data?.gameState?.doctorHasFailed === true;
+    if (doctorHasFailed) {
+      // ドクターが一度でも失敗していた場合 → 人狼勝利
+      updates["gameState.phase"] = "finished";
+      updates["gameState.gameResult"] = "wolf_win";
+    } else {
+      // ドクターが一度も失敗していない場合 → 最終フェーズ（人狼指名可能）
+      updates["gameState.phase"] = "final_phase";
+      updates["gameState.gameResult"] = null; // 最終フェーズではまだ結果未確定
+    }
+  }
+  // ターン数が最大に達した場合
+  else if (finished) {
+    // 同数の場合は×が多い方が勝利（通常は到達しないが念のため）
+    if (blackStars > whiteStars) {
+      const doctorHasFailed = data?.gameState?.doctorHasFailed === true;
+      if (doctorHasFailed) {
+        updates["gameState.phase"] = "finished";
+        updates["gameState.gameResult"] = "wolf_win";
+      } else {
+        updates["gameState.phase"] = "final_phase";
+        updates["gameState.gameResult"] = null;
+      }
+    } else {
+      updates["gameState.phase"] = "finished";
+      updates["gameState.gameResult"] = "citizen_win";
+    }
   }
 
   // ターン終了時に成功/失敗フラグを設定（ポップアップ表示用）
@@ -643,28 +679,49 @@ async function applyFail(roomId) {
     const docRemain = doctorRes ? Number(doctorRes.doctorPunchRemaining || 0) : 0;
     const docAvail = doctorRes ? doctorRes.doctorPunchAvailableThisTurn !== false : false;
 
+    // 現在のプレイヤーがドクターかどうかを確認
+    const currentPlayerId = order[idx];
+    const isDoctor = doctorId && currentPlayerId === doctorId;
+    
     // すでに保留なら「神拳を使わない（失敗確定）」＝×で即次ターン
     // これはGMが「失敗確定（神拳なし）」ボタンを押した場合
     if (pending) {
-      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, {
-        "gameState.pendingFailure": null,
-      });
+      const pendingPlayerId = pending.playerId || order[pending.playerIndex] || currentPlayerId;
+      const isPendingDoctor = doctorId && pendingPlayerId === doctorId;
+      
+      // ドクターが失敗した場合、失敗履歴を記録
+      const updates = { "gameState.pendingFailure": null };
+      if (isPendingDoctor) {
+        updates["gameState.doctorHasFailed"] = true;
+      }
+      
+      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, updates);
       return;
     }
 
     // 神拳が使えるなら保留にする（進行は止まる）
     if (doctorId && docRemain > 0 && docAvail) {
-      tx.update(roomRef, {
+      // ドクターが失敗した場合、失敗履歴を記録（神拳で打ち消しても失敗として記録）
+      const updates = {
         "gameState.pendingFailure": { playerId: order[idx] },
         "gameState.subphase": "await_doctor",
-      });
+      };
+      if (isDoctor) {
+        updates["gameState.doctorHasFailed"] = true;
+      }
+      
+      tx.update(roomRef, updates);
       return;
     }
 
     // 神拳が無いので失敗確定：×で即次ターン
-    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, {
-      "gameState.pendingFailure": null,
-    });
+    // ドクターが失敗した場合、失敗履歴を記録
+    const updates = { "gameState.pendingFailure": null };
+    if (isDoctor) {
+      updates["gameState.doctorHasFailed"] = true;
+    }
+    
+    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, updates);
   });
 }
 
@@ -707,32 +764,46 @@ async function applyDoctorPunch(roomId) {
       throw new Error("Pending failure is not for current player");
     }
 
+    // ドクターが失敗した場合、失敗履歴を記録（神拳で打ち消しても失敗として記録）
+    const pendingPlayerId = pending?.playerId || currentPlayerId;
+    const isPendingDoctor = pendingPlayerId === userId;
+
     const nextIndex = (idx + 1) % order.length;
 
     // 神拳使用＝成功扱いで次へ進む（ターン内は1回まで）
     if (nextIndex === 0) {
       // 1周完了なので「○」でターン終了（次ターンでは使用可に戻す）
-      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false, {
+      const updates = {
         "gameState.pendingFailure": null,
         [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
         // 次ターン開始時に true に戻すので、ここでは設定しない
-      });
+      };
+      if (isPendingDoctor) {
+        updates["gameState.doctorHasFailed"] = true;
+      }
+      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false, updates);
       return;
     }
 
     // ドクター神拳発動後は次のプレイヤーの手番開始時に妨害フェーズを設定
     // 妨害フェーズは各プレイヤーの手番開始時（挑戦の直前）に発動する
-    const startPhase = computeStartSubphase(playersObj, order, nextIndex);
-    tx.update(roomRef, {
+    const updates = {
       "gameState.currentPlayerIndex": nextIndex,
       "gameState.pendingFailure": null,
       // currentStage と stageTurn は保持（そのターン中は固定）
       [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
-      "gameState.subphase": startPhase.subphase,
-      "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
-      "gameState.wolfActionRequest": null,
-    });
+    };
+    if (isPendingDoctor) {
+      updates["gameState.doctorHasFailed"] = true;
+    }
+    
+    const startPhase = computeStartSubphase(playersObj, order, nextIndex);
+    updates["gameState.subphase"] = startPhase.subphase;
+    updates["gameState.wolfDecisionPlayerId"] = startPhase.wolfDecisionPlayerId;
+    updates["gameState.wolfActionRequest"] = null;
+    
+    tx.update(roomRef, updates);
   });
 }
 
@@ -771,9 +842,16 @@ async function applyDoctorSkip(roomId) {
     }
 
     // 神拳を使わない＝失敗確定で即次ターンへ
-    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, {
-      "gameState.pendingFailure": null,
-    });
+    // ドクターが失敗した場合、失敗履歴を記録
+    const pendingPlayerId = pending?.playerId || order[idx];
+    const isPendingDoctor = doctorId && pendingPlayerId === doctorId;
+    
+    const updates = { "gameState.pendingFailure": null };
+    if (isPendingDoctor) {
+      updates["gameState.doctorHasFailed"] = true;
+    }
+    
+    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, updates);
   });
 }
 
@@ -1062,6 +1140,48 @@ async function clearWolfActionNotification(roomId) {
 async function clearTurnResult(roomId) {
   await updateDoc(doc(firestore, "rooms", roomId), {
     "gameState.turnResult": null,
+  });
+}
+
+/**
+ * 最終フェーズ：人狼を指名（ドクターのみ）
+ * @param {string} roomId
+ * @param {string} suspectedPlayerId - 指名されたプレイヤーのID
+ */
+async function identifyWolf(roomId, suspectedPlayerId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "final_phase") {
+      throw new Error("Game is not in final phase");
+    }
+
+    const playersObj = data?.players || {};
+    const me = playersObj?.[userId];
+    if (!me || me.role !== "doctor") {
+      throw new Error("Only doctor can identify wolf");
+    }
+
+    if (!playersObj[suspectedPlayerId]) {
+      throw new Error("Suspected player not found");
+    }
+
+    // 指名されたプレイヤーが人狼かどうかを確認
+    const suspectedPlayer = playersObj[suspectedPlayerId];
+    const isWolf = suspectedPlayer?.role === "wolf";
+
+    // ゲーム結果を設定
+    tx.update(roomRef, {
+      "gameState.phase": "finished",
+      "gameState.gameResult": isWolf ? "citizen_win_reverse" : "wolf_win",
+    });
   });
 }
 

@@ -1,5 +1,5 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase, identifyWolf as identifyWolfDB } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
 import { doc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -201,6 +201,10 @@ function syncGameStateFromFirebase(roomData) {
   GameState.playerOrder = gameState.playerOrder || null;
   GameState.subphase = gameState.subphase || null;
   GameState.turnResult = gameState.turnResult || null;
+  GameState.doctorHasFailed = gameState.doctorHasFailed === true;
+  GameState.gameResult = gameState.gameResult || null;
+  GameState.doctorHasFailed = gameState.doctorHasFailed === true;
+  GameState.gameResult = gameState.gameResult || null;
   
   // ターン結果ポップアップを表示（自動で閉じる）
   if (gameState.turnResult) {
@@ -433,6 +437,50 @@ function handlePhaseUI(roomData) {
     const renderAll = typeof window !== "undefined" ? window.renderAll : null;
     if (renderAll && typeof renderAll === "function") {
       renderAll();
+    }
+  }
+
+  // final_phase: 最終フェーズ（人狼指名）
+  if (phase === 'final_phase') {
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    const playersObj = roomData.players || {};
+    const myRole = playersObj[myId]?.role || null;
+    const isDoctor = myRole === "doctor";
+
+    // ドクター：人狼指名モーダルを表示
+    if (isDoctor) {
+      showFinalPhaseModal(roomData);
+    } else if (isGM) {
+      // GM：操作中ポップアップを表示
+      const doctorOperationModal = document.getElementById("gm-doctor-operation-modal");
+      if (doctorOperationModal) {
+        doctorOperationModal.classList.remove("hidden");
+      }
+    } else {
+      // その他の参加者：待機画面を表示
+      const waiting = document.getElementById("waiting-screen");
+      const main = document.getElementById("main-screen");
+      const participant = document.getElementById("participant-screen");
+      
+      if (main) main.classList.remove("active");
+      if (participant) participant.classList.remove("active");
+      if (waiting) {
+        waiting.classList.add("active");
+        const waitingTitle = waiting.querySelector(".waiting-title");
+        if (waitingTitle) {
+          waitingTitle.textContent = "最終判定フェーズ（ドクターが人狼を指名中）";
+        }
+      }
+    }
+  }
+
+  // finished: ゲーム終了（勝利画面表示）
+  if (phase === 'finished') {
+    const gameResult = gameState.gameResult;
+    if (gameResult) {
+      showGameResult(roomData, gameResult);
     }
   }
 }
@@ -842,6 +890,159 @@ function appendLogToUI(log) {
   logListEl.scrollTop = logListEl.scrollHeight;
 }
 
+/**
+ * 最終フェーズ：人狼指名モーダルを表示（GMのみ）
+ */
+function showFinalPhaseModal(roomData) {
+  const modal = document.getElementById("result-modal");
+  const titleEl = document.getElementById("result-title");
+  const summaryEl = document.getElementById("result-summary");
+  const extraEl = document.getElementById("result-extra");
+  const rolesEl = document.getElementById("result-roles");
+  
+  if (!modal || !titleEl || !summaryEl || !extraEl) return;
+
+  const playersObj = roomData.players || {};
+  const playersArr = Object.entries(playersObj).map(([id, data]) => ({
+    id,
+    name: data.name,
+    role: data.role,
+  }));
+
+  titleEl.textContent = "最終判定: 人狼指名フェーズ";
+  summaryEl.textContent = "×が過半数ですが、ドクターは一度も失敗していません。プレイヤーからの話し合いをもとに、人狼を1名指名してください。";
+
+  // プレイヤー一覧を表示
+  if (rolesEl) {
+    rolesEl.innerHTML = "";
+    const rolesList = document.createElement("div");
+    rolesList.className = "result-roles-list";
+
+    playersArr.forEach((p) => {
+      const roleItem = document.createElement("div");
+      roleItem.style.display = "flex";
+      roleItem.style.alignItems = "center";
+      roleItem.style.gap = "8px";
+      roleItem.style.padding = "6px 8px";
+      roleItem.style.borderRadius = "6px";
+      roleItem.style.background = "rgba(255, 255, 255, 0.03)";
+      roleItem.innerHTML = `
+        <span style="font-weight: 500;">${p.name}</span>
+      `;
+      rolesList.appendChild(roleItem);
+    });
+
+    rolesEl.appendChild(rolesList);
+  }
+
+  // 人狼指名ボタンを表示
+  extraEl.innerHTML = "";
+  const info = document.createElement("p");
+  info.textContent = "人狼だと思うプレイヤーを1名選択してください。";
+  info.style.marginBottom = "12px";
+  extraEl.appendChild(info);
+
+  const btnWrap = document.createElement("div");
+  btnWrap.style.display = "flex";
+  btnWrap.style.flexWrap = "wrap";
+  btnWrap.style.gap = "6px";
+  btnWrap.style.marginTop = "8px";
+
+  playersArr.forEach((p) => {
+    const b = document.createElement("button");
+    b.className = "btn ghost small";
+    b.textContent = p.name;
+    b.addEventListener("click", async () => {
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (roomId) {
+        try {
+          await identifyWolfDB(roomId, p.id);
+        } catch (e) {
+          console.error("Failed to identify wolf:", e);
+        }
+      }
+    });
+    btnWrap.appendChild(b);
+  });
+
+  extraEl.appendChild(btnWrap);
+  modal.classList.remove("hidden");
+}
+
+/**
+ * ゲーム結果を表示
+ */
+function showGameResult(roomData, gameResult) {
+  const modal = document.getElementById("result-modal");
+  const titleEl = document.getElementById("result-title");
+  const summaryEl = document.getElementById("result-summary");
+  const extraEl = document.getElementById("result-extra");
+  const rolesEl = document.getElementById("result-roles");
+  
+  if (!modal || !titleEl || !summaryEl || !rolesEl) return;
+
+  const playersObj = roomData.players || {};
+  const playersArr = Object.entries(playersObj).map(([id, data]) => ({
+    id,
+    name: data.name,
+    role: data.role,
+  }));
+
+  // ゲーム結果に応じてタイトルとメッセージを設定
+  if (gameResult === "citizen_win") {
+    titleEl.textContent = "市民の勝利";
+    summaryEl.textContent = "○が過半数を占めたため、市民の勝利です。";
+  } else if (gameResult === "citizen_win_reverse") {
+    titleEl.textContent = "市民の勝利（逆転）";
+    summaryEl.textContent = "人狼を正しく特定したため、市民の勝利です。";
+  } else if (gameResult === "wolf_win") {
+    titleEl.textContent = "人狼の勝利";
+    const gameState = roomData.gameState || {};
+    if (gameState.doctorHasFailed) {
+      summaryEl.textContent = "ドクターが失敗したため、人狼の勝利です。";
+    } else {
+      summaryEl.textContent = "×が過半数を占めたため、人狼の勝利です。";
+    }
+  }
+
+  // プレイヤー一覧を表示
+  rolesEl.innerHTML = "";
+  const rolesList = document.createElement("div");
+  rolesList.className = "result-roles-list";
+
+  playersArr.forEach((p) => {
+    const roleLabel =
+      p.role === "doctor"
+        ? "ドクター"
+        : p.role === "wolf"
+        ? "人狼"
+        : "市民";
+    const roleClass =
+      p.role === "doctor"
+        ? "role-doctor"
+        : p.role === "wolf"
+        ? "role-wolf"
+        : "role-citizen";
+    
+    const roleItem = document.createElement("div");
+    roleItem.style.display = "flex";
+    roleItem.style.alignItems = "center";
+    roleItem.style.gap = "8px";
+    roleItem.style.padding = "6px 8px";
+    roleItem.style.borderRadius = "6px";
+    roleItem.style.background = "rgba(255, 255, 255, 0.03)";
+    roleItem.innerHTML = `
+      <span style="font-weight: 500;">${p.name}</span>
+      <span class="player-role-tag ${roleClass}" style="margin-left: auto;">${roleLabel}</span>
+    `;
+    rolesList.appendChild(roleItem);
+  });
+
+  rolesEl.appendChild(rolesList);
+  extraEl.innerHTML = "";
+  modal.classList.remove("hidden");
+}
+
 // assignRoles関数はmain.jsで定義されているため、ここでは使用しない
 
 /**
@@ -873,7 +1074,11 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
   return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions);
 }
 
-export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAckedDB, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal, applyDoctorSkipDB };
+async function identifyWolfDB(roomId, suspectedPlayerId) {
+  return await identifyWolfDB(roomId, suspectedPlayerId);
+}
+
+export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAckedDB, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal, applyDoctorSkipDB, identifyWolfDB };
 
 // 新しいデフォルト同期API（チャット追加もここにぶら下げる想定）
 export { roomClient };

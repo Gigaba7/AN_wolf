@@ -13,7 +13,7 @@ const GameState = {
   playerOrder: /** @type {string[]|null} */ (null),
   turn: 1,
   maxTurns: 5,
-  phase: "waiting", // waiting | revealing | playing | finished
+  phase: "waiting", // waiting | revealing | playing | final_phase | finished
   subphase: null, // wolf_decision | wolf_resolving | gm_stage | await_result | await_doctor | null
   whiteStars: 0,
   blackStars: 0,
@@ -21,7 +21,7 @@ const GameState = {
   doctorPunchRemaining: 5,
   doctorPunchAvailableThisTurn: true,
   pendingFailure: null, // { playerId?:string, playerIndex?:number } | null
-  doctorFailed: false,
+  doctorHasFailed: false, // ドクターが一度でも失敗したか（神拳で打ち消しても失敗として記録）
   currentStage: null,
   options: {
     sound: false,
