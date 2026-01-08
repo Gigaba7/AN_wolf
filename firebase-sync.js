@@ -1,8 +1,8 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, computeStartSubphase } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
-import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { createRoomClient } from "./room-client.js";
 import { $ } from "./game-state.js";
 
@@ -273,22 +273,16 @@ function handlePhaseUI(roomData) {
       const announcementModal = document.getElementById("gm-announcement-modal");
       const rolesModal = document.getElementById("gm-roles-modal");
       
-      // 初回のみアナウンス表示
-      if (announcementModal && announcementModal.classList.contains("hidden") && !announcementModal.dataset.shown) {
+      // 初回のみアナウンス表示（一度表示したら再表示しない）
+      if (announcementModal && !announcementModal.dataset.shown) {
+        // アナウンスモーダルを表示
         announcementModal.dataset.shown = "true";
         announcementModal.classList.remove("hidden");
-        // OKで役職一覧へ
-        const okBtn = document.getElementById("gm-announcement-ok");
-        if (okBtn) {
-          okBtn.onclick = () => {
-            announcementModal.classList.add("hidden");
-            showGMRolesModal(roomData);
-          };
-        }
-      } else if (rolesModal && rolesModal.classList.contains("hidden") && announcementModal.dataset.shown === "true") {
-        // アナウンス済みなら直接役職一覧
-        showGMRolesModal(roomData);
+        // 役職一覧モーダルは閉じる
+        if (rolesModal) rolesModal.classList.add("hidden");
       }
+      // アナウンスが閉じられて、役職一覧がまだ表示されていない場合は何もしない
+      // （gm-announcement-ok のクリックで showGMRolesModal が呼ばれる）
     } else {
       // 参加者：自分の役職のみ表示
       const acks = gameState.revealAcks || {};
@@ -383,49 +377,42 @@ function handlePhaseUI(roomData) {
 let lastStageModalTurn = null;
 let lastStageRequestedTurn = null;
 
-// 参加者：人狼妨害の手番開始フェーズをチェック
+// 参加者：人狼妨害の手番開始フェーズをチェック（人狼のみ対象）
 function checkWolfDecisionPhase(roomData) {
   const gameState = roomData.gameState || {};
   const subphase = gameState.subphase;
   const userId = getCurrentUserId();
   const players = roomData.players || {};
-  const playerOrder = gameState.playerOrder || [];
-  const currentPlayerIndex = gameState.currentPlayerIndex || 0;
-  
-  // デバッグログ
-  console.log(`checkWolfDecisionPhase: subphase=${subphase}, userId=${userId}, currentPlayerIndex=${currentPlayerIndex}, playerOrder=`, playerOrder);
   
   if (subphase === "wolf_decision") {
     const wolfDecisionPlayerId = gameState.wolfDecisionPlayerId || null;
-    console.log(`checkWolfDecisionPhase: wolf_decision phase, wolfDecisionPlayerId=${wolfDecisionPlayerId}, userId=${userId}`);
     
+    // 人狼のみに対して妨害選択UIを表示
     if (wolfDecisionPlayerId === userId) {
-      // 自分の手番で妨害フェーズ → 妨害選択UIを表示
-      const modal = document.getElementById("wolf-action-select-modal");
-      if (modal && modal.classList.contains("hidden")) {
-        console.log(`checkWolfDecisionPhase: showing wolf action select modal for user ${userId}`);
-        modal.classList.remove("hidden");
-        // 妨害リストを描画
-        const { renderWolfActionList } = typeof window !== "undefined" ? window : {};
-        if (renderWolfActionList && typeof renderWolfActionList === "function") {
-          renderWolfActionList();
-        } else {
-          // モジュールから動的インポート
-          import("./ui-render.module.js").then((module) => {
-            if (module.renderWolfActionList) {
-              module.renderWolfActionList();
-            }
-          });
+      const myPlayer = players[userId];
+      if (myPlayer && myPlayer.role === "wolf") {
+        const modal = document.getElementById("wolf-action-select-modal");
+        if (modal && modal.classList.contains("hidden")) {
+          modal.classList.remove("hidden");
+          // 妨害リストを描画
+          const { renderWolfActionList } = typeof window !== "undefined" ? window : {};
+          if (renderWolfActionList && typeof renderWolfActionList === "function") {
+            renderWolfActionList();
+          } else {
+            // モジュールから動的インポート
+            import("./ui-render.module.js").then((module) => {
+              if (module.renderWolfActionList) {
+                module.renderWolfActionList();
+              }
+            });
+          }
         }
       }
-    } else {
-      console.log(`checkWolfDecisionPhase: wolf_decision phase but not for current user (wolfDecisionPlayerId=${wolfDecisionPlayerId}, userId=${userId})`);
     }
   } else {
     // フェーズが変わったらモーダルを閉じる
     const modal = document.getElementById("wolf-action-select-modal");
     if (modal && !modal.classList.contains("hidden")) {
-      console.log(`checkWolfDecisionPhase: closing wolf action select modal (subphase=${subphase})`);
       modal.classList.add("hidden");
     }
   }
@@ -692,10 +679,32 @@ async function handleStageRouletteAction(data, roomId) {
     timestamp: Date.now(),
   });
   
-  await updateGameState(roomId, {
-    'gameState.currentStage': stage,
-    'gameState.stageTurn': GameState.turn,
-    'gameState.subphase': 'await_result', // ステージ選出後は結果待ちフェーズ
+  // ステージ選出完了後、最初のプレイヤーの手番開始時に妨害フェーズを設定
+  const roomRef = doc(firestore, "rooms", roomId);
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+    
+    const playersObj = data?.players || {};
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+    const currentPlayerIndex = Number(data?.gameState?.currentPlayerIndex || 0);
+    
+    // 現在のプレイヤーの手番開始時に妨害フェーズを設定
+    const startPhase = computeStartSubphase(playersObj, order, currentPlayerIndex);
+    
+    // 人狼の妨害フェーズの場合は wolf_decision、それ以外は await_result（ステージ選出完了後）
+    const nextSubphase = startPhase.subphase === "wolf_decision" ? "wolf_decision" : "await_result";
+    
+    tx.update(roomRef, {
+      'gameState.currentStage': stage,
+      'gameState.stageTurn': GameState.turn,
+      'gameState.subphase': nextSubphase,
+      'gameState.wolfDecisionPlayerId': startPhase.wolfDecisionPlayerId,
+      'gameState.wolfActionRequest': null,
+    });
   });
   
   await addLog(roomId, {
@@ -801,7 +810,7 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
   return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions);
 }
 
-export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction };
+export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal };
 
 // 新しいデフォルト同期API（チャット追加もここにぶら下げる想定）
 export { roomClient };

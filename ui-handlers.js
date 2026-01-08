@@ -514,7 +514,22 @@ function setupModals() {
     }
   });
   
-  // GM：役職一覧OK
+  // GM：アナウンスOK（注意ポップアップ → 役職一覧）
+  $("#gm-announcement-ok")?.addEventListener("click", async () => {
+    const announcementModal = document.getElementById("gm-announcement-modal");
+    if (announcementModal) {
+      announcementModal.classList.add("hidden");
+    }
+    
+    // 役職一覧を表示
+    const roomData = typeof window !== "undefined" ? window.RoomInfo : null;
+    if (roomData) {
+      const { showGMRolesModal } = await import("./firebase-sync.js");
+      showGMRolesModal(roomData);
+    }
+  });
+  
+  // GM：役職一覧OK（役職一覧 → マッチ開始待機）
   $("#gm-roles-ok")?.addEventListener("click", () => {
     closeModal("gm-roles-modal");
   });

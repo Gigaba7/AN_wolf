@@ -313,7 +313,7 @@ function renderWaitingScreen(roomId) {
   }
 }
 
-// 妨害選択リストを描画（人狼用）
+// 妨害選択リストを描画（人狼のみ対象）
 function renderWolfActionList() {
   const listEl = $("#wolf-action-list");
   const costDisplay = $("#wolf-cost-display");
@@ -321,7 +321,10 @@ function renderWolfActionList() {
 
   const myId = typeof window !== "undefined" ? window.__uid : null;
   const myPlayer = myId ? GameState.players.find(p => p.id === myId) : null;
-  const currentCost = myPlayer?.resources?.wolfActionsRemaining || 100; // デフォルトは100
+  
+  // 人狼のコストを取得
+  const wolfPlayer = GameState.players.find(p => p.role === "wolf");
+  const currentCost = wolfPlayer?.resources?.wolfActionsRemaining || 100; // デフォルトは100
 
   if (costDisplay) costDisplay.textContent = String(currentCost);
 
@@ -355,6 +358,7 @@ function renderWolfActionList() {
 
     const btn = item.querySelector("button");
     if (btn && canAfford) {
+      // 人狼のみが発動できる（このUIは人狼のみに表示される）
       btn.addEventListener("click", async () => {
         const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
         if (!roomId) return;
@@ -375,6 +379,36 @@ function renderWolfActionList() {
 
     listEl.appendChild(item);
   });
+  
+  // スキップボタンを追加（全プレイヤーがスキップできる）
+  const skipItem = document.createElement("div");
+  skipItem.className = "wolf-action-item";
+  skipItem.style.marginTop = "10px";
+  skipItem.innerHTML = `
+    <button class="btn ghost wide" id="wolf-action-skip-btn">
+      妨害を使用しない
+    </button>
+  `;
+  listEl.appendChild(skipItem);
+  
+  // スキップボタンのイベントリスナー
+  const skipBtn = skipItem.querySelector("#wolf-action-skip-btn");
+  if (skipBtn) {
+    skipBtn.addEventListener("click", async () => {
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (!roomId) return;
+      
+      try {
+        const { wolfDecision } = await import("./firebase-sync.js");
+        await wolfDecision(roomId, "skip");
+        const { closeModal } = await import("./ui-modals.js");
+        closeModal("wolf-action-select-modal");
+      } catch (e) {
+        console.error("Failed to skip wolf action:", e);
+        alert(e?.message || "妨害スキップに失敗しました。");
+      }
+    });
+  }
 }
 
 // 参加者画面の役職・コスト表示を更新

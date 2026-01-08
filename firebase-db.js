@@ -78,17 +78,16 @@ function computeStartSubphase(playersObj, order, idx) {
     console.warn(`computeStartSubphase: player ${currentPlayerId} not found`);
     return { subphase: "gm_stage", wolfDecisionPlayerId: null };
   }
-  const role = current?.role || null;
-  const res = current?.resources || {};
-  const wolfRemain = Number(res.wolfActionsRemaining || 0);
   
-  // デバッグログ（開発時のみ）
-  if (role === "wolf") {
-    console.log(`computeStartSubphase: player ${currentPlayerId} is wolf, wolfRemain=${wolfRemain}, res=`, res);
-  }
+  // 各プレイヤーの手番の前に、人狼に対して妨害フェーズを表示
+  // 人狼のコストが残っている場合のみ
+  const wolfPlayer = Object.values(playersObj).find(p => p?.role === "wolf");
+  const wolfRes = wolfPlayer?.resources || {};
+  const wolfRemain = Number(wolfRes.wolfActionsRemaining || 0);
   
-  if (role === "wolf" && wolfRemain > 0) {
-    return { subphase: "wolf_decision", wolfDecisionPlayerId: currentPlayerId };
+  if (wolfRemain > 0 && wolfPlayer) {
+    // 人狼のIDを設定（人狼が妨害を選択する）
+    return { subphase: "wolf_decision", wolfDecisionPlayerId: wolfPlayer.id || Object.keys(playersObj).find(pid => playersObj[pid]?.role === "wolf") };
   }
   return { subphase: "gm_stage", wolfDecisionPlayerId: null };
 }
@@ -297,6 +296,7 @@ export {
   wolfDecision,
   resolveWolfAction,
   resolveWolfActionRoulette,
+  computeStartSubphase,
 };
 
 /**
@@ -460,8 +460,8 @@ async function advanceToPlayingIfAllAcked(roomId) {
       }
     });
 
-    const startPhase = computeStartSubphase(updatedPlayersObj, order, 0);
-
+    // ゲーム開始時は常に gm_stage フェーズ（ステージ選出を優先）
+    // 妨害フェーズはステージ選出完了後に設定される
     tx.update(roomRef, {
       ...resourceUpdates,
       "gameState.phase": "playing",
@@ -471,8 +471,8 @@ async function advanceToPlayingIfAllAcked(roomId) {
       "gameState.pendingFailure": null,
       "gameState.currentStage": null,
       "gameState.stageTurn": null,
-      "gameState.subphase": startPhase.subphase,
-      "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+      "gameState.subphase": "gm_stage", // ステージ選出を優先
+      "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
     });
   });
@@ -755,22 +755,19 @@ async function wolfDecision(roomId, decision) {
     const me = playersObj?.[userId];
     if (!me || me.role !== "wolf") throw new Error("Only werewolf can decide obstruction");
 
-    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
-      ? data.gameState.playerOrder
-      : Object.keys(playersObj);
-    const idx = Number(data?.gameState?.currentPlayerIndex || 0);
-    const currentPlayerId = order[idx];
-    if (currentPlayerId !== userId) throw new Error("Only current player can decide obstruction");
-
     if (data?.gameState?.subphase !== "wolf_decision") throw new Error("Not in wolf decision phase");
     if (data?.gameState?.wolfDecisionPlayerId && data.gameState.wolfDecisionPlayerId !== userId) {
       throw new Error("Not your wolf decision");
     }
 
     if (decision === "skip") {
-      // スキップ：妨害を使用しない（直接gm_stageへ）
+      // スキップ：妨害を使用しない（直接await_resultへ、ステージ選出済みの場合）
+      // ステージが選出済みの場合は await_result、未選出の場合は gm_stage
+      const currentStage = data?.gameState?.currentStage || null;
+      const nextSubphase = currentStage ? "await_result" : "gm_stage";
+      
       tx.update(roomRef, {
-        "gameState.subphase": "gm_stage",
+        "gameState.subphase": nextSubphase,
         "gameState.wolfDecisionPlayerId": null,
         "gameState.wolfActionRequest": null,
       });
@@ -779,8 +776,11 @@ async function wolfDecision(roomId, decision) {
 
     // use: 旧実装（後方互換性のため保持）
     // 新実装では activateWolfAction を直接呼ぶため、この分岐は使用されない
+    const currentStage = data?.gameState?.currentStage || null;
+    const nextSubphase = currentStage ? "await_result" : "gm_stage";
+    
     tx.update(roomRef, {
-      "gameState.subphase": "gm_stage",
+      "gameState.subphase": nextSubphase,
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
     });
