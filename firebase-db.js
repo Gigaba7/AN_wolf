@@ -297,6 +297,8 @@ export {
   wolfDecision,
   resolveWolfAction,
   resolveWolfActionRoulette,
+  clearWolfActionNotification,
+  clearTurnResult,
   computeStartSubphase,
 };
 
@@ -1042,6 +1044,24 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
       "gameState.wolfActionRequest": null,
       logs: arrayUnion(logData),
     });
+  });
+}
+
+/**
+ * 妨害発動通知をクリア
+ */
+async function clearWolfActionNotification(roomId) {
+  await updateDoc(doc(firestore, "rooms", roomId), {
+    "gameState.wolfActionNotification": null,
+  });
+}
+
+/**
+ * ターン結果をクリア
+ */
+async function clearTurnResult(roomId) {
+  await updateDoc(doc(firestore, "rooms", roomId), {
+    "gameState.turnResult": null,
   });
 }
 

@@ -34,7 +34,10 @@ const roomClient = createRoomClient({
     stageRoulette: (roomId, payload) => handleStageRouletteAction(payload, roomId),
     updateConfig: (roomId, payload) => handleUpdateConfigAction(payload, roomId),
     clearWolfActionNotification: async (roomId, payload) => {
-      await updateGameState(roomId, { "gameState.wolfActionNotification": null });
+      await clearWolfActionNotificationDB(roomId);
+    },
+    clearTurnResult: async (roomId, payload) => {
+      await clearTurnResultDB(roomId);
     },
     log: async (roomId, payload) => {
       const type = payload?.logType || "system";
@@ -756,10 +759,6 @@ async function handleStageRouletteAction(data, roomId) {
  * - 共有: stageMinChapter / stageMaxChapter / wolfActionTexts
  * - 非共有: それ以外（クライアントローカル）
  */
-async function handleClearTurnResultAction(data, roomId) {
-  await clearTurnResultDB(roomId);
-}
-
 async function handleUpdateConfigAction(data, roomId) {
   const userId = getCurrentUserId();
   if (!userId) return;

@@ -4,16 +4,6 @@ import { GameState, $, $$ } from "./game-state.js";
 import { closeAllRouletteModals } from "./ui-modals.js";
 import { syncToFirebase } from "./firebase-sync.js";
 
-// 妨害ルーレット機能は廃止（任意選択方式に変更）
-// 後方互換性のため関数は残すが、使用されない
-function startWolfRoulette() {
-  console.warn("startWolfRoulette is deprecated. Use wolf action selection UI instead.");
-}
-
-async function useWolfAction(action) {
-  console.warn("useWolfAction is deprecated. Use activateWolfAction instead.");
-}
-
 function startStageRoulette() {
   const itemsEl = $("#stage-roulette-items");
   if (!itemsEl) return;
@@ -76,4 +66,4 @@ function startStageRoulette() {
   }, 2000);
 }
 
-export { startWolfRoulette, useWolfAction, startStageRoulette };
+export { startStageRoulette };

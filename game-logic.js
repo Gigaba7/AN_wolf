@@ -105,19 +105,4 @@ async function onDoctorPunch() {
   }
 }
 
-async function onWolfAction() {
-  if (!GameState.players.length || GameState.resultLocked) return;
-  if (GameState.wolfActionsRemaining <= 0) return;
-
-  // 妨害選択モーダルを表示
-  const { openModal } = await import("./ui-modals.js");
-  openModal("wolf-action-select-modal");
-  
-  // 妨害リストを描画
-  const { renderWolfActionList } = await import("./ui-render.module.js");
-  if (renderWolfActionList) {
-    renderWolfActionList();
-  }
-}
-
-export { onSuccess, onFail, onDoctorPunch, onWolfAction };
+export { onSuccess, onFail, onDoctorPunch };
