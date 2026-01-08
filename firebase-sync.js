@@ -333,7 +333,13 @@ function handlePhaseUI(roomData) {
           myRole === "wolf" ? "人狼（レユニオン）" : myRole === "doctor" ? "ドクター" : "市民";
       }
 
-      if (alreadyAcked) {
+      // GMの場合は、self-role-okボタンを無効化（gm-roles-modalのOKボタンでゲーム開始）
+      if (isGM) {
+        okBtn?.setAttribute("disabled", "true");
+        okBtn && (okBtn.textContent = "GMは役職一覧のOKボタンでゲーム開始");
+        waitText && (waitText.textContent = "ゲスト全員がOKを押すのを待っています");
+        waitText?.classList.remove("hidden");
+      } else if (alreadyAcked) {
         okBtn?.setAttribute("disabled", "true");
         okBtn && (okBtn.textContent = "OK済み");
         waitText && (waitText.textContent = "開始待機中…（全員のOKを待っています）");
@@ -355,6 +361,7 @@ function handlePhaseUI(roomData) {
     if (isGM) {
       const announcementModal = document.getElementById("gm-announcement-modal");
       const rolesModal = document.getElementById("gm-roles-modal");
+      const gmRolesOkBtn = document.getElementById("gm-roles-ok");
       
       // 初回のみアナウンス表示（一度表示したら再表示しない）
       if (announcementModal && !announcementModal.dataset.shown) {
@@ -366,6 +373,34 @@ function handlePhaseUI(roomData) {
       }
       // アナウンスが閉じられて、役職一覧がまだ表示されていない場合は何もしない
       // （gm-announcement-ok のクリックで showGMRolesModal が呼ばれる）
+      
+      // GMのOKボタンの有効/無効を制御（ゲスト全員がOKを押した場合のみ有効化）
+      if (gmRolesOkBtn) {
+        const playersObj = roomData.players || {};
+        const playerIds = Object.keys(playersObj);
+        const gmId = createdBy;
+        
+        // ゲスト（GM以外）のIDを取得
+        const guestIds = playerIds.filter(pid => pid !== gmId);
+        
+        // ゲスト全員がOKを押したかチェック
+        const allGuestsAcked = guestIds.length > 0 && guestIds.every((pid) => acks[pid] === true);
+        
+        if (allGuestsAcked && !alreadyAcked) {
+          // ゲスト全員がOKを押していて、GMがまだOKを押していない場合、ボタンを有効化
+          gmRolesOkBtn.removeAttribute("disabled");
+          gmRolesOkBtn.textContent = "ゲーム開始";
+        } else if (allGuestsAcked && alreadyAcked) {
+          // ゲスト全員がOKを押していて、GMもOKを押した場合、ボタンを無効化（既にゲーム開始済み）
+          gmRolesOkBtn.setAttribute("disabled", "true");
+          gmRolesOkBtn.textContent = "ゲーム開始済み";
+        } else {
+          // ゲストがまだOKを押していない場合、ボタンを無効化
+          gmRolesOkBtn.setAttribute("disabled", "true");
+          const ackedCount = guestIds.filter(pid => acks[pid] === true).length;
+          gmRolesOkBtn.textContent = `ゲスト待機中 (${ackedCount}/${guestIds.length})`;
+        }
+      }
     }
 
     // 全員OKならGMがplayingに進める（ただし、GMが役職一覧を確認した後）

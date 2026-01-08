@@ -567,22 +567,37 @@ function setupModals() {
   
   // GM：役職一覧OK（役職一覧 → マッチ開始待機）
   $("#gm-roles-ok")?.addEventListener("click", async () => {
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (!roomId) return;
+    
+    // ボタンが無効化されている場合は何もしない
+    const btn = $("#gm-roles-ok");
+    if (btn && btn.hasAttribute("disabled")) {
+      return;
+    }
+    
+    // まずGMの役職確認OKを送信
+    try {
+      await acknowledgeRoleReveal(roomId);
+    } catch (e) {
+      console.error("Failed to acknowledge role:", e);
+      return;
+    }
+    
+    // 役職一覧モーダルを閉じる
     closeModal("gm-roles-modal");
     
-    // 役職一覧を確認した後、全員OKならゲーム開始
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    if (roomId) {
-      try {
-        const { advanceToPlayingIfAllAckedDB } = await import("./firebase-sync.js");
-        await advanceToPlayingIfAllAckedDB(roomId);
-      } catch (error) {
-        // トランザクション競合エラーは無視（他のクライアントが既に処理済みの可能性）
-        if (error?.code === "failed-precondition" || error?.code === "aborted") {
-          console.log("Transaction conflict in advanceToPlayingIfAllAcked (ignored):", error.message);
-          return;
-        }
-        console.error("Failed to advance to playing:", error);
+    // 全員OKならゲーム開始
+    try {
+      const { advanceToPlayingIfAllAckedDB } = await import("./firebase-sync.js");
+      await advanceToPlayingIfAllAckedDB(roomId);
+    } catch (error) {
+      // トランザクション競合エラーは無視（他のクライアントが既に処理済みの可能性）
+      if (error?.code === "failed-precondition" || error?.code === "aborted") {
+        console.log("Transaction conflict in advanceToPlayingIfAllAcked (ignored):", error.message);
+        return;
       }
+      console.error("Failed to advance to playing:", error);
     }
   });
 
@@ -659,14 +674,20 @@ function setupModals() {
   $("#open-tos")?.addEventListener("click", () => openModal("tos-modal"));
   $("#result-reset")?.addEventListener("click", () => location.reload());
 
-  // 自分の役職確認OK
+  // 自分の役職確認OK（GMは無効化されているので、ゲストのみ有効）
   $("#self-role-ok")?.addEventListener("click", async () => {
     const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
     if (!roomId) return;
+    
+    // ボタンが無効化されている場合は何もしない
+    const okBtn = $("#self-role-ok");
+    if (okBtn && okBtn.hasAttribute("disabled")) {
+      return;
+    }
+    
     try {
       await acknowledgeRoleReveal(roomId);
       // OK後はモーダルを閉じず、「開始待機中…」を表示する（全員OKで自動的に開始）
-      const okBtn = $("#self-role-ok");
       const waitText = $("#self-role-waiting");
       okBtn?.setAttribute("disabled", "true");
       if (okBtn) okBtn.textContent = "OK済み";
