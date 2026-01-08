@@ -183,6 +183,7 @@ function syncGameStateFromFirebase(roomData) {
     window.RoomInfo = {
       config: roomData.config || {},
       gameState: roomData.gameState || {},
+      players: roomData.players || {},
     };
   }
   
@@ -829,7 +830,7 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
   return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions);
 }
 
-export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal };
+export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAckedDB, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal };
 
 // 新しいデフォルト同期API（チャット追加もここにぶら下げる想定）
 export { roomClient };
