@@ -315,17 +315,8 @@ function handlePhaseUI(roomData) {
       // （gm-announcement-ok のクリックで showGMRolesModal が呼ばれる）
     }
 
-    // 全員OKならGMがplayingに進める（GM以外はトランザクションを叩かない）
-    if (isGM) {
-      advanceToPlayingIfAllAckedDB(currentRoomId).catch((error) => {
-        // トランザクション競合エラーは無視（他のクライアントが既に処理済みの可能性）
-        if (error?.code === "failed-precondition" || error?.code === "aborted") {
-          console.log("Transaction conflict in advanceToPlayingIfAllAcked (ignored):", error.message);
-          return;
-        }
-        console.error("Failed to advance to playing:", error);
-      });
-    }
+    // 全員OKならGMがplayingに進める（ただし、GMが役職一覧を確認した後）
+    // 注意：役職一覧OKボタン（gm-roles-ok）でadvanceToPlayingIfAllAckedを呼ぶため、ここでは呼ばない
   }
 
   // playing: 待機画面→GM/参加者画面へ分岐
@@ -358,6 +349,37 @@ function handlePhaseUI(roomData) {
     // GM：人狼妨害の選出リクエストをチェック
     if (isGM) {
       checkWolfActionRequest(roomData);
+      
+      // GM画面：サブフェーズに応じた操作中ポップアップを表示
+      const subphase = gameState.subphase;
+      const wolfOperationModal = document.getElementById("gm-wolf-operation-modal");
+      const doctorOperationModal = document.getElementById("gm-doctor-operation-modal");
+      
+      if (subphase === "wolf_decision") {
+        // 人狼が操作中
+        if (wolfOperationModal) {
+          wolfOperationModal.classList.remove("hidden");
+        }
+        if (doctorOperationModal) {
+          doctorOperationModal.classList.add("hidden");
+        }
+      } else if (subphase === "await_doctor") {
+        // ドクターが操作中
+        if (doctorOperationModal) {
+          doctorOperationModal.classList.remove("hidden");
+        }
+        if (wolfOperationModal) {
+          wolfOperationModal.classList.add("hidden");
+        }
+      } else {
+        // 操作中ではない
+        if (wolfOperationModal) {
+          wolfOperationModal.classList.add("hidden");
+        }
+        if (doctorOperationModal) {
+          doctorOperationModal.classList.add("hidden");
+        }
+      }
     } else {
       // 参加者：人狼妨害の手番開始フェーズをチェック
       checkWolfDecisionPhase(roomData);

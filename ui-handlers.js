@@ -550,8 +550,24 @@ function setupModals() {
   });
   
   // GM：役職一覧OK（役職一覧 → マッチ開始待機）
-  $("#gm-roles-ok")?.addEventListener("click", () => {
+  $("#gm-roles-ok")?.addEventListener("click", async () => {
     closeModal("gm-roles-modal");
+    
+    // 役職一覧を確認した後、全員OKならゲーム開始
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (roomId) {
+      try {
+        const { advanceToPlayingIfAllAckedDB } = await import("./firebase-sync.js");
+        await advanceToPlayingIfAllAckedDB(roomId);
+      } catch (error) {
+        // トランザクション競合エラーは無視（他のクライアントが既に処理済みの可能性）
+        if (error?.code === "failed-precondition" || error?.code === "aborted") {
+          console.log("Transaction conflict in advanceToPlayingIfAllAcked (ignored):", error.message);
+          return;
+        }
+        console.error("Failed to advance to playing:", error);
+      }
+    }
   });
 
   // オプション

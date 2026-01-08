@@ -203,7 +203,8 @@ function updateControlPermissions() {
     if (btnSuccess) btnSuccess.disabled = !canJudge || !!GameState.pendingFailure;
     if (btnFail) {
       btnFail.disabled = !canJudge;
-      btnFail.textContent = GameState.pendingFailure ? "失敗確定（神拳なし）" : "失敗";
+      // ドクター操作中は失敗ボタンのテキストを変更しない（常に「失敗」）
+      btnFail.textContent = "失敗";
     }
     
     // GM：ステージ選出開始ボタン（ステージ未選出時のみ有効）
@@ -230,11 +231,13 @@ function updateControlPermissions() {
       btnWolf.disabled = !canUseWolf;
     }
 
-    // ドクター神拳：失敗保留時のみ有効
+    // ドクター神拳：失敗保留時（await_doctorフェーズ）のみ有効
     if (btnDoc) {
+      const isAwaitDoctor = subphase === "await_doctor";
       btnDoc.disabled = !(
         inPlaying &&
         myRole === "doctor" &&
+        isAwaitDoctor &&
         hasPendingFailure &&
         pendingForMe &&
         GameState.doctorPunchAvailableThisTurn &&
