@@ -222,33 +222,31 @@ function updateControlPermissions() {
     const hasPendingFailure = !!GameState.pendingFailure;
     const pendingForMe = !!(hasPendingFailure && myId && GameState.pendingFailure?.playerId === myId);
 
-    // ドクター神拳：ドクターのみ表示
+    // ドクター神拳：ドクターのみ表示（await_doctorフェーズで、pendingFailureが存在する場合）
     const btnDocSkip = document.getElementById("btn-doctor-skip");
     if (btnDoc) {
       const isAwaitDoctor = subphase === "await_doctor";
       const isDoctor = myRole === "doctor";
       
-      // ドクターのみ表示
-      btnDoc.style.display = isDoctor && isAwaitDoctor && hasPendingFailure && pendingForMe ? "block" : "none";
+      // ドクターのみ表示（pendingFailureが存在すれば、どのプレイヤーの失敗でも可）
+      btnDoc.style.display = isDoctor && isAwaitDoctor && hasPendingFailure ? "block" : "none";
       btnDoc.disabled = !(
         inPlaying &&
         isDoctor &&
         isAwaitDoctor &&
         hasPendingFailure &&
-        pendingForMe &&
         GameState.doctorPunchAvailableThisTurn &&
         GameState.doctorPunchRemaining > 0
       );
       
       // 使用しないボタンもドクターのみ表示
       if (btnDocSkip) {
-        btnDocSkip.style.display = isDoctor && isAwaitDoctor && hasPendingFailure && pendingForMe ? "block" : "none";
+        btnDocSkip.style.display = isDoctor && isAwaitDoctor && hasPendingFailure ? "block" : "none";
         btnDocSkip.disabled = !(
           inPlaying &&
           isDoctor &&
           isAwaitDoctor &&
-          hasPendingFailure &&
-          pendingForMe
+          hasPendingFailure
         );
       }
     } else if (btnDocSkip) {
