@@ -260,6 +260,14 @@ function renderWaitingScreen(roomId) {
   const playersListEl = $("#waiting-players-list");
   const playersCountEl = $("#waiting-players-count");
   const startBtn = $("#btn-start-game-from-waiting");
+  const waitingTitle = $("#waiting-title");
+
+  // GM名を取得してタイトルに表示
+  if (waitingTitle) {
+    const config = typeof window !== "undefined" ? window.RoomInfo?.config : null;
+    const gmName = config?.gmName || config?.hostName || "GM";
+    waitingTitle.textContent = `${gmName}のルーム`;
+  }
 
   // ルームIDは画面に表示しない（視聴者乱入防止）。コピー用にdata属性へ保持。
   if (roomIdEl && roomId) {

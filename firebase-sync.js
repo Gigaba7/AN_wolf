@@ -202,12 +202,17 @@ function syncGameStateFromFirebase(roomData) {
   GameState.subphase = gameState.subphase || null;
   GameState.turnResult = gameState.turnResult || null;
   
-  // ターン結果ポップアップを表示
+  // ターン結果ポップアップを表示（自動で閉じる）
   if (gameState.turnResult) {
     const resultModal = document.getElementById("turn-result-modal");
     const resultTitle = document.getElementById("turn-result-title");
     const resultMessage = document.getElementById("turn-result-message");
     if (resultModal && resultTitle && resultMessage) {
+      // 既に表示されている場合は何もしない（重複表示を防ぐ）
+      if (!resultModal.classList.contains("hidden")) {
+        return;
+      }
+      
       if (gameState.turnResult === "success") {
         resultTitle.textContent = "ターン結果";
         resultMessage.textContent = "このターンは成功しました";
@@ -216,6 +221,23 @@ function syncGameStateFromFirebase(roomData) {
         resultMessage.textContent = "このターンは失敗しました";
       }
       resultModal.classList.remove("hidden");
+      
+      // 3秒後に自動で閉じる
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (roomId) {
+        setTimeout(async () => {
+          if (resultModal && !resultModal.classList.contains("hidden")) {
+            try {
+              const { syncToFirebase } = await import("./firebase-sync.js");
+              await syncToFirebase("clearTurnResult", { roomId });
+              resultModal.classList.add("hidden");
+            } catch (e) {
+              console.error("Failed to clear turn result:", e);
+              resultModal.classList.add("hidden");
+            }
+          }
+        }, 3000);
+      }
     }
   }
   
