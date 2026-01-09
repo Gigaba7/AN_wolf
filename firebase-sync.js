@@ -1,8 +1,8 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase, identifyWolf as identifyWolfDB, startDiscussionPhase as startDiscussionPhaseDB, endDiscussionPhase as endDiscussionPhaseDB, extendDiscussionPhase as extendDiscussionPhaseDB } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, proceedToNextPlayerAfterDoctorPunch as proceedToNextPlayerAfterDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase, identifyWolf as identifyWolfDB, startDiscussionPhase as startDiscussionPhaseDB, endDiscussionPhase as endDiscussionPhaseDB, extendDiscussionPhase as extendDiscussionPhaseDB } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
-import { doc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, getDoc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { createRoomClient } from "./room-client.js";
 import { $ } from "./game-state.js";
 import { switchScreen } from "./ui-modals.js";
@@ -1177,9 +1177,16 @@ async function handleDoctorPunchAction(data, roomId) {
     true, // OKボタンを要求
     false,
     true, // GM画面のみ
-    () => {
-      // OKボタンを押した後の処理（既にapplyDoctorPunchで次のプレイヤーに進んでいるので、何もしない）
-      // 次のプレイヤーの手番開始時に妨害フェーズが自動で設定される
+    async () => {
+      // OKボタンを押した後に次のプレイヤーの妨害フェーズに進む
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (roomId) {
+        try {
+          await proceedToNextPlayerAfterDoctorPunchDB(roomId);
+        } catch (e) {
+          console.error("Failed to proceed to next player after doctor punch:", e);
+        }
+      }
     }
   );
 }
@@ -1538,7 +1545,7 @@ function setupResultModalButtons(roomData) {
       if (!roomId) return;
       
       try {
-        // ゲーム状態をwaitingフェーズにリセット
+        // ゲーム状態をwaitingフェーズにリセット（すべてのゲームパラメータをリセット）
         await updateGameState(roomId, {
           "gameState.phase": "waiting",
           "gameState.turn": 1,
@@ -1547,7 +1554,7 @@ function setupResultModalButtons(roomData) {
           "gameState.currentPlayerIndex": 0,
           "gameState.currentStage": null,
           "gameState.stageTurn": null,
-          "gameState.subphase": null,
+          "gameState.subphase": "gm_stage", // 初期値に戻す
           "gameState.pendingFailure": null,
           "gameState.playerOrder": null,
           "gameState.wolfDecisionPlayerId": null,
@@ -1555,7 +1562,45 @@ function setupResultModalButtons(roomData) {
           "gameState.gameResult": null,
           "gameState.turnResult": null,
           "gameState.doctorHasFailed": false,
+          "gameState.revealAcks": {}, // 役職公開の確認をリセット
+          "gameState.finalPhaseVotes": {}, // 最終フェーズの投票をリセット
+          "gameState.discussionPhase": false, // 会議フェーズをリセット
+          "gameState.discussionEndTime": null, // 会議フェーズの終了時刻をリセット
+          "gameState.pendingFinalPhase": false, // 最終フェーズ前の会議フラグをリセット
+          "gameState.pendingFinalPhaseDiscussion": false, // 最終フェーズ前の10分会議フラグをリセット
+          "gameState.pendingDoctorPunchProceed": null, // ドクター神拳発動後の進行フラグをリセット
+          "gameState.lock": null, // 排他制御用ロックをリセット
         });
+        
+        // プレイヤーのresourcesもリセット
+        const roomData = await getDoc(doc(firestore, "rooms", roomId));
+        if (roomData.exists()) {
+          const data = roomData.data();
+          const playersObj = data?.players || {};
+          const playerIds = Object.keys(playersObj);
+          
+          const playerUpdates = {};
+          playerIds.forEach((pid) => {
+            const player = playersObj[pid];
+            const role = player?.role;
+            // 役職に応じてresourcesをリセット
+            if (role === "wolf") {
+              playerUpdates[`players.${pid}.resources.wolfActionsRemaining`] = 100;
+            }
+            if (role === "doctor") {
+              playerUpdates[`players.${pid}.resources.doctorPunchRemaining`] = 5;
+              playerUpdates[`players.${pid}.resources.doctorPunchAvailableThisTurn`] = true;
+            }
+            // 役職がない場合はresourcesをクリア
+            if (!role) {
+              playerUpdates[`players.${pid}.resources`] = {};
+            }
+          });
+          
+          if (Object.keys(playerUpdates).length > 0) {
+            await updateGameState(roomId, playerUpdates);
+          }
+        }
         
         // 結果モーダルを閉じる
         const modal = document.getElementById("result-modal");

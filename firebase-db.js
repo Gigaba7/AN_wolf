@@ -293,6 +293,7 @@ export {
   applyFail,
   applyDoctorPunch,
   applyDoctorSkip,
+  proceedToNextPlayerAfterDoctorPunch,
   applyWolfAction,
   activateWolfAction,
   wolfDecision,
@@ -794,23 +795,20 @@ async function applyDoctorPunch(roomId) {
       return;
     }
 
-    // ドクター神拳発動後は次のプレイヤーの手番開始時に妨害フェーズを設定
-    // 妨害フェーズは各プレイヤーの手番開始時（挑戦の直前）に発動する
+    // ドクター神拳発動後は、OKボタンを押すまで次のプレイヤーに進まない
+    // subphaseはawait_resultのままにして、OKボタンで妨害フェーズに移行する
     const updates = {
       "gameState.currentPlayerIndex": nextIndex,
       "gameState.pendingFailure": null,
       // currentStage と stageTurn は保持（そのターン中は固定）
+      "gameState.subphase": "await_result", // OKボタンを押すまでawait_resultのまま
       [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
+      "gameState.pendingDoctorPunchProceed": true, // OKボタンで進むフラグ
     };
     if (isPendingDoctor) {
       updates["gameState.doctorHasFailed"] = true;
     }
-    
-    const startPhase = computeStartSubphase(playersObj, order, nextIndex);
-    updates["gameState.subphase"] = startPhase.subphase;
-    updates["gameState.wolfDecisionPlayerId"] = startPhase.wolfDecisionPlayerId;
-    updates["gameState.wolfActionRequest"] = null;
     
     tx.update(roomRef, updates);
   });
@@ -1336,9 +1334,10 @@ async function endDiscussionPhase(roomId) {
       if (gameState.phase === "finished") {
         // そのままfinishedフェーズを維持
       }
-      // 次のターンに進む
+      // 次のターンに進む（endTurnAndPrepareNextで既にターンは更新されているので、ターンは更新しない）
       else {
-        const nextTurn = turn + 1;
+        // ターンは既にendTurnAndPrepareNextで更新されているので、更新しない
+        const nextTurn = turn; // 既に更新済み
         const playersObj = data?.players || {};
         const order = Array.isArray(gameState.playerOrder) && gameState.playerOrder.length
           ? gameState.playerOrder
