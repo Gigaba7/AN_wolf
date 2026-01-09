@@ -738,7 +738,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
       showFinalPhaseModal(roomData);
     } else if (isGM) {
       // GM：投票待機ポップアップを表示
-      showAnnouncement("最終判定フェーズ（市民とドクターが投票中）", null, null, 2000);
+      showAnnouncement("最終判定フェーズ（市民とドクターが投票中）", null, null, 2000, false, false, true); // GM画面のみ
     } else {
       // その他の参加者：待機画面を表示
       const waiting = document.getElementById("waiting-screen");
@@ -759,9 +759,29 @@ function handlePhaseUI(roomData, previousPhase = null) {
 
   // finished: ゲーム終了（勝利画面表示）
   if (phase === 'finished') {
+    // ゲーム終了時は「ドクターが操作中です」「人狼が操作中です」のアナウンスをクリア
+    const announcementModal = document.getElementById("announcement-modal");
+    if (announcementModal && !announcementModal.classList.contains("hidden")) {
+      const titleEl = document.getElementById("announcement-title");
+      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+        announcementModal.classList.add("hidden");
+      }
+    }
+    
     const gameResult = gameState.gameResult;
     if (gameResult) {
       showGameResult(roomData, gameResult);
+    }
+  }
+  
+  // waitingフェーズに戻った時もアナウンスをクリア
+  if (phase === 'waiting' && previousPhase !== 'waiting') {
+    const announcementModal = document.getElementById("announcement-modal");
+    if (announcementModal && !announcementModal.classList.contains("hidden")) {
+      const titleEl = document.getElementById("announcement-title");
+      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+        announcementModal.classList.add("hidden");
+      }
     }
   }
 
@@ -933,7 +953,7 @@ function checkWolfActionRequest(roomData) {
     const announcementTitle = notification.announcementTitle || `妨害『${notification.text}』が発動されました`;
     const announcementSubtitle = notification.announcementSubtitle || null;
     const logMessage = notification.logMessage || `妨害『${notification.text}』が発動されました`;
-    showAnnouncement(announcementTitle, announcementSubtitle, logMessage, 0, true); // OKボタンを要求
+    showAnnouncement(announcementTitle, announcementSubtitle, logMessage, 0, true, true, true); // OKボタンを要求、妨害アニメーション、GM画面のみ
   }
   
   // フェーズが変わったら職業ルーレットモーダルを閉じる
@@ -1543,6 +1563,15 @@ function setupResultModalButtons(roomData) {
           modal.classList.add("hidden");
         }
         
+        // 「ドクターが操作中です」「人狼が操作中です」のアナウンスをクリア
+        const announcementModal = document.getElementById("announcement-modal");
+        if (announcementModal && !announcementModal.classList.contains("hidden")) {
+          const titleEl = document.getElementById("announcement-title");
+          if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+            announcementModal.classList.add("hidden");
+          }
+        }
+        
         // マッチング待機画面に戻る
         const main = document.getElementById("main-screen");
         const participant = document.getElementById("participant-screen");
@@ -1611,6 +1640,15 @@ function setupResultModalButtons(roomData) {
  * ルーム同期を停止
  */
 function stopRoomSync() {
+  // 「ドクターが操作中です」「人狼が操作中です」のアナウンスをクリア
+  const announcementModal = document.getElementById("announcement-modal");
+  if (announcementModal && !announcementModal.classList.contains("hidden")) {
+    const titleEl = document.getElementById("announcement-title");
+    if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+      announcementModal.classList.add("hidden");
+    }
+  }
+  
   if (roomUnsubscribe) {
     roomUnsubscribe();
     roomUnsubscribe = null;
