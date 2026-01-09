@@ -27,13 +27,54 @@ body {
   display: none !important;
 }
 
+/* 極秘命令ポップアップ */
+.mission-brief-content {
+  font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  letter-spacing: 0.05em;
+}
+
+.mission-brief-content p {
+  margin: 12px 0;
+  line-height: 1.8;
+}
+
+/* ルールブック */
+.rulebook-page {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.rulebook-page h3 {
+  color: #f5f5f7;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.rulebook-page p {
+  margin: 12px 0;
+  line-height: 1.8;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ホーム/待機（マッチング）画面は背景を不透明にする */
 body.opaque-bg {
-  background: radial-gradient(circle at top left, rgba(43, 92, 255, 0.18), #050712 55%);
+  background: linear-gradient(135deg, #0a0d14 0%, #050712 50%, #0a0d14 100%);
 }
 
 body.opaque-bg #app {
-  background: radial-gradient(circle at top left, rgba(43, 92, 255, 0.12), #050712 55%);
+  background: linear-gradient(135deg, rgba(10, 13, 20, 0.95) 0%, rgba(5, 7, 18, 0.98) 50%, rgba(10, 13, 20, 0.95) 100%);
 }
 
 #app {
@@ -75,9 +116,10 @@ button {
 
 /* ホーム画面 */
 .app-header {
-  padding: 20px 24px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: radial-gradient(circle at top left, #2b5cff55, #050712 55%);
+  padding: 24px 28px 12px;
+  border-bottom: 2px solid rgba(139, 230, 195, 0.2);
+  background: linear-gradient(180deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .app-header h1 {
@@ -99,11 +141,11 @@ button {
 }
 
 .home-card {
-  background: linear-gradient(145deg, #151827, #090b14);
-  border-radius: 14px;
-  padding: 16px 16px 18px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  background: linear-gradient(145deg, #0f1219, #050712);
+  border-radius: 12px;
+  padding: 20px 20px 22px;
+  border: 2px solid rgba(139, 230, 195, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .home-card h2 {
@@ -226,8 +268,9 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 20px;
-  background: rgba(0, 0, 0, 0.3);
+  padding: 16px 24px;
+  background: linear-gradient(145deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
+  border: 2px solid rgba(139, 230, 195, 0.15);
   border-bottom: none;
   height: auto;
   flex: 0 0 auto;
@@ -235,6 +278,7 @@ button {
   position: relative;
   z-index: 10;
   border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .status-main {
@@ -265,6 +309,14 @@ button {
   font-weight: 600;
   letter-spacing: 0.05em;
   color: #f5f5f7;
+  text-align: center;
+}
+
+.status-phase-next {
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: rgba(245, 245, 247, 0.5);
   text-align: center;
 }
 
@@ -348,11 +400,11 @@ button {
 }
 
 .panel {
-  background: linear-gradient(145deg, #151827, #090b14);
-  border-radius: 14px;
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(145deg, #0f1219, #050712);
+  border-radius: 12px;
+  padding: 20px;
+  border: 2px solid rgba(139, 230, 195, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -392,37 +444,38 @@ button {
   display: grid;
   grid-template-columns: 44px 1fr;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: linear-gradient(145deg, rgba(15, 18, 25, 0.8), rgba(5, 7, 18, 0.9));
   align-items: center;
-  transition: transform 0.12s ease, box-shadow 0.12s ease,
-    background 0.12s ease, border-color 0.12s ease;
-  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  border: 2px solid rgba(139, 230, 195, 0.1);
   min-height: 60px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .player-card.current {
-  background: radial-gradient(circle at top left, #2b5cff55, #101426);
-  border-color: rgba(84, 156, 255, 0.7);
-  transform: translateY(-1px);
-  box-shadow: 0 14px 26px rgba(9, 18, 55, 0.7);
+  background: linear-gradient(145deg, rgba(139, 230, 195, 0.15), rgba(76, 123, 255, 0.15));
+  border-color: rgba(139, 230, 195, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 230, 195, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .player-avatar {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 20%, #ffffffaa, #111525);
+  background: linear-gradient(145deg, rgba(139, 230, 195, 0.2), rgba(15, 18, 25, 0.8));
   display: flex;
   align-items: center;
   justify-content: center;
   color: #f5f5f7;
   font-size: 18px;
-  font-weight: 500;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-weight: 600;
+  border: 2px solid rgba(139, 230, 195, 0.3);
   overflow: hidden;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .player-avatar-img {
@@ -577,23 +630,29 @@ button {
   max-height: calc(12px * 1.5 * 10 + 16px);
 }
 
-.log-entry {
+.log-entry,
+.log-item {
   padding: 3px 0;
+  opacity: 0.7;
 }
 
-.log-entry.system {
+.log-entry.system,
+.log-item.log-system {
   color: #a9b0ff;
 }
 
-.log-entry.success {
+.log-entry.success,
+.log-item.log-success {
   color: #8be6c3;
 }
 
-.log-entry.fail {
+.log-entry.fail,
+.log-item.log-fail {
   color: #ff9ba8;
 }
 
-.log-entry.turn {
+.log-entry.turn,
+.log-item.log-turn {
   color: #ffd479;
 }
 
@@ -638,66 +697,80 @@ button {
 
 /* ボタンスタイル */
 .btn {
-  border-radius: 999px;
-  border: none;
-  padding: 10px 20px;
+  border-radius: 8px;
+  border: 2px solid rgba(139, 230, 195, 0.2);
+  padding: 12px 24px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: background 0.16s ease, transform 0.08s ease,
-    box-shadow 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
-  background: rgba(255, 255, 255, 0.04);
+  transition: all 0.2s ease;
+  background: linear-gradient(145deg, rgba(15, 18, 25, 0.9), rgba(5, 7, 18, 0.95));
   color: #f5f5f7;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .btn.primary {
-  background: linear-gradient(135deg, #4c7bff, #8a4dff);
-  box-shadow: 0 10px 24px rgba(40, 82, 255, 0.5);
+  background: linear-gradient(135deg, rgba(139, 230, 195, 0.2), rgba(76, 123, 255, 0.2));
+  border-color: rgba(139, 230, 195, 0.4);
+  box-shadow: 0 4px 16px rgba(139, 230, 195, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: #8be6c3;
 }
 
 .btn.secondary {
-  background: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(145deg, rgba(15, 18, 25, 0.9), rgba(5, 7, 18, 0.95));
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .btn.tertiary {
-  background: rgba(40, 82, 255, 0.12);
+  background: rgba(76, 123, 255, 0.15);
+  border-color: rgba(76, 123, 255, 0.3);
   color: #9eb7ff;
 }
 
 .btn.success {
-  background: linear-gradient(135deg, #27c9a4, #0b9474);
+  background: linear-gradient(135deg, rgba(39, 201, 164, 0.2), rgba(11, 148, 116, 0.2));
+  border-color: rgba(39, 201, 164, 0.4);
+  color: #27c9a4;
 }
 
 .btn.danger {
-  background: linear-gradient(135deg, #ff5e7a, #c41d4c);
+  background: linear-gradient(135deg, rgba(255, 94, 122, 0.2), rgba(196, 29, 76, 0.2));
+  border-color: rgba(255, 94, 122, 0.4);
+  color: #ff5e7a;
 }
 
 .btn.warning {
-  background: linear-gradient(135deg, #ffaf3b, #ff6b18);
+  background: linear-gradient(135deg, rgba(255, 175, 59, 0.2), rgba(255, 107, 24, 0.2));
+  border-color: rgba(255, 175, 59, 0.4);
+  color: #ffaf3b;
 }
 
 .btn.info {
-  background: linear-gradient(135deg, #5ad3ff, #2b78ff);
+  background: linear-gradient(135deg, rgba(90, 211, 255, 0.2), rgba(43, 120, 255, 0.2));
+  border-color: rgba(90, 211, 255, 0.4);
+  color: #5ad3ff;
 }
 
 .btn.ghost {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: default;
   box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .btn:not(:disabled):hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border-color: rgba(139, 230, 195, 0.5);
 }
 
 .link-button {
@@ -727,18 +800,24 @@ button {
 .modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+}
+
+/* 妨害選択モーダルはバックドロップクリックで閉じない */
+#wolf-action-select-modal .modal-backdrop {
+  pointer-events: none;
 }
 
 .modal-content {
   position: relative;
-  background: linear-gradient(145deg, #141827, #050713);
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  padding: 16px 18px 14px;
+  background: linear-gradient(145deg, #0f1219, #050712);
+  border-radius: 12px;
+  border: 2px solid rgba(139, 230, 195, 0.2);
+  padding: 24px 28px 22px;
   width: 420px;
   max-height: 80vh;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
   box-shadow: 0 26px 46px rgba(0, 0, 0, 0.6);
@@ -761,6 +840,13 @@ button {
   font-size: 12px;
   color: #a0a4ba;
   margin-bottom: 10px;
+}
+
+.announcement-subtitle {
+  text-align: center;
+  font-size: 18px;
+  margin-top: 12px;
+  opacity: 0.7;
 }
 
 .modal-actions {

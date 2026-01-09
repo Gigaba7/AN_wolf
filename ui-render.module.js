@@ -47,6 +47,8 @@ function renderStatus() {
   const wolfCostItem = $("#status-wolf-cost-item");
   const doctorPunchEl = $("#status-doctor-punch");
   const doctorPunchItem = $("#status-doctor-punch-item");
+  const currentPhaseEl = $("#status-current-phase");
+  const nextPhaseEl = $("#status-next-phase");
 
   if (turnEl) {
     turnEl.textContent = `${GameState.turn} / ${GameState.maxTurns}`;
@@ -101,6 +103,33 @@ function renderStatus() {
       if (doctorPunchItem) {
         doctorPunchItem.style.display = "none";
       }
+    }
+
+    // フェーズ表示
+    const subphase = typeof window !== "undefined" ? window.RoomInfo?.gameState?.subphase : null;
+    const phaseMap = {
+      "wolf_decision": "妨害",
+      "wolf_resolving": "妨害",
+      "gm_stage": "ステージ選出",
+      "await_result": "挑戦",
+      "await_doctor": "神拳",
+    };
+    const nextPhaseMap = {
+      "wolf_decision": "挑戦",
+      "wolf_resolving": "挑戦",
+      "gm_stage": "妨害",
+      "await_result": "挑戦",
+      "await_doctor": "挑戦",
+    };
+    
+    const currentPhase = subphase ? (phaseMap[subphase] || "-") : "-";
+    const nextPhase = subphase ? (nextPhaseMap[subphase] || "-") : "-";
+    
+    if (currentPhaseEl) {
+      currentPhaseEl.textContent = currentPhase;
+    }
+    if (nextPhaseEl) {
+      nextPhaseEl.textContent = nextPhase !== currentPhase ? `→ ${nextPhase}` : "";
     }
   }
 }
@@ -242,6 +271,7 @@ function updateControlPermissions() {
       // 使用しないボタンもドクターのみ表示
       if (btnDocSkip) {
         btnDocSkip.style.display = isDoctor && isAwaitDoctor && hasPendingFailure ? "block" : "none";
+        // 使用しないボタンは常に有効（条件を満たしていれば）
         btnDocSkip.disabled = !(
           inPlaying &&
           isDoctor &&
@@ -340,6 +370,15 @@ function renderWaitingScreen(roomId) {
         startBtn.textContent = `ゲーム開始 (最低3人必要 / 現在${GameState.players.length}人)`;
       }
     }
+
+    // ルール設定ボタンの表示/非表示（GMのみ表示）
+    const rulesBtn = $("#btn-rules-settings");
+    if (rulesBtn) {
+      const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+      const myId = typeof window !== "undefined" ? window.__uid : null;
+      const isHost = !!(createdBy && myId && createdBy === myId);
+      rulesBtn.style.display = isHost ? "block" : "none";
+    }
   }
 }
 
@@ -368,6 +407,7 @@ function renderWolfActionList() {
   actions.forEach((action, index) => {
     const actionText = typeof action === "string" ? action : action.text;
     const actionCost = typeof action === "string" ? 1 : (action.cost || 1);
+    const displayName = typeof action === "object" && action.displayName ? action.displayName : actionText;
     const requiresRoulette = typeof action === "object" && action.requiresRoulette === true;
     const canAfford = currentCost >= actionCost;
 
@@ -378,8 +418,8 @@ function renderWolfActionList() {
     }
     item.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <span class="wolf-action-text">${actionText}</span>
-        <span class="wolf-action-cost">Cost: ${actionCost}</span>
+        <span class="wolf-action-text">${displayName}</span>
+        <span class="wolf-action-cost">-${actionCost}</span>
       </div>
       <button class="btn primary small" ${!canAfford ? "disabled" : ""} data-action-index="${index}">
         発動

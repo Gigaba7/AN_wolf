@@ -302,6 +302,9 @@ export {
   clearTurnResult,
   computeStartSubphase,
   identifyWolf,
+  startDiscussionPhase,
+  endDiscussionPhase,
+  extendDiscussionPhase,
 };
 
 /**
@@ -540,45 +543,51 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
 
   // 勝敗判定
   const majority = Math.ceil(maxTurns / 2); // 過半数（3ターンの場合は2、5ターンの場合は3）
-  
-  // ○が過半数以上 → 市民勝利
-  if (whiteStars >= majority) {
+  const doctorHasFailed = data?.gameState?.doctorHasFailed === true || extraUpdates?.["gameState.doctorHasFailed"] === true;
+
+  // ターン終了時に成功/失敗フラグを設定（ポップアップ表示用）
+  updates["gameState.turnResult"] = isFailureTurn ? "failure" : "success";
+
+  // ドクターが失敗し、神拳も使用できなかった場合は即座に人狼勝利（会議フェーズなし）
+  if (doctorHasFailed) {
+    updates["gameState.phase"] = "finished";
+    updates["gameState.gameResult"] = "wolf_win";
+  }
+  // ○が過半数以上 → 市民勝利（会議フェーズなし）
+  else if (whiteStars >= majority) {
     updates["gameState.phase"] = "finished";
     updates["gameState.gameResult"] = "citizen_win";
   }
-  // ×が過半数以上 → 最終フェーズへ
+  // ×が過半数以上 → 会議フェーズ後に最終フェーズへ
   else if (blackStars >= majority) {
-    const doctorHasFailed = data?.gameState?.doctorHasFailed === true;
-    if (doctorHasFailed) {
-      // ドクターが一度でも失敗していた場合 → 人狼勝利
-      updates["gameState.phase"] = "finished";
-      updates["gameState.gameResult"] = "wolf_win";
-    } else {
-      // ドクターが一度も失敗していない場合 → 最終フェーズ（人狼指名可能）
-      updates["gameState.phase"] = "final_phase";
-      updates["gameState.gameResult"] = null; // 最終フェーズではまだ結果未確定
-    }
+    // 会議フェーズを開始（5分）
+    const endTime = Date.now() + 5 * 60 * 1000;
+    updates["gameState.discussionPhase"] = true;
+    updates["gameState.discussionEndTime"] = endTime;
+    updates["gameState.pendingFinalPhase"] = true; // 最終フェーズ前の会議フラグ
+    // 最終フェーズへの移行は会議フェーズ終了時に実行
   }
   // ターン数が最大に達した場合
   else if (finished) {
     // 同数の場合は×が多い方が勝利（通常は到達しないが念のため）
     if (blackStars > whiteStars) {
-      const doctorHasFailed = data?.gameState?.doctorHasFailed === true;
-      if (doctorHasFailed) {
-        updates["gameState.phase"] = "finished";
-        updates["gameState.gameResult"] = "wolf_win";
-      } else {
-        updates["gameState.phase"] = "final_phase";
-        updates["gameState.gameResult"] = null;
-      }
+      // 会議フェーズを開始（5分）
+      const endTime = Date.now() + 5 * 60 * 1000;
+      updates["gameState.discussionPhase"] = true;
+      updates["gameState.discussionEndTime"] = endTime;
+      updates["gameState.pendingFinalPhase"] = true; // 最終フェーズ前の会議フラグ
+      // 最終フェーズへの移行は会議フェーズ終了時に実行
     } else {
       updates["gameState.phase"] = "finished";
       updates["gameState.gameResult"] = "citizen_win";
     }
   }
-
-  // ターン終了時に成功/失敗フラグを設定（ポップアップ表示用）
-  updates["gameState.turnResult"] = isFailureTurn ? "failure" : "success";
+  // 次のターンに進む場合 → 会議フェーズを開始（5分）
+  else {
+    const endTime = Date.now() + 5 * 60 * 1000;
+    updates["gameState.discussionPhase"] = true;
+    updates["gameState.discussionEndTime"] = endTime;
+  }
 
   tx.update(roomRef, updates);
 }
@@ -843,6 +852,7 @@ async function applyDoctorSkip(roomId) {
 
     // 神拳を使わない＝失敗確定で即次ターンへ
     // ドクターが失敗した場合、失敗履歴を記録
+    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
     const pendingPlayerId = pending?.playerId || order[idx];
     const isPendingDoctor = doctorId && pendingPlayerId === doctorId;
     
@@ -968,8 +978,11 @@ async function resolveWolfAction(roomId, actionText) {
  * GM：職業ルーレットの結果を確定し、ログに記載する（ランダム職業使用禁止用）
  * @param {string} roomId
  * @param {string} selectedJob
+ * @param {string} announcementTitle - アナウンスタイトル
+ * @param {string} announcementSubtitle - アナウンスサブタイトル（選択された職業を含む）
+ * @param {string} logMessage - ログメッセージ
  */
-async function resolveWolfActionRoulette(roomId, selectedJob) {
+async function resolveWolfActionRoulette(roomId, selectedJob, announcementTitle = null, announcementSubtitle = null, logMessage = null) {
   const userId = getCurrentUserId();
   if (!userId) throw new Error("User not authenticated");
 
@@ -996,7 +1009,7 @@ async function resolveWolfActionRoulette(roomId, selectedJob) {
 
     const logData = {
       type: "wolfAction",
-      message: `妨害『${actionText}』が発動されました（使用禁止職業: ${selectedJob}）`,
+      message: logMessage || `妨害『${actionText}』が発動されました（使用禁止職業: ${selectedJob}）`,
       timestamp: Date.now(),
       userId,
       playerId: wolfId,
@@ -1007,7 +1020,13 @@ async function resolveWolfActionRoulette(roomId, selectedJob) {
     const nextSubphase = currentStage ? "await_result" : "gm_stage";
     
     tx.update(roomRef, {
-      "gameState.wolfActionNotification": { text: `${actionText}（使用禁止職業: ${selectedJob}）`, timestamp: Date.now() },
+      "gameState.wolfActionNotification": { 
+        text: `${actionText}（使用禁止職業: ${selectedJob}）`, 
+        announcementTitle: announcementTitle || `妨害『${actionText}』が発動されました`,
+        announcementSubtitle: announcementSubtitle || null,
+        logMessage: logMessage || `妨害『${actionText}』が発動されました（使用禁止職業: ${selectedJob}）`,
+        timestamp: Date.now() 
+      },
       "gameState.subphase": nextSubphase,
       "gameState.wolfActionRequest": null,
       logs: arrayUnion(logData),
@@ -1052,8 +1071,11 @@ async function applyWolfAction(roomId) {
  * @param {number} actionCost
  * @param {boolean} requiresRoulette - ルーレットが必要な場合true
  * @param {string[]} rouletteOptions - ルーレットの選択肢（requiresRouletteがtrueの場合）
+ * @param {string} announcementTitle - アナウンスタイトル
+ * @param {string} announcementSubtitle - アナウンスサブタイトル
+ * @param {string} logMessage - ログメッセージ
  */
-async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null) {
+async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null, announcementTitle = null, announcementSubtitle = null, logMessage = null) {
   const userId = getCurrentUserId();
   if (!userId) throw new Error("User not authenticated");
 
@@ -1076,19 +1098,11 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
       throw new Error(`Insufficient cost: need ${actionCost}, have ${currentCost}`);
     }
 
-    // 同一ターン中に複数妨害は使用不可（1ターン1回制限）
-    const turn = Number(data?.gameState?.turn || 1);
-    const lastUsedTurn = Number(res.wolfActionLastUsedTurn || 0);
-    if (lastUsedTurn === turn) {
-      throw new Error("Only one obstruction per turn is allowed");
-    }
-
     // ルーレットが必要な場合は、GM画面でルーレットを実行する必要がある
     if (requiresRoulette && Array.isArray(rouletteOptions) && rouletteOptions.length > 0) {
       // ルーレットリクエストを設定（GM画面でルーレットを実行）
       tx.update(roomRef, {
         [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
-        [`players.${userId}.resources.wolfActionLastUsedTurn`]: turn,
         "gameState.wolfActionRequest": {
           playerId: userId,
           actionText: actionText,
@@ -1103,7 +1117,7 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
 
     const logData = {
       type: "wolfAction",
-      message: `妨害『${actionText}』が発動されました`,
+      message: logMessage || `妨害『${actionText}』が発動されました`,
       timestamp: Date.now(),
       userId,
       playerId: userId,
@@ -1115,8 +1129,13 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
     
     tx.update(roomRef, {
       [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
-      [`players.${userId}.resources.wolfActionLastUsedTurn`]: turn,
-      "gameState.wolfActionNotification": { text: actionText, timestamp: Date.now() },
+      "gameState.wolfActionNotification": { 
+        text: actionText, 
+        announcementTitle: announcementTitle || `妨害『${actionText}』が発動されました`,
+        announcementSubtitle: announcementSubtitle || null,
+        logMessage: logMessage || `妨害『${actionText}』が発動されました`,
+        timestamp: Date.now() 
+      },
       "gameState.subphase": nextSubphase,
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
@@ -1165,22 +1184,216 @@ async function identifyWolf(roomId, suspectedPlayerId) {
 
     const playersObj = data?.players || {};
     const me = playersObj?.[userId];
-    if (!me || me.role !== "doctor") {
-      throw new Error("Only doctor can identify wolf");
+    if (!me || (me.role !== "doctor" && me.role !== "citizen")) {
+      throw new Error("Only doctor and citizens can vote");
     }
 
     if (!playersObj[suspectedPlayerId]) {
       throw new Error("Suspected player not found");
     }
 
-    // 指名されたプレイヤーが人狼かどうかを確認
-    const suspectedPlayer = playersObj[suspectedPlayerId];
-    const isWolf = suspectedPlayer?.role === "wolf";
+    // 投票データを取得・更新
+    const votes = data?.gameState?.finalPhaseVotes || {};
+    votes[userId] = suspectedPlayerId;
 
-    // ゲーム結果を設定
+    // 市民とドクターの数をカウント
+    const voters = Object.values(playersObj).filter(p => p.role === "doctor" || p.role === "citizen");
+    const voterCount = voters.length;
+    const majority = Math.ceil(voterCount / 2);
+
+    // 各プレイヤーへの投票数をカウント
+    const voteCounts = {};
+    Object.values(votes).forEach(votedPlayerId => {
+      voteCounts[votedPlayerId] = (voteCounts[votedPlayerId] || 0) + 1;
+    });
+
+    // 最多得票者を特定
+    let maxVotes = 0;
+    let mostVotedPlayerId = null;
+    let isTie = false;
+    Object.entries(voteCounts).forEach(([playerId, count]) => {
+      if (count > maxVotes) {
+        maxVotes = count;
+        mostVotedPlayerId = playerId;
+        isTie = false;
+      } else if (count === maxVotes) {
+        isTie = true;
+      }
+    });
+
+    // 全員が投票したか、過半数に達したかをチェック
+    const allVoted = Object.keys(votes).length === voterCount;
+    const hasMajority = !isTie && maxVotes >= majority;
+
+    let updates = {
+      "gameState.finalPhaseVotes": votes,
+    };
+
+    // 全員が投票した、または過半数に達した場合、結果を確定
+    if (allVoted || hasMajority) {
+      if (mostVotedPlayerId && !isTie) {
+        const suspectedPlayer = playersObj[mostVotedPlayerId];
+        const isWolf = suspectedPlayer?.role === "wolf";
+        updates["gameState.phase"] = "finished";
+        updates["gameState.gameResult"] = isWolf ? "citizen_win_reverse" : "wolf_win";
+      } else {
+        // 同票または過半数未満の場合は人狼勝利
+        updates["gameState.phase"] = "finished";
+        updates["gameState.gameResult"] = "wolf_win";
+      }
+    }
+
+    tx.update(roomRef, updates);
+  });
+}
+
+/**
+ * 会議フェーズを開始
+ * @param {string} roomId
+ * @param {number} durationMinutes - 会議時間（分、デフォルト5分）
+ */
+async function startDiscussionPhase(roomId, durationMinutes = 5) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) throw new Error("Only GM can start discussion phase");
+
+    const endTime = Date.now() + durationMinutes * 60 * 1000;
+
     tx.update(roomRef, {
-      "gameState.phase": "finished",
-      "gameState.gameResult": isWolf ? "citizen_win_reverse" : "wolf_win",
+      "gameState.discussionPhase": true,
+      "gameState.discussionEndTime": endTime,
+    });
+  });
+}
+
+/**
+ * 会議フェーズを終了して次のフェーズに進む
+ * @param {string} roomId
+ */
+async function endDiscussionPhase(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) throw new Error("Only GM can end discussion phase");
+
+    const gameState = data?.gameState || {};
+    const discussionPhase = gameState.discussionPhase;
+
+    if (!discussionPhase) {
+      throw new Error("Discussion phase is not active");
+    }
+
+    const updates = {
+      "gameState.discussionPhase": false,
+      "gameState.discussionEndTime": null,
+    };
+
+    // 会議フェーズ後の遷移先を決定
+    const pendingFinalPhase = gameState.pendingFinalPhase;
+    
+    // 最終フェーズ前の会議フェーズの場合、10分の会議フェーズを開始
+    if (pendingFinalPhase) {
+      // 10分の会議フェーズを開始
+      const endTime = Date.now() + 10 * 60 * 1000;
+      updates["gameState.discussionPhase"] = true;
+      updates["gameState.discussionEndTime"] = endTime;
+      updates["gameState.pendingFinalPhase"] = false;
+      updates["gameState.pendingFinalPhaseDiscussion"] = true; // 最終フェーズ前の10分会議フラグ
+      updates["gameState.turnResult"] = null;
+    }
+    // 最終フェーズ前の10分会議フェーズが終了した場合、最終フェーズに進む
+    else if (gameState.pendingFinalPhaseDiscussion) {
+      updates["gameState.phase"] = "final_phase";
+      updates["gameState.finalPhaseVotes"] = {};
+      updates["gameState.pendingFinalPhaseDiscussion"] = false;
+    }
+    // ターン結果表示後の会議フェーズの場合、次のターンに進む
+    else if (gameState.turnResult) {
+      const maxTurns = Number(gameState.maxTurns || 5);
+      const turn = Number(gameState.turn || 1);
+      const whiteStars = Number(gameState.whiteStars || 0);
+      const blackStars = Number(gameState.blackStars || 0);
+      const majority = Math.ceil(maxTurns / 2);
+
+      // 勝敗が決まっている場合はfinishedフェーズへ
+      if (gameState.phase === "finished") {
+        // そのままfinishedフェーズを維持
+      }
+      // 次のターンに進む
+      else {
+        const nextTurn = turn + 1;
+        const playersObj = data?.players || {};
+        const order = Array.isArray(gameState.playerOrder) && gameState.playerOrder.length
+          ? gameState.playerOrder
+          : Object.keys(playersObj);
+
+        updates["gameState.turn"] = nextTurn;
+        updates["gameState.currentPlayerIndex"] = 0;
+        updates["gameState.pendingFailure"] = null;
+        updates["gameState.currentStage"] = null;
+        updates["gameState.stageTurn"] = null;
+        updates["gameState.subphase"] = "gm_stage";
+        updates["gameState.wolfDecisionPlayerId"] = null;
+        updates["gameState.wolfActionRequest"] = null;
+        updates["gameState.turnResult"] = null;
+
+        // ドクター神拳をリセット
+        const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+        if (doctorId) {
+          updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+        }
+      }
+    }
+
+    tx.update(roomRef, updates);
+  });
+}
+
+/**
+ * 会議フェーズを2分延長
+ * @param {string} roomId
+ */
+async function extendDiscussionPhase(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) throw new Error("Only GM can extend discussion phase");
+
+    const gameState = data?.gameState || {};
+    if (!gameState.discussionPhase) {
+      throw new Error("Discussion phase is not active");
+    }
+
+    const currentEndTime = gameState.discussionEndTime || Date.now();
+    const newEndTime = currentEndTime + 2 * 60 * 1000; // 2分延長
+
+    tx.update(roomRef, {
+      "gameState.discussionEndTime": newEndTime,
     });
   });
 }

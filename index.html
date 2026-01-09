@@ -17,7 +17,7 @@
       <section id="home-screen" class="screen active">
         <header class="app-header">
           <h1>アークナイツ人狼 GMツール</h1>
-          <p class="subtitle">☆3以下限定・レユニオン人狼 用ファンメイド支援ツール</p>
+          <p class="subtitle">レユニオン人狼 用ファンメイド支援ツール</p>
         </header>
 
         <main class="home-layout">
@@ -54,7 +54,10 @@
                   <input type="file" id="player-avatar-file" accept="image/*" />
                 </label>
               </div>
-              <input type="text" id="room-id-input" placeholder="ルームIDを入力（6文字）" class="room-id-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-transform: uppercase; text-align: center; letter-spacing: 0.1em;" maxlength="6" />
+              <div style="position: relative; width: 100%;">
+                <input type="password" id="room-id-input" placeholder="ルームIDを入力（6文字）" class="room-id-input" style="width: 100%; padding: 8px 40px 8px 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-transform: uppercase; text-align: center; letter-spacing: 0.1em;" maxlength="6" />
+                <button type="button" id="toggle-room-id-visibility" class="toggle-password-btn" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #a0a4ba; cursor: pointer; font-size: 18px; padding: 4px;">👁</button>
+              </div>
               <input type="text" id="player-name-input" placeholder="あなたの名前を入力" class="player-name-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-align: center;" />
               <button id="btn-join-room-confirm" class="btn primary" style="width: 100%;">参加</button>
             </div>
@@ -73,6 +76,7 @@
               ></iframe>
             </div>
             <div class="home-links">
+              <button id="open-rulebook" class="btn ghost">ルールブック</button>
               <button id="open-options" class="btn ghost">オプション</button>
               <button id="open-tos" class="btn ghost">利用規約</button>
             </div>
@@ -86,6 +90,9 @@
               <li>利用は<strong>自己責任</strong>でお願いします。</li>
               <li style="margin-top: 8px; color: #a0a4ba; font-size: 12px;">配信の演出上GMアリで作成していますが、そのうちもっと遊びやすいようにGMナシ版の作成も検討中なので許してちょんまげ</li>
             </ul>
+            <p style="margin-top: 16px; color: #a0a4ba; font-size: 12px; text-align: center;">
+              バグ報告・修正要望などは作成者の<a href="#" id="bug-report-link" style="color: #8be6c3; text-decoration: underline;">DM</a>まで！
+            </p>
             <button id="start-game" class="btn primary start-btn" style="display: none;">ゲーム開始</button>
           </section>
         </main>
@@ -102,6 +109,7 @@
               <p class="waiting-label">ルームID</p>
               <div class="waiting-room-id-display">
                 <strong id="waiting-room-id" class="waiting-room-id-text"></strong>
+                <button type="button" id="toggle-waiting-room-id-visibility" class="toggle-password-btn" style="background: none; border: none; color: #a0a4ba; cursor: pointer; font-size: 18px; padding: 4px 8px;">👁</button>
                 <button id="btn-copy-waiting-room-id" class="btn ghost small">コピー</button>
               </div>
               <p class="waiting-hint">このルームIDを参加者に共有してください</p>
@@ -115,6 +123,8 @@
             </div>
             
             <div class="waiting-actions">
+              <button id="open-rulebook-from-waiting" class="btn ghost">ルールブック</button>
+              <button id="btn-rules-settings" class="btn secondary" style="display: none;">ルール設定</button>
               <button id="btn-start-game-from-waiting" class="btn primary" disabled>
                 ゲーム開始 (最低3人必要)
               </button>
@@ -159,6 +169,13 @@
                 <div class="status-main-item" id="status-doctor-punch-item" style="display: none;">
                   <span class="status-main-label">神拳発動</span>
                   <span id="status-doctor-punch" class="status-main-value">-</span>
+                </div>
+                <div class="status-main-item">
+                  <span class="status-main-label">フェーズ</span>
+                  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                    <span id="status-current-phase" class="status-main-value">-</span>
+                    <span id="status-next-phase" class="status-phase-next">-</span>
+                  </div>
                 </div>
               </div>
               <button id="main-options-btn" class="icon-button" title="オプション">
@@ -276,50 +293,96 @@
         </div>
       </div>
 
-      <!-- GM向け：妨害発動通知ポップアップ -->
-      <div id="gm-wolf-action-notification-modal" class="modal hidden">
+
+      <!-- 統一アナウンスポップアップ -->
+      <div id="announcement-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
         <div class="modal-content">
-          <h2>妨害発動</h2>
-          <p id="gm-wolf-action-text" class="result-summary" style="text-align: center; font-size: 20px; margin-top: 12px;">
-            （取得中…）
-          </p>
-          <div class="modal-actions">
-            <button id="gm-wolf-action-ok" class="btn primary">OK</button>
+          <h2 id="announcement-title">アナウンス</h2>
+          <p id="announcement-subtitle" class="announcement-subtitle" style="display: none;"></p>
+        </div>
+      </div>
+
+      <!-- 会議フェーズモーダル（GM専用） -->
+      <div id="discussion-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+          <h2>会議フェーズ</h2>
+          <div style="text-align: center; margin: 24px 0;">
+            <div id="discussion-timer" style="font-size: 48px; font-weight: 700; color: #8be6c3; letter-spacing: 0.1em; margin-bottom: 12px;">
+              05:00
+            </div>
+            <p style="color: #a0a4ba; font-size: 14px; margin: 0;">
+              タイマーが0になると自動で次のフェーズに進みます
+            </p>
+          </div>
+          <div class="modal-actions" style="justify-content: center; gap: 12px;">
+            <button id="discussion-extend" class="btn secondary">2分延長</button>
+            <button id="discussion-end" class="btn primary">終了</button>
           </div>
         </div>
       </div>
 
-      <!-- GM向け：人狼操作中通知 -->
-      <div id="gm-wolf-operation-modal" class="modal hidden">
+      <!-- ゲーム開始時の極秘命令ポップアップ -->
+      <div id="mission-brief-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
-        <div class="modal-content">
-          <h2>操作中</h2>
-          <p class="modal-subtitle" style="text-align: center; font-size: 18px; margin-top: 12px;">
-            人狼が操作中です
-          </p>
+        <div class="modal-content" style="max-width: 600px;">
+          <h2 style="text-align: center; margin-bottom: 24px; color: #f5f5f7;">極秘命令</h2>
+          <div id="mission-brief-content" class="mission-brief-content" style="max-height: 400px; overflow-y: auto; padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 8px; line-height: 1.8; color: #e0e0e0; font-size: 16px; white-space: pre-line;">
+          </div>
+          <div class="modal-actions" style="justify-content: center; margin-top: 24px;">
+            <button id="mission-brief-close" class="btn primary">了解</button>
+          </div>
         </div>
       </div>
 
-      <!-- GM向け：ドクター操作中通知 -->
-      <div id="gm-doctor-operation-modal" class="modal hidden">
+      <!-- ルールブックモーダル -->
+      <div id="rulebook-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
-        <div class="modal-content">
-          <h2>操作中</h2>
-          <p class="modal-subtitle" style="text-align: center; font-size: 18px; margin-top: 12px;">
-            ドクターが操作中です
-          </p>
-        </div>
-      </div>
-
-      <!-- ターン結果ポップアップ -->
-      <div id="turn-result-modal" class="modal hidden">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content">
-          <h2 id="turn-result-title">ターン結果</h2>
-          <p id="turn-result-message" class="modal-subtitle" style="text-align: center; font-size: 18px; margin-top: 12px;">
-            （取得中…）
-          </p>
+        <div class="modal-content wide" style="max-width: 800px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>ルールブック</h2>
+            <button data-close-modal="rulebook-modal" class="btn ghost small">閉じる</button>
+          </div>
+          <div class="rulebook-pages" style="min-height: 500px; padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 8px; overflow-y: auto;">
+            <div id="rulebook-page-1" class="rulebook-page" style="display: none;">
+              <h3>このゲームの目標と勝利条件</h3>
+              <p style="color: #a0a4ba; line-height: 1.8;">（内容は後日設定）</p>
+            </div>
+            <div id="rulebook-page-2" class="rulebook-page" style="display: none;">
+              <h3>このゲームの流れ</h3>
+              <p style="color: #a0a4ba; line-height: 1.8;">（内容は後日設定）</p>
+            </div>
+            <div id="rulebook-page-3" class="rulebook-page" style="display: none;">
+              <h3>ステージ攻略と判定について</h3>
+              <p style="color: #a0a4ba; line-height: 1.8;">（内容は後日設定）</p>
+            </div>
+            <div id="rulebook-page-4" class="rulebook-page" style="display: none;">
+              <h3>役職について</h3>
+              <p style="color: #a0a4ba; line-height: 1.8;">（内容は後日設定）</p>
+            </div>
+            <div id="rulebook-page-5" class="rulebook-page" style="display: none;">
+              <h3>役職ごとのルールと行動指針（市民）</h3>
+              <p style="color: #a0a4ba; line-height: 1.8;">（内容は後日設定）</p>
+            </div>
+            <div id="rulebook-page-6" class="rulebook-page" style="display: none;">
+              <h3>役職ごとのルールと行動指針（ドクター）</h3>
+              <p style="color: #a0a4ba; line-height: 1.8;">（内容は後日設定）</p>
+            </div>
+            <div id="rulebook-page-7" class="rulebook-page" style="display: none;">
+              <h3>役職ごとのルールと行動指針（レユニオン）</h3>
+              <p style="color: #a0a4ba; line-height: 1.8;">（内容は後日設定）</p>
+            </div>
+            <div id="rulebook-page-8" class="rulebook-page" style="display: none;">
+              <h3>禁止行為</h3>
+              <p style="color: #a0a4ba; line-height: 1.8;">（内容は後日設定）</p>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <button id="rulebook-prev" class="btn ghost" disabled>前へ</button>
+            <span id="rulebook-page-indicator" style="color: #a0a4ba;">1 / 8</span>
+            <button id="rulebook-next" class="btn ghost">次へ</button>
+          </div>
         </div>
       </div>
 
@@ -360,19 +423,6 @@
         </div>
       </div>
 
-      <!-- GM向けアナウンス（参加者に見せない） -->
-      <div id="gm-announcement-modal" class="modal hidden">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content">
-          <h2>アナウンス</h2>
-          <p class="modal-subtitle">
-            この次の画面は参加者が閲覧できないようにしてください。（OBSの表示を一時的に隠す等）
-          </p>
-          <div class="modal-actions">
-            <button id="gm-announcement-ok" class="btn primary">OK</button>
-          </div>
-        </div>
-      </div>
 
       <!-- GM向け：全員の役職一覧 -->
       <div id="gm-roles-modal" class="modal hidden">
@@ -391,7 +441,10 @@
       <div id="options-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
         <div class="modal-content wide">
-          <h2>オプション</h2>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>オプション</h2>
+            <button id="open-rulebook-from-options" class="btn ghost small">ルールブック</button>
+          </div>
           <section class="options-section">
             <h3>サウンド</h3>
             <label class="toggle">
@@ -400,44 +453,9 @@
             </label>
           </section>
 
-          <section class="options-section">
-            <h3>ゲーム設定</h3>
-            <div class="options-row">
-              <label>
-                対象ステージ範囲 (章)
-                <div class="inline-inputs">
-                  <select id="opt-stage-min">
-                    <option value="2">2章</option>
-                    <option value="3">3章</option>
-                    <option value="4">4章</option>
-                    <option value="5">5章</option>
-                  </select>
-                  <span>〜</span>
-                  <select id="opt-stage-max">
-                    <option value="2">2章</option>
-                    <option value="3" selected>3章</option>
-                    <option value="4">4章</option>
-                    <option value="5">5章</option>
-                  </select>
-                </div>
-              </label>
-            </div>
-
-            <div class="options-row">
-              <label>
-                人狼妨害カスタム (1行につき1項目)
-                <textarea
-                  id="opt-wolf-actions"
-                  rows="5"
-                  placeholder="例：&#10;編成人数10人&#10;強襲ステージ&#10;推し+☆2以下編成&#10;ドクター神拳使用不可"
-                ></textarea>
-              </label>
-            </div>
-
-            <button id="opt-back-home" class="btn ghost small">
-              ホーム画面に戻る
-            </button>
-          </section>
+          <button id="opt-back-home" class="btn ghost small">
+            ホーム画面に戻る
+          </button>
 
           <section class="options-section">
             <h3>利用規約</h3>
@@ -489,6 +507,54 @@
           </div>
           <div class="modal-actions">
             <button data-close-modal="tos-modal" class="btn primary">
+              閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ルール設定モーダル（GM専用） -->
+      <div id="rules-settings-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content wide">
+          <h2>ルール設定</h2>
+          <section class="options-section">
+            <div class="options-row">
+              <label>
+                対象ステージ範囲 (章)
+                <div class="inline-inputs">
+                  <select id="rules-stage-min">
+                    <option value="2">2章</option>
+                    <option value="3">3章</option>
+                    <option value="4">4章</option>
+                    <option value="5">5章</option>
+                  </select>
+                  <span>〜</span>
+                  <select id="rules-stage-max">
+                    <option value="2">2章</option>
+                    <option value="3" selected>3章</option>
+                    <option value="4">4章</option>
+                    <option value="5">5章</option>
+                  </select>
+                </div>
+              </label>
+            </div>
+
+            <div class="options-row">
+              <label>
+                人狼妨害カスタム (1行につき1項目)
+                <textarea
+                  id="rules-wolf-actions"
+                  rows="5"
+                  placeholder="例：&#10;編成人数10人&#10;強襲ステージ&#10;推し+☆2以下編成&#10;ドクター神拳使用不可"
+                ></textarea>
+              </label>
+            </div>
+          </section>
+
+          <div class="modal-actions">
+            <button id="rules-save" class="btn primary">保存</button>
+            <button data-close-modal="rules-settings-modal" class="btn ghost">
               閉じる
             </button>
           </div>

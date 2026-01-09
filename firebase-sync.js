@@ -1,5 +1,5 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase, identifyWolf as identifyWolfDB } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase, identifyWolf as identifyWolfDB, startDiscussionPhase as startDiscussionPhaseDB, endDiscussionPhase as endDiscussionPhaseDB, extendDiscussionPhase as extendDiscussionPhaseDB } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
 import { doc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -10,6 +10,12 @@ import { switchScreen } from "./ui-modals.js";
 let currentRoomId = null;
 let roomUnsubscribe = null;
 let isSyncing = false;
+let lastPlayerIndex = -1;
+let lastSubphase = null;
+let lastPhase = null;
+let discussionTimerInterval = null;
+let lastDiscussionEndTime = null;
+let missionBriefShown = false;
 
 // グローバル変数として公開（main.jsからアクセス可能にする）
 if (typeof window !== 'undefined') {
@@ -165,6 +171,123 @@ function startRoomSync(roomId) {
 }
 
 /**
+ * 統一アナウンスポップアップを表示
+ * @param {string} title - タイトル
+ * @param {string|null} subtitle - サブタイトル（オプション）
+ * @param {string|null} logMessage - ログメッセージ（オプション）
+ * @param {number} autoCloseDelay - 自動閉じるまでの時間（ミリ秒、デフォルト3000）
+ */
+function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 3000) {
+  const modal = document.getElementById("announcement-modal");
+  const titleEl = document.getElementById("announcement-title");
+  const subtitleEl = document.getElementById("announcement-subtitle");
+  
+  if (!modal || !titleEl) return;
+  
+  // 既に表示されている場合は何もしない（重複表示を防ぐ）
+  if (!modal.classList.contains("hidden")) {
+    return;
+  }
+  
+  titleEl.textContent = title;
+  
+  if (subtitle && subtitleEl) {
+    subtitleEl.textContent = subtitle;
+    subtitleEl.style.display = "block";
+  } else if (subtitleEl) {
+    subtitleEl.style.display = "none";
+  }
+  
+  modal.classList.remove("hidden");
+  
+  // ログを追加
+  if (logMessage) {
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (roomId) {
+      syncToFirebase("log", {
+        logType: "system",
+        logMessage: logMessage,
+        roomId,
+      }).catch((e) => {
+        console.error("Failed to add log:", e);
+      });
+    }
+  }
+  
+  // 自動で閉じる
+  setTimeout(() => {
+    if (modal && !modal.classList.contains("hidden")) {
+      modal.classList.add("hidden");
+    }
+  }, autoCloseDelay);
+}
+
+/**
+ * ゲーム開始時の極秘命令ポップアップを表示
+ */
+function showMissionBrief() {
+  const modal = document.getElementById("mission-brief-modal");
+  const contentEl = document.getElementById("mission-brief-content");
+  const closeBtn = document.getElementById("mission-brief-close");
+  
+  if (!modal || !contentEl) return;
+
+  const missionText = `極秘命令。
+ ロドスは特別小隊を編成する。
+本作戦において、隊員の身元、経歴、所属は一切開示されない。
+ 参加者同士が互いを特定することも禁止される。
+理由は、内部に敵対勢力が潜伏している可能性があるためである。
+よって、本作戦は完全な相互不信の状態から開始される。
+任務は5段階。
+ 成否はすべて記録され、最終的な勝敗が決定される。
+以上。作戦を開始する。`;
+
+  // テキストを行ごとに分割して表示（いい感じに区切る）
+  const lines = missionText.split('\n');
+  contentEl.innerHTML = lines.map(line => {
+    if (line.trim() === '') return '<br>';
+    return `<p style="margin: 8px 0;">${line.trim()}</p>`;
+  }).join('');
+
+  // モーダルを表示
+  modal.classList.remove("hidden");
+  
+  // 自動スクロール（アニメーション）
+  contentEl.scrollTop = 0;
+  setTimeout(() => {
+    const scrollHeight = contentEl.scrollHeight - contentEl.clientHeight;
+    if (scrollHeight > 0) {
+      let currentScroll = 0;
+      const scrollInterval = setInterval(() => {
+        currentScroll += 2;
+        if (currentScroll >= scrollHeight) {
+          contentEl.scrollTop = scrollHeight;
+          clearInterval(scrollInterval);
+        } else {
+          contentEl.scrollTop = currentScroll;
+        }
+      }, 20);
+    }
+  }, 500);
+
+  // 閉じるボタンのイベント
+  if (closeBtn) {
+    const handleClose = () => {
+      modal.classList.add("hidden");
+      // ゲーム開始アナウンスを表示
+      showAnnouncement(
+        "作戦準備を行ってください",
+        "GMのステージロールにより開始されます。",
+        "ゲーム開始",
+        3000
+      );
+      closeBtn.removeEventListener("click", handleClose);
+    };
+    closeBtn.addEventListener("click", handleClose);
+  }
+}
+
+/**
  * Firebaseから取得したデータをローカル状態に同期
  */
 function syncGameStateFromFirebase(roomData) {
@@ -192,6 +315,10 @@ function syncGameStateFromFirebase(roomData) {
   }
   
   // ゲーム状態を同期
+  const previousPlayerIndex = GameState.currentPlayerIndex;
+  const previousSubphase = GameState.subphase;
+  const previousPhase = GameState.phase;
+  
   GameState.phase = gameState.phase || "waiting";
   GameState.turn = gameState.turn || 1;
   GameState.whiteStars = gameState.whiteStars || 0;
@@ -204,45 +331,69 @@ function syncGameStateFromFirebase(roomData) {
   GameState.turnResult = gameState.turnResult || null;
   GameState.doctorHasFailed = gameState.doctorHasFailed === true;
   GameState.gameResult = gameState.gameResult || null;
-  GameState.doctorHasFailed = gameState.doctorHasFailed === true;
-  GameState.gameResult = gameState.gameResult || null;
+  GameState.discussionPhase = gameState.discussionPhase === true;
+  GameState.discussionEndTime = gameState.discussionEndTime || null;
+  
+  // 手番表示アナウンス（プレイヤーが変わった時、またはplayingフェーズに初めて移行した時）
+  if (GameState.phase === "playing" && 
+      (previousPlayerIndex !== GameState.currentPlayerIndex || previousPhase !== "playing")) {
+    const order = GameState.playerOrder || Object.keys(players);
+    const currentPlayerId = order[GameState.currentPlayerIndex];
+    const currentPlayer = players[currentPlayerId];
+    if (currentPlayer) {
+      showAnnouncement(
+        `${currentPlayer.name}の挑戦です。`,
+        null,
+        `${currentPlayer.name}の挑戦`,
+        3000
+      );
+    }
+  }
+  
+  // await_doctorフェーズになった時にアナウンス（神拳が残っている場合）
+  if (GameState.phase === "playing" && GameState.subphase === "await_doctor" && previousSubphase !== "await_doctor") {
+    const order = GameState.playerOrder || Object.keys(players);
+    const currentPlayerId = order[GameState.currentPlayerIndex];
+    const currentPlayer = players[currentPlayerId];
+    if (currentPlayer) {
+      showAnnouncement(
+        `${currentPlayer.name}の挑戦は失敗しました。`,
+        "ドクター神拳によりこの失敗を打ち消すことができます。",
+        `${currentPlayer.name}の挑戦：×`,
+        3000
+      );
+    }
+  }
   
   // ターン結果ポップアップを表示（自動で閉じる）
   if (gameState.turnResult) {
-    const resultModal = document.getElementById("turn-result-modal");
-    const resultTitle = document.getElementById("turn-result-title");
-    const resultMessage = document.getElementById("turn-result-message");
-    if (resultModal && resultTitle && resultMessage) {
-      // 既に表示されている場合は何もしない（重複表示を防ぐ）
-      if (!resultModal.classList.contains("hidden")) {
-        return;
-      }
-      
-      if (gameState.turnResult === "success") {
-        resultTitle.textContent = "ターン結果";
-        resultMessage.textContent = "このターンは成功しました";
-      } else if (gameState.turnResult === "failure") {
-        resultTitle.textContent = "ターン結果";
-        resultMessage.textContent = "このターンは失敗しました";
-      }
-      resultModal.classList.remove("hidden");
-      
-      // 3秒後に自動で閉じる
-      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-      if (roomId) {
-        setTimeout(async () => {
-          if (resultModal && !resultModal.classList.contains("hidden")) {
-            try {
-              const { syncToFirebase } = await import("./firebase-sync.js");
-              await syncToFirebase("clearTurnResult", { roomId });
-              resultModal.classList.add("hidden");
-            } catch (e) {
-              console.error("Failed to clear turn result:", e);
-              resultModal.classList.add("hidden");
-            }
-          }
-        }, 3000);
-      }
+    const turn = gameState.turn || 1;
+    if (gameState.turnResult === "success") {
+      showAnnouncement(
+        "作戦結果：成功",
+        "ターン結果に〇を付けて次のターンへ進みます。",
+        `ターン${turn}結果：〇`,
+        3000
+      );
+    } else if (gameState.turnResult === "failure") {
+      showAnnouncement(
+        "作戦結果：失敗",
+        "ターン結果に×を付けて次のターンへ進みます。",
+        `ターン${turn}結果：×`,
+        3000
+      );
+    }
+    
+    // ターン結果をクリア
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (roomId) {
+      setTimeout(async () => {
+        try {
+          await syncToFirebase("clearTurnResult", { roomId });
+        } catch (e) {
+          console.error("Failed to clear turn result:", e);
+        }
+      }, 3000);
     }
   }
   
@@ -357,22 +508,16 @@ function handlePhaseUI(roomData) {
       }
     }
     
-    // GM：全員の役職を周知（OBSアナウンス→役職一覧）
+    // GM：全員の役職を周知（役職一覧を直接表示）
     if (isGM) {
-      const announcementModal = document.getElementById("gm-announcement-modal");
       const rolesModal = document.getElementById("gm-roles-modal");
       const gmRolesOkBtn = document.getElementById("gm-roles-ok");
       
-      // 初回のみアナウンス表示（一度表示したら再表示しない）
-      if (announcementModal && !announcementModal.dataset.shown) {
-        // アナウンスモーダルを表示
-        announcementModal.dataset.shown = "true";
-        announcementModal.classList.remove("hidden");
-        // 役職一覧モーダルは閉じる
-        if (rolesModal) rolesModal.classList.add("hidden");
+      // 初回のみ役職一覧を表示（一度表示したら再表示しない）
+      if (rolesModal && !rolesModal.dataset.shown) {
+        rolesModal.dataset.shown = "true";
+        showGMRolesModal(roomData);
       }
-      // アナウンスが閉じられて、役職一覧がまだ表示されていない場合は何もしない
-      // （gm-announcement-ok のクリックで showGMRolesModal が呼ばれる）
       
       // GMのOKボタンの有効/無効を制御（ゲスト全員がOKを押した場合のみ有効化）
       if (gmRolesOkBtn) {
@@ -432,7 +577,12 @@ function handlePhaseUI(roomData) {
       if (renderAll && typeof renderAll === "function") {
         renderAll();
       }
-    }
+      
+      // ゲーム開始時に極秘命令ポップアップを表示（一度だけ）
+      if (!missionBriefShown) {
+        missionBriefShown = true;
+        showMissionBrief();
+      }
 
     // GM：人狼妨害の選出リクエストをチェック
     if (isGM) {
@@ -440,33 +590,18 @@ function handlePhaseUI(roomData) {
       
       // GM画面：サブフェーズに応じた操作中ポップアップを表示
       const subphase = gameState.subphase;
-      const wolfOperationModal = document.getElementById("gm-wolf-operation-modal");
-      const doctorOperationModal = document.getElementById("gm-doctor-operation-modal");
+      const playersObj = roomData.players || {};
       
       if (subphase === "wolf_decision") {
         // 人狼が操作中
-        if (wolfOperationModal) {
-          wolfOperationModal.classList.remove("hidden");
-        }
-        if (doctorOperationModal) {
-          doctorOperationModal.classList.add("hidden");
-        }
+        const wolfPlayer = Object.values(playersObj).find(p => p?.role === "wolf");
+        const wolfName = wolfPlayer?.name || "人狼";
+        showAnnouncement(`${wolfName}が操作中です。`, null, null, 2000);
       } else if (subphase === "await_doctor") {
         // ドクターが操作中
-        if (doctorOperationModal) {
-          doctorOperationModal.classList.remove("hidden");
-        }
-        if (wolfOperationModal) {
-          wolfOperationModal.classList.add("hidden");
-        }
-      } else {
-        // 操作中ではない
-        if (wolfOperationModal) {
-          wolfOperationModal.classList.add("hidden");
-        }
-        if (doctorOperationModal) {
-          doctorOperationModal.classList.add("hidden");
-        }
+        const doctorPlayer = Object.values(playersObj).find(p => p?.role === "doctor");
+        const doctorName = doctorPlayer?.name || "ドクター";
+        showAnnouncement(`${doctorName}が操作中です。`, null, null, 2000);
       }
     } else {
       // 参加者：人狼妨害の手番開始フェーズをチェック
@@ -480,7 +615,7 @@ function handlePhaseUI(roomData) {
     }
   }
 
-  // final_phase: 最終フェーズ（人狼指名）
+  // final_phase: 最終フェーズ（人狼投票）
   if (phase === 'final_phase') {
     const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
     const myId = typeof window !== "undefined" ? window.__uid : null;
@@ -488,16 +623,14 @@ function handlePhaseUI(roomData) {
     const playersObj = roomData.players || {};
     const myRole = playersObj[myId]?.role || null;
     const isDoctor = myRole === "doctor";
+    const isCitizen = myRole === "citizen";
 
-    // ドクター：人狼指名モーダルを表示
-    if (isDoctor) {
+    // 市民とドクター：人狼投票モーダルを表示
+    if (isDoctor || isCitizen) {
       showFinalPhaseModal(roomData);
     } else if (isGM) {
-      // GM：操作中ポップアップを表示
-      const doctorOperationModal = document.getElementById("gm-doctor-operation-modal");
-      if (doctorOperationModal) {
-        doctorOperationModal.classList.remove("hidden");
-      }
+      // GM：投票待機ポップアップを表示
+      showAnnouncement("最終判定フェーズ（市民とドクターが投票中）", null, null, 2000);
     } else {
       // その他の参加者：待機画面を表示
       const waiting = document.getElementById("waiting-screen");
@@ -510,7 +643,7 @@ function handlePhaseUI(roomData) {
         waiting.classList.add("active");
         const waitingTitle = waiting.querySelector(".waiting-title");
         if (waitingTitle) {
-          waitingTitle.textContent = "最終判定フェーズ（ドクターが人狼を指名中）";
+          waitingTitle.textContent = "最終判定フェーズ（投票中）";
         }
       }
     }
@@ -523,7 +656,89 @@ function handlePhaseUI(roomData) {
       showGameResult(roomData, gameResult);
     }
   }
+
+  // 会議フェーズの処理
+  handleDiscussionPhase(roomData);
 }
+
+/**
+ * 会議フェーズのUI管理とタイマー更新
+ */
+function handleDiscussionPhase(roomData) {
+  const gameState = roomData.gameState || {};
+  const discussionPhase = gameState.discussionPhase === true;
+  const discussionEndTime = gameState.discussionEndTime || null;
+  const userId = getCurrentUserId();
+  const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const isGM = !!(createdBy && myId && createdBy === myId);
+
+  const modal = document.getElementById("discussion-modal");
+  const timerEl = document.getElementById("discussion-timer");
+
+  // タイマーをクリア
+  if (discussionTimerInterval) {
+    clearInterval(discussionTimerInterval);
+    discussionTimerInterval = null;
+  }
+
+  // 会議フェーズが終了した場合、モーダルを閉じる
+  if (!discussionPhase) {
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+    lastDiscussionEndTime = null;
+    return;
+  }
+
+  // GMのみ会議フェーズモーダルを表示
+  if (!isGM) {
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+    return;
+  }
+
+  // 会議フェーズが開始された場合、モーダルを表示
+  if (modal && discussionEndTime) {
+    modal.classList.remove("hidden");
+    
+    // タイマーを更新
+    function updateTimer() {
+      if (!timerEl || !discussionEndTime) return;
+      
+      const now = Date.now();
+      const remaining = Math.max(0, discussionEndTime - now);
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      
+      timerEl.textContent = timeString;
+      
+      // タイマーが0になった場合、自動で会議フェーズを終了
+      if (remaining <= 0) {
+        if (discussionTimerInterval) {
+          clearInterval(discussionTimerInterval);
+          discussionTimerInterval = null;
+        }
+        endDiscussionPhaseDB(currentRoomId).catch((e) => {
+          console.error("Failed to end discussion phase:", e);
+        });
+      }
+    }
+
+    // タイマーが更新された場合、インターバルを再設定
+    if (lastDiscussionEndTime !== discussionEndTime) {
+      if (discussionTimerInterval) {
+        clearInterval(discussionTimerInterval);
+      }
+      lastDiscussionEndTime = discussionEndTime;
+      updateTimer();
+      discussionTimerInterval = setInterval(updateTimer, 1000);
+    }
+  }
+}
+
 
 let lastStageModalTurn = null;
 let lastStageRequestedTurn = null;
@@ -600,15 +815,11 @@ function checkWolfActionRequest(roomData) {
   // 通常の妨害発動通知
   if (notification && notification.timestamp && notification.timestamp !== lastNotificationTimestamp) {
     lastNotificationTimestamp = notification.timestamp;
-    // GM画面に妨害発動通知ポップアップを表示
-    const modal = document.getElementById("gm-wolf-action-notification-modal");
-    const textEl = document.getElementById("gm-wolf-action-text");
-    if (modal && textEl) {
-      textEl.textContent = `妨害『${notification.text}』が発動されました`;
-      if (modal.classList.contains("hidden")) {
-        modal.classList.remove("hidden");
-      }
-    }
+    // 統一アナウンスモーダルで妨害発動を表示
+    const announcementTitle = notification.announcementTitle || `妨害『${notification.text}』が発動されました`;
+    const announcementSubtitle = notification.announcementSubtitle || null;
+    const logMessage = notification.logMessage || `妨害『${notification.text}』が発動されました`;
+    showAnnouncement(announcementTitle, announcementSubtitle, logMessage, 3000);
   }
   
   // フェーズが変わったら職業ルーレットモーダルを閉じる
@@ -771,6 +982,14 @@ async function handleSuccessAction(data, roomId) {
   await applySuccessDB(roomId);
   const name = data?.playerName || "プレイヤー";
   await addLog(roomId, { type: "success", message: `${name} がステージ攻略に成功しました。`, playerId: userId });
+  
+  // 挑戦結果アナウンス
+  showAnnouncement(
+    `${name}の挑戦は成功しました。`,
+    null,
+    `${name}の挑戦：〇`,
+    3000
+  );
 }
 
 /**
@@ -785,6 +1004,19 @@ async function handleFailAction(data, roomId) {
     ? `${name} の失敗が確定しました。（神拳なし）`
     : `${name} の失敗が入力されました。${"ドクターは神拳で救済できます。"} `;
   await addLog(roomId, { type: "fail", message: msg.trim(), playerId: userId });
+  
+  // 挑戦結果アナウンス
+  // isConfirmがtrueの場合は神拳が残っていない（正確な判定はsubphaseで行う）
+  if (isConfirm) {
+    // 神拳が残っていない
+    showAnnouncement(
+      `${name}の挑戦は失敗しました。`,
+      "ドクター神拳が残っていないため、強制的に失敗となります。",
+      `${name}の挑戦：×`,
+      3000
+    );
+  }
+  // isConfirmがfalseの場合は、subphaseがawait_doctorになった時にアナウンスを表示
 }
 
 /**
@@ -795,6 +1027,14 @@ async function handleDoctorPunchAction(data, roomId) {
   await applyDoctorPunchDB(roomId);
   const target = data?.targetPlayerName || data?.playerName || "プレイヤー";
   await addLog(roomId, { type: "doctorPunch", message: `ドクター神拳発動！ ${target} の失敗はなかったことになりました。`, playerId: userId });
+  
+  // 神拳発動アナウンス
+  showAnnouncement(
+    "ドクター神拳が発動されました。",
+    "ドクターが頑張ったのでこの失敗は打ち消されました。ﾊﾟｸﾊﾟｸ",
+    "ドクター神拳発動",
+    3000
+  );
 }
 
 /**
@@ -862,6 +1102,14 @@ async function handleStageRouletteAction(data, roomId) {
     type: 'stage',
     message: `ターン${GameState.turn}のステージ: ${stage}`,
   });
+  
+  // ステージ結果アナウンス
+  showAnnouncement(
+    `作戦エリアは${stage}です`,
+    null,
+    `ステージ${stage}`,
+    3000
+  );
 }
 
 /**
@@ -933,6 +1181,8 @@ function appendLogToUI(log) {
 /**
  * 最終フェーズ：人狼指名モーダルを表示（GMのみ）
  */
+let lastFinalPhaseVotesTimestamp = null;
+
 function showFinalPhaseModal(roomData) {
   const modal = document.getElementById("result-modal");
   const titleEl = document.getElementById("result-title");
@@ -942,6 +1192,16 @@ function showFinalPhaseModal(roomData) {
   
   if (!modal || !titleEl || !summaryEl || !extraEl) return;
 
+  const gameState = roomData.gameState || {};
+  const votes = gameState.finalPhaseVotes || {};
+  const votesTimestamp = JSON.stringify(votes);
+  
+  // 投票データが更新された場合のみ再描画
+  if (votesTimestamp === lastFinalPhaseVotesTimestamp && !modal.classList.contains("hidden")) {
+    return;
+  }
+  lastFinalPhaseVotesTimestamp = votesTimestamp;
+
   const playersObj = roomData.players || {};
   const playersArr = Object.entries(playersObj).map(([id, data]) => ({
     id,
@@ -949,8 +1209,14 @@ function showFinalPhaseModal(roomData) {
     role: data.role,
   }));
 
-  titleEl.textContent = "最終判定: 人狼指名フェーズ";
-  summaryEl.textContent = "×が過半数ですが、ドクターは一度も失敗していません。プレイヤーからの話し合いをもとに、人狼を1名指名してください。";
+  const gameState = roomData.gameState || {};
+  const votes = gameState.finalPhaseVotes || {};
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const myRole = playersObj[myId]?.role || null;
+  const hasVoted = myId && votes[myId] !== undefined;
+
+  titleEl.textContent = "最終判定: 人狼投票フェーズ";
+  summaryEl.textContent = "×が過半数ですが、ドクターは一度も失敗していません。プレイヤーからの話し合いをもとに、人狼だと思うプレイヤーに投票してください。過半数の票が集まった場合のみ逆転勝利となります。";
 
   // プレイヤー一覧を表示
   if (rolesEl) {
@@ -975,37 +1241,58 @@ function showFinalPhaseModal(roomData) {
     rolesEl.appendChild(rolesList);
   }
 
-  // 人狼指名ボタンを表示
+  // 投票ボタンを表示
   extraEl.innerHTML = "";
-  const info = document.createElement("p");
-  info.textContent = "人狼だと思うプレイヤーを1名選択してください。";
-  info.style.marginBottom = "12px";
-  extraEl.appendChild(info);
+  
+  // 投票状況を表示
+  const voteInfo = document.createElement("p");
+  const voters = playersArr.filter(p => p.role === "doctor" || p.role === "citizen");
+  const votedCount = Object.keys(votes).length;
+  voteInfo.textContent = `投票状況: ${votedCount}/${voters.length}人`;
+  voteInfo.style.marginBottom = "12px";
+  voteInfo.style.color = "#a0a4ba";
+  extraEl.appendChild(voteInfo);
 
-  const btnWrap = document.createElement("div");
-  btnWrap.style.display = "flex";
-  btnWrap.style.flexWrap = "wrap";
-  btnWrap.style.gap = "6px";
-  btnWrap.style.marginTop = "8px";
+  if (!hasVoted) {
+    const info = document.createElement("p");
+    info.textContent = "人狼だと思うプレイヤーを1名選択してください。";
+    info.style.marginBottom = "12px";
+    extraEl.appendChild(info);
 
-  playersArr.forEach((p) => {
-    const b = document.createElement("button");
-    b.className = "btn ghost small";
-    b.textContent = p.name;
-    b.addEventListener("click", async () => {
-      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-      if (roomId) {
-        try {
-          await identifyWolfDB(roomId, p.id);
-        } catch (e) {
-          console.error("Failed to identify wolf:", e);
+    const btnWrap = document.createElement("div");
+    btnWrap.style.display = "flex";
+    btnWrap.style.flexWrap = "wrap";
+    btnWrap.style.gap = "6px";
+    btnWrap.style.marginTop = "8px";
+
+    playersArr.forEach((p) => {
+      const b = document.createElement("button");
+      b.className = "btn ghost small";
+      b.textContent = p.name;
+      b.addEventListener("click", async () => {
+        const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+        if (roomId) {
+          try {
+            await identifyWolfDB(roomId, p.id);
+          } catch (e) {
+            console.error("Failed to vote for wolf:", e);
+            alert(e?.message || "投票に失敗しました。");
+          }
         }
-      }
+      });
+      btnWrap.appendChild(b);
     });
-    btnWrap.appendChild(b);
-  });
 
-  extraEl.appendChild(btnWrap);
+    extraEl.appendChild(btnWrap);
+  } else {
+    const votedInfo = document.createElement("p");
+    const votedPlayerId = votes[myId];
+    const votedPlayer = playersArr.find(p => p.id === votedPlayerId);
+    votedInfo.textContent = `投票済み: ${votedPlayer?.name || "不明"}`;
+    votedInfo.style.marginBottom = "12px";
+    votedInfo.style.color = "#8be6c3";
+    extraEl.appendChild(votedInfo);
+  }
   modal.classList.remove("hidden");
 }
 
@@ -1201,6 +1488,7 @@ function stopRoomSync() {
     roomUnsubscribe = null;
   }
   currentRoomId = null;
+  missionBriefShown = false; // ルーム退出時にリセット
 }
 
 // エクスポート
@@ -1214,15 +1502,51 @@ async function resolveWolfAction(roomId, actionText) {
 }
 
 async function resolveWolfActionRoulette(roomId, selectedJob) {
-  return await resolveWolfActionRouletteDB(roomId, selectedJob);
+  // wolfActionRequestからactionTextを取得して、対応する妨害情報を取得
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  const RoomInfo = typeof window !== 'undefined' ? window.RoomInfo : null;
+  let announcementTitle = null;
+  let announcementSubtitle = null;
+  let logMessage = null;
+  
+  const wolfActionRequest = RoomInfo?.gameState?.wolfActionRequest || null;
+  const actionText = wolfActionRequest?.actionText || null;
+  
+  if (GameState && Array.isArray(GameState.options.wolfActions) && actionText) {
+    const action = GameState.options.wolfActions.find(a => a.text === actionText);
+    if (action) {
+      // サブタイトルに選択された職業を含める
+      const baseSubtitle = action.announcementSubtitle || null;
+      announcementTitle = action.announcementTitle || null;
+      announcementSubtitle = baseSubtitle ? `${baseSubtitle}（使用禁止職業: ${selectedJob}）` : `使用禁止職業: ${selectedJob}`;
+      logMessage = action.logMessage || null;
+    }
+  }
+  
+  return await resolveWolfActionRouletteDB(roomId, selectedJob, announcementTitle, announcementSubtitle, logMessage);
 }
 
 async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null) {
-  return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions);
+  // actionTextから対応する妨害情報を取得
+  const GameState = typeof window !== 'undefined' ? window.GameState : null;
+  let announcementTitle = null;
+  let announcementSubtitle = null;
+  let logMessage = null;
+  
+  if (GameState && Array.isArray(GameState.options.wolfActions)) {
+    const action = GameState.options.wolfActions.find(a => a.text === actionText);
+    if (action) {
+      announcementTitle = action.announcementTitle || null;
+      announcementSubtitle = action.announcementSubtitle || null;
+      logMessage = action.logMessage || null;
+    }
+  }
+  
+  return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions, announcementTitle, announcementSubtitle, logMessage);
 }
 
 // identifyWolfDBは既にインポートされているので、そのままエクスポート
-export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAckedDB, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal, applyDoctorSkipDB, identifyWolfDB };
+export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAckedDB, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal, applyDoctorSkipDB, identifyWolfDB, endDiscussionPhaseDB, extendDiscussionPhaseDB };
 
 // 新しいデフォルト同期API（チャット追加もここにぶら下げる想定）
 export { roomClient };

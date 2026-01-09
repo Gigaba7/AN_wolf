@@ -3,7 +3,7 @@
 import { GameState, $ } from "./game-state.js";
 import { openModal, switchScreen, closeModal } from "./ui-modals.js";
 import { logSystem, logTurn } from "./game-logging.js";
-import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, syncToFirebase } from "./firebase-sync.js";
+import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, syncToFirebase, endDiscussionPhase, extendDiscussionPhase } from "./firebase-sync.js";
 import { signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./game-roles.js";
 import { renderAll, renderWaitingScreen } from "./ui-render.module.js";
@@ -70,33 +70,10 @@ function setAvatarPreview(previewImg, letterEl, dataUrl, fallbackLetter) {
 
 function refreshOptionsModalControls() {
   const soundEl = $("#opt-sound");
-  const minEl = $("#opt-stage-min");
-  const maxEl = $("#opt-stage-max");
-  const wolfEl = $("#opt-wolf-actions");
 
   if (soundEl instanceof HTMLInputElement) {
     soundEl.checked = GameState.options.sound;
   }
-  if (minEl instanceof HTMLSelectElement) {
-    minEl.value = String(GameState.options.stageMinChapter);
-  }
-  if (maxEl instanceof HTMLSelectElement) {
-    maxEl.value = String(GameState.options.stageMaxChapter);
-  }
-  if (wolfEl instanceof HTMLTextAreaElement) {
-    wolfEl.value = GameState.options.wolfActionTexts.join("\n");
-  }
-
-  // 共有項目（ステージ範囲/妨害内容）はホストのみ編集可
-  const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-  const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-  const myId = typeof window !== "undefined" ? window.__uid : null;
-  const isHost = !!(roomId && createdBy && myId && createdBy === myId);
-  const inRoom = !!roomId;
-
-  if (minEl instanceof HTMLSelectElement) minEl.disabled = inRoom && !isHost;
-  if (maxEl instanceof HTMLSelectElement) maxEl.disabled = inRoom && !isHost;
-  if (wolfEl instanceof HTMLTextAreaElement) wolfEl.disabled = inRoom && !isHost;
 }
 
 function setupHomeScreen() {
@@ -310,6 +287,18 @@ function setupHomeScreen() {
     }
   });
 
+  // ルームID表示/非表示切り替え
+  $("#toggle-room-id-visibility")?.addEventListener("click", () => {
+    const input = $("#room-id-input");
+    if (input instanceof HTMLInputElement) {
+      if (input.type === "password") {
+        input.type = "text";
+      } else {
+        input.type = "password";
+      }
+    }
+  });
+
   $("#player-name-input")?.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
       $("#btn-join-room-confirm")?.click();
@@ -397,6 +386,43 @@ function setupHomeScreen() {
       $("#room-info")?.style.setProperty("display", "none");
     }
   });
+
+  // ルール設定ボタン（GMのみ表示）
+  $("#btn-rules-settings")?.addEventListener("click", () => {
+    refreshRulesSettingsModalControls();
+    openModal("rules-settings-modal");
+  });
+
+  // 待機画面のルームID表示/非表示切り替え
+  $("#toggle-waiting-room-id-visibility")?.addEventListener("click", () => {
+    const roomIdEl = $("#waiting-room-id");
+    if (roomIdEl) {
+      const actualRoomId = roomIdEl.dataset?.roomId || (typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null);
+      if (actualRoomId) {
+        if (roomIdEl.textContent === "••••••") {
+          roomIdEl.textContent = actualRoomId;
+        } else {
+          roomIdEl.textContent = "••••••";
+        }
+      }
+    }
+  });
+}
+
+function refreshRulesSettingsModalControls() {
+  const minEl = $("#rules-stage-min");
+  const maxEl = $("#rules-stage-max");
+  const wolfEl = $("#rules-wolf-actions");
+
+  if (minEl instanceof HTMLSelectElement) {
+    minEl.value = String(GameState.options.stageMinChapter);
+  }
+  if (maxEl instanceof HTMLSelectElement) {
+    maxEl.value = String(GameState.options.stageMaxChapter);
+  }
+  if (wolfEl instanceof HTMLTextAreaElement) {
+    wolfEl.value = GameState.options.wolfActionTexts.join("\n");
+  }
 }
 
 function setupMainScreen() {
@@ -468,22 +494,7 @@ function setupModals() {
     }
   });
 
-  // GM：妨害発動通知のOKボタン
-  $("#gm-wolf-action-ok")?.addEventListener("click", async () => {
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    if (!roomId) return;
-    
-    try {
-      // 通知をクリア
-      const { syncToFirebase } = await import("./firebase-sync.js");
-      await syncToFirebase("clearWolfActionNotification", { roomId });
-      closeModal("gm-wolf-action-notification-modal");
-    } catch (e) {
-      console.error("Failed to clear notification:", e);
-      closeModal("gm-wolf-action-notification-modal");
-    }
-  });
-
+  
   // GM：職業ルーレット開始
   $("#job-roulette-start")?.addEventListener("click", () => {
     const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
@@ -535,35 +546,18 @@ function setupModals() {
   
   // 参加者：人狼妨害のスキップ（妨害選択UIから閉じる場合）
   // 注: 妨害選択UIから直接発動するため、スキップ処理は不要（モーダルを閉じるだけでOK）
-  // ただし、妨害選択UIを閉じた時にスキップする場合は、モーダルの閉じるボタンで処理
-  $("#wolf-action-select-modal")?.addEventListener("click", (e) => {
-    if (e.target.classList.contains("modal-backdrop") || e.target.getAttribute("data-close-modal") === "wolf-action-select-modal") {
-      // モーダルを閉じる = スキップ
-      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-      if (roomId) {
-        import("./firebase-sync.js").then(({ wolfDecision }) => {
-          wolfDecision(roomId, "skip").catch(() => {
-            // エラーは無視（既にフェーズが変わっている可能性があるため）
-          });
-        });
+  // モーダル外をクリックしても閉じないようにする（閉じるボタンのみで処理）
+  // モーダル自体のクリックイベントを無効化（モーダルコンテンツ内のクリックは有効）
+  const wolfActionModal = document.getElementById("wolf-action-select-modal");
+  if (wolfActionModal) {
+    wolfActionModal.addEventListener("click", (e) => {
+      // モーダルコンテンツ外（バックドロップ）をクリックしても閉じない
+      if (e.target === wolfActionModal || e.target.classList.contains("modal-backdrop")) {
+        e.stopPropagation();
       }
-    }
-  });
+    });
+  }
   
-  // GM：アナウンスOK（注意ポップアップ → 役職一覧）
-  $("#gm-announcement-ok")?.addEventListener("click", async () => {
-    const announcementModal = document.getElementById("gm-announcement-modal");
-    if (announcementModal) {
-      announcementModal.classList.add("hidden");
-    }
-    
-    // 役職一覧を表示
-    const roomData = typeof window !== "undefined" ? window.RoomInfo : null;
-    if (roomData) {
-      const { showGMRolesModal } = await import("./firebase-sync.js");
-      showGMRolesModal(roomData);
-    }
-  });
   
   // GM：役職一覧OK（役職一覧 → マッチ開始待機）
   $("#gm-roles-ok")?.addEventListener("click", async () => {
@@ -603,62 +597,14 @@ function setupModals() {
 
   // オプション
   const soundEl = $("#opt-sound");
-  const minEl = $("#opt-stage-min");
-  const maxEl = $("#opt-stage-max");
-  const wolfEl = $("#opt-wolf-actions");
 
   if (soundEl instanceof HTMLInputElement) {
     soundEl.checked = GameState.options.sound;
-  }
-  if (minEl instanceof HTMLSelectElement) {
-    minEl.value = String(GameState.options.stageMinChapter);
-  }
-  if (maxEl instanceof HTMLSelectElement) {
-    maxEl.value = String(GameState.options.stageMaxChapter);
-  }
-  if (wolfEl instanceof HTMLTextAreaElement) {
-    wolfEl.value = GameState.options.wolfActionTexts.join("\n");
   }
 
   $("#opt-save")?.addEventListener("click", () => {
     if (soundEl instanceof HTMLInputElement) {
       GameState.options.sound = soundEl.checked;
-    }
-    if (minEl instanceof HTMLSelectElement && maxEl instanceof HTMLSelectElement) {
-      const min = Number(minEl.value);
-      const max = Number(maxEl.value);
-      if (min > max) {
-        alert("ステージ範囲の最小章は最大章より大きくできません。");
-        return;
-      }
-      GameState.options.stageMinChapter = min;
-      GameState.options.stageMaxChapter = max;
-    }
-    if (wolfEl instanceof HTMLTextAreaElement) {
-      const lines = wolfEl.value
-        .split("\n")
-        .map((v) => v.trim())
-        .filter(Boolean);
-      if (lines.length) {
-        GameState.options.wolfActionTexts = lines;
-      }
-    }
-
-    // 共有項目だけルームに同期（ホストのみ）
-    const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-    const myId = typeof window !== "undefined" ? window.__uid : null;
-    const isHost = !!(roomId && createdBy && myId && createdBy === myId);
-    if (roomId && isHost) {
-      syncToFirebase("updateConfig", {
-        stageMinChapter: GameState.options.stageMinChapter,
-        stageMaxChapter: GameState.options.stageMaxChapter,
-        wolfActionTexts: GameState.options.wolfActionTexts,
-        roomId,
-      }).catch((e) => {
-        console.error("Failed to update config:", e);
-        alert(`オプション同期に失敗しました: ${e.message}`);
-      });
     }
 
     closeModal("options-modal");
@@ -694,6 +640,174 @@ function setupModals() {
       waitText?.classList.remove("hidden");
     } catch (e) {
       console.error("Failed to acknowledge role:", e);
+    }
+  });
+
+  // ルール設定モーダルの保存ボタン
+  $("#rules-save")?.addEventListener("click", () => {
+    const minEl = $("#rules-stage-min");
+    const maxEl = $("#rules-stage-max");
+    const wolfEl = $("#rules-wolf-actions");
+
+    if (minEl instanceof HTMLSelectElement && maxEl instanceof HTMLSelectElement) {
+      const min = Number(minEl.value);
+      const max = Number(maxEl.value);
+      if (min > max) {
+        alert("ステージ範囲の最小章は最大章より大きくできません。");
+        return;
+      }
+      GameState.options.stageMinChapter = min;
+      GameState.options.stageMaxChapter = max;
+    }
+    if (wolfEl instanceof HTMLTextAreaElement) {
+      const lines = wolfEl.value
+        .split("\n")
+        .map((v) => v.trim())
+        .filter(Boolean);
+      if (lines.length) {
+        GameState.options.wolfActionTexts = lines;
+      }
+    }
+
+    // ルームに同期（ホストのみ）
+    const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isHost = !!(roomId && createdBy && myId && createdBy === myId);
+    if (roomId && isHost) {
+      syncToFirebase("updateConfig", {
+        stageMinChapter: GameState.options.stageMinChapter,
+        stageMaxChapter: GameState.options.stageMaxChapter,
+        wolfActionTexts: GameState.options.wolfActionTexts,
+        roomId,
+      }).catch((e) => {
+        console.error("Failed to update config:", e);
+        alert(`ルール設定の同期に失敗しました: ${e.message}`);
+      });
+    }
+
+    closeModal("rules-settings-modal");
+    logSystem("ルール設定を保存しました。");
+  });
+
+  // 会議フェーズ：終了ボタン
+  $("#discussion-end")?.addEventListener("click", async () => {
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    if (!isGM) {
+      alert("会議フェーズの終了はGMのみが実行できます。");
+      return;
+    }
+
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (!roomId) {
+      alert("ルームIDが取得できませんでした。");
+      return;
+    }
+
+    try {
+      await endDiscussionPhase(roomId);
+      logSystem("会議フェーズを終了しました。");
+    } catch (e) {
+      console.error("Failed to end discussion phase:", e);
+      alert(`会議フェーズの終了に失敗しました: ${e.message}`);
+    }
+  });
+
+  // 会議フェーズ：2分延長ボタン
+  $("#discussion-extend")?.addEventListener("click", async () => {
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    if (!isGM) {
+      alert("会議フェーズの延長はGMのみが実行できます。");
+      return;
+    }
+
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (!roomId) {
+      alert("ルームIDが取得できませんでした。");
+      return;
+    }
+
+    try {
+      await extendDiscussionPhase(roomId);
+      logSystem("会議フェーズを2分延長しました。");
+    } catch (e) {
+      console.error("Failed to extend discussion phase:", e);
+      alert(`会議フェーズの延長に失敗しました: ${e.message}`);
+    }
+  });
+
+  // ルールブックを開く（ホーム画面）
+  $("#open-rulebook")?.addEventListener("click", () => {
+    openRulebook();
+  });
+
+  // ルールブックを開く（マッチング画面）
+  $("#open-rulebook-from-waiting")?.addEventListener("click", () => {
+    openRulebook();
+  });
+
+  // ルールブックを開く（オプション画面）
+  $("#open-rulebook-from-options")?.addEventListener("click", () => {
+    openRulebook();
+  });
+
+  // ルールブックのページ切り替え
+  let currentRulebookPage = 1;
+  const totalRulebookPages = 8;
+
+  function updateRulebookPage() {
+    // すべてのページを非表示
+    for (let i = 1; i <= totalRulebookPages; i++) {
+      const pageEl = document.getElementById(`rulebook-page-${i}`);
+      if (pageEl) {
+        pageEl.style.display = "none";
+      }
+    }
+
+    // 現在のページを表示
+    const currentPageEl = document.getElementById(`rulebook-page-${currentRulebookPage}`);
+    if (currentPageEl) {
+      currentPageEl.style.display = "block";
+    }
+
+    // ページインジケーターを更新
+    const indicatorEl = document.getElementById("rulebook-page-indicator");
+    if (indicatorEl) {
+      indicatorEl.textContent = `${currentRulebookPage} / ${totalRulebookPages}`;
+    }
+
+    // 前へ/次へボタンの有効/無効を更新
+    const prevBtn = document.getElementById("rulebook-prev");
+    const nextBtn = document.getElementById("rulebook-next");
+    if (prevBtn) {
+      prevBtn.disabled = currentRulebookPage === 1;
+    }
+    if (nextBtn) {
+      nextBtn.disabled = currentRulebookPage === totalRulebookPages;
+    }
+  }
+
+  function openRulebook() {
+    currentRulebookPage = 1;
+    updateRulebookPage();
+    openModal("rulebook-modal");
+  }
+
+  $("#rulebook-prev")?.addEventListener("click", () => {
+    if (currentRulebookPage > 1) {
+      currentRulebookPage--;
+      updateRulebookPage();
+    }
+  });
+
+  $("#rulebook-next")?.addEventListener("click", () => {
+    if (currentRulebookPage < totalRulebookPages) {
+      currentRulebookPage++;
+      updateRulebookPage();
     }
   });
 }
