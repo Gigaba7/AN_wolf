@@ -96,8 +96,8 @@ function renderStatus() {
       if (doctorPunchEl) {
         // ランプ/マークが光る表示
         doctorPunchEl.innerHTML = available 
-          ? '<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #8be6c3; box-shadow: 0 0 8px rgba(139, 230, 195, 0.8), 0 0 16px rgba(139, 230, 195, 0.4); animation: pulse 2s ease-in-out infinite;"></span>'
-          : '<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #555; opacity: 0.5;"></span>';
+          ? '<span style="display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: #8be6c3; box-shadow: 0 0 8px rgba(139, 230, 195, 0.8), 0 0 16px rgba(139, 230, 195, 0.4); animation: pulse 2s ease-in-out infinite;"></span>'
+          : '<span style="display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: #555; opacity: 0.5;"></span>';
       }
       if (doctorPunchItem) {
         doctorPunchItem.style.display = "flex";

@@ -19,6 +19,7 @@ let missionBriefShown = false;
 let lastLogMessage = null; // 重複ログ防止用
 let lastAnnouncementTitle = null; // 重複アナウンス防止用
 let lastTurnResult = null; // ターン結果の重複防止用
+let previousTurn = null; // 前回のターン番号（ターン切り替え検出用）
 
 // グローバル変数として公開（main.jsからアクセス可能にする）
 if (typeof window !== 'undefined') {
@@ -182,7 +183,7 @@ function startRoomSync(roomId) {
  */
 let announcementTimeout = null;
 
-function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 3000, requireOk = false, isWolfAction = false, gmOnly = false) {
+function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 3000, requireOk = false, isWolfAction = false, gmOnly = false, onOk = null) {
   const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
   const myId = typeof window !== "undefined" ? window.__uid : null;
   const isGM = !!(createdBy && myId && createdBy === myId);
@@ -252,6 +253,10 @@ function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDe
       actionsEl.style.display = "none";
       lastAnnouncementTitle = null; // リセット
       lastLogMessage = null; // リセット
+      // コールバックを実行
+      if (onOk && typeof onOk === "function") {
+        onOk();
+      }
       okBtn.removeEventListener("click", handleOk);
     };
     // 既存のイベントリスナーを削除してから追加
@@ -380,6 +385,7 @@ function syncGameStateFromFirebase(roomData) {
   const previousPlayerIndex = GameState.currentPlayerIndex;
   const previousSubphase = GameState.subphase;
   const previousPhase = GameState.phase;
+  const previousTurn = GameState.turn || 1;
   
   GameState.phase = gameState.phase || "waiting";
   GameState.turn = gameState.turn || 1;
@@ -396,13 +402,27 @@ function syncGameStateFromFirebase(roomData) {
   GameState.discussionPhase = gameState.discussionPhase === true;
   GameState.discussionEndTime = gameState.discussionEndTime || null;
   
-  // 手番表示アナウンス（プレイヤーが変わった時、またはplayingフェーズに初めて移行した時）
-  if (GameState.phase === "playing" && 
-      (previousPlayerIndex !== GameState.currentPlayerIndex || previousPhase !== "playing")) {
+  // ターン切り替え時のポップアップを表示
+  if (previousTurn !== GameState.turn && GameState.turn > 1 && GameState.phase === "playing") {
+    showAnnouncement(
+      `${GameState.turn}ターン目`,
+      null,
+      `${GameState.turn}ターン目開始`,
+      3000,
+      false,
+      false,
+      true // GM画面のみ
+    );
+  }
+  
+  // 手番表示アナウンス（プレイヤーが変わった時、またはawait_resultフェーズになった時）
+  // 手番の前に表示するため、await_resultフェーズになった時、またはプレイヤーが変わった時に表示
+  if (GameState.phase === "playing" && GameState.subphase === "await_result") {
     const order = GameState.playerOrder || Object.keys(players);
     const currentPlayerId = order[GameState.currentPlayerIndex];
     const currentPlayer = players[currentPlayerId];
-    if (currentPlayer) {
+    // プレイヤーが変わった時、または前回のサブフェーズがawait_resultでない時に表示
+    if (currentPlayer && (previousPlayerIndex !== GameState.currentPlayerIndex || previousSubphase !== "await_result")) {
       showAnnouncement(
         `${currentPlayer.name}の挑戦です。`,
         null,
@@ -526,7 +546,7 @@ function syncGameStateFromFirebase(roomData) {
   }
 
   // フェーズに応じたUI制御（モーダル表示/画面遷移）
-  handlePhaseUI(roomData);
+  handlePhaseUI(roomData, previousPhase);
   
   // ログを同期
   if (roomData.logs && roomData.logs.length > 0) {
@@ -534,7 +554,7 @@ function syncGameStateFromFirebase(roomData) {
   }
 }
 
-function handlePhaseUI(roomData) {
+function handlePhaseUI(roomData, previousPhase = null) {
   const gameState = roomData.gameState || {};
   const phase = gameState.phase;
   const userId = getCurrentUserId();
@@ -590,7 +610,12 @@ function handlePhaseUI(roomData) {
       const rolesModal = document.getElementById("gm-roles-modal");
       const gmRolesOkBtn = document.getElementById("gm-roles-ok");
       
-      // 初回のみ役職一覧を表示（一度表示したら再表示しない）
+      // revealingフェーズに入った時に、前回の表示フラグをリセット
+      if (rolesModal && previousPhase !== 'revealing') {
+        delete rolesModal.dataset.shown;
+      }
+      
+      // 役職一覧を表示（revealingフェーズに入るたびに表示）
       if (rolesModal && !rolesModal.dataset.shown) {
         rolesModal.dataset.shown = "true";
         showGMRolesModal(roomData);
@@ -1123,15 +1148,19 @@ async function handleDoctorPunchAction(data, roomId) {
   const target = data?.targetPlayerName || data?.playerName || "プレイヤー";
   await addLog(roomId, { type: "doctorPunch", message: `ドクター神拳発動！ ${target} の失敗はなかったことになりました。`, playerId: userId });
   
-  // 神拳発動アナウンス（GM画面のみ）
+  // 神拳発動アナウンス（GM画面のみ、打ち消された旨を表示）
   showAnnouncement(
     "ドクター神拳が発動されました。",
-    "ドクターが頑張ったのでこの失敗は打ち消されました。ﾊﾟｸﾊﾟｸ",
+    `${target}の失敗は打ち消されました。`,
     "ドクター神拳発動",
     0,
-    true, // OKボタンを要求（ゲストUIから操作されたため）
+    true, // OKボタンを要求
     false,
-    true // GM画面のみ
+    true, // GM画面のみ
+    () => {
+      // OKボタンを押した後の処理（既にapplyDoctorPunchで次のプレイヤーに進んでいるので、何もしない）
+      // 次のプレイヤーの手番開始時に妨害フェーズが自動で設定される
+    }
   );
 }
 
