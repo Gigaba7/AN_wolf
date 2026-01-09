@@ -424,11 +424,8 @@ function syncGameStateFromFirebase(roomData) {
         3000
       );
     }
-  } else if (!gameState.turnResult) {
-    lastTurnResult = null; // ターン結果がクリアされたらリセット
-  }
-  
-  // ターン結果をクリア
+    
+    // ターン結果をクリア
     const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
     if (roomId) {
       setTimeout(async () => {
@@ -439,6 +436,8 @@ function syncGameStateFromFirebase(roomData) {
         }
       }, 3000);
     }
+  } else if (!gameState.turnResult) {
+    lastTurnResult = null; // ターン結果がクリアされたらリセット
   }
   
   // 妨害発動通知をクリア（表示後）
