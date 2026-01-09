@@ -408,6 +408,7 @@ function renderWolfActionList() {
     const actionText = typeof action === "string" ? action : action.text;
     const actionCost = typeof action === "string" ? 1 : (action.cost || 1);
     const displayName = typeof action === "object" && action.displayName ? action.displayName : actionText;
+    const oldName = typeof action === "object" && action.oldName ? action.oldName : null;
     const requiresRoulette = typeof action === "object" && action.requiresRoulette === true;
     const canAfford = currentCost >= actionCost;
 
@@ -417,9 +418,12 @@ function renderWolfActionList() {
       item.classList.add("disabled");
     }
     item.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <span class="wolf-action-text">${displayName}</span>
-        <span class="wolf-action-cost">-${actionCost}</span>
+      <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="wolf-action-text">${displayName}</span>
+          <span class="wolf-action-cost">Cost-${actionCost}</span>
+        </div>
+        ${oldName ? `<span style="opacity: 0.7; font-size: 12px; color: #a0a4ba;">${oldName}</span>` : ''}
       </div>
       <button class="btn primary small" ${!canAfford ? "disabled" : ""} data-action-index="${index}">
         発動

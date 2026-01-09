@@ -16,6 +16,9 @@ let lastPhase = null;
 let discussionTimerInterval = null;
 let lastDiscussionEndTime = null;
 let missionBriefShown = false;
+let lastLogMessage = null; // 重複ログ防止用
+let lastAnnouncementTitle = null; // 重複アナウンス防止用
+let lastTurnResult = null; // ターン結果の重複防止用
 
 // グローバル変数として公開（main.jsからアクセス可能にする）
 if (typeof window !== 'undefined') {
@@ -177,19 +180,42 @@ function startRoomSync(roomId) {
  * @param {string|null} logMessage - ログメッセージ（オプション）
  * @param {number} autoCloseDelay - 自動閉じるまでの時間（ミリ秒、デフォルト3000）
  */
-function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 3000) {
+let announcementTimeout = null;
+
+function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 3000, requireOk = false) {
   const modal = document.getElementById("announcement-modal");
   const titleEl = document.getElementById("announcement-title");
   const subtitleEl = document.getElementById("announcement-subtitle");
+  const actionsEl = document.getElementById("announcement-actions");
+  const okBtn = document.getElementById("announcement-ok");
   
   if (!modal || !titleEl) return;
   
-  // 既に表示されている場合は何もしない（重複表示を防ぐ）
-  if (!modal.classList.contains("hidden")) {
+  // 既に表示されている場合でも、同じタイトルの場合は更新する（継続表示用）
+  const isAlreadyShowing = !modal.classList.contains("hidden");
+  const isSameTitle = titleEl.textContent === title;
+  
+  // 重複チェック：同じタイトルとログメッセージの場合はスキップ
+  if (isSameTitle && title === lastAnnouncementTitle && logMessage === lastLogMessage) {
+    // 継続表示の場合は更新のみ（ログは追加しない）
+    if (autoCloseDelay === 0) {
+      return; // 継続表示の場合は何もしない
+    }
+  }
+  
+  if (isAlreadyShowing && !isSameTitle && autoCloseDelay > 0 && !requireOk) {
+    // 既に別のアナウンスが表示されている場合は何もしない
     return;
   }
   
+  // 既存のタイマーをクリア
+  if (announcementTimeout) {
+    clearTimeout(announcementTimeout);
+    announcementTimeout = null;
+  }
+  
   titleEl.textContent = title;
+  lastAnnouncementTitle = title;
   
   if (subtitle && subtitleEl) {
     subtitleEl.textContent = subtitle;
@@ -198,10 +224,30 @@ function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDe
     subtitleEl.style.display = "none";
   }
   
+  // OKボタンの表示/非表示
+  if (requireOk && actionsEl && okBtn) {
+    actionsEl.style.display = "flex";
+    // OKボタンのイベントリスナーを設定
+    const handleOk = () => {
+      modal.classList.add("hidden");
+      actionsEl.style.display = "none";
+      lastAnnouncementTitle = null; // リセット
+      lastLogMessage = null; // リセット
+      okBtn.removeEventListener("click", handleOk);
+    };
+    // 既存のイベントリスナーを削除してから追加
+    okBtn.replaceWith(okBtn.cloneNode(true));
+    const newOkBtn = document.getElementById("announcement-ok");
+    newOkBtn.addEventListener("click", handleOk);
+  } else if (actionsEl) {
+    actionsEl.style.display = "none";
+  }
+  
   modal.classList.remove("hidden");
   
-  // ログを追加
-  if (logMessage) {
+  // ログを追加（初回表示時のみ、重複チェック）
+  if (logMessage && logMessage !== lastLogMessage) {
+    lastLogMessage = logMessage;
     const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
     if (roomId) {
       syncToFirebase("log", {
@@ -214,18 +260,30 @@ function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDe
     }
   }
   
-  // 自動で閉じる
-  setTimeout(() => {
-    if (modal && !modal.classList.contains("hidden")) {
-      modal.classList.add("hidden");
-    }
-  }, autoCloseDelay);
+  // 自動で閉じる（autoCloseDelayが0の場合は閉じない、requireOkがtrueの場合は閉じない）
+  if (autoCloseDelay > 0 && !requireOk) {
+    announcementTimeout = setTimeout(() => {
+      if (modal && !modal.classList.contains("hidden")) {
+        modal.classList.add("hidden");
+        lastAnnouncementTitle = null; // リセット
+        lastLogMessage = null; // リセット
+      }
+      announcementTimeout = null;
+    }, autoCloseDelay);
+  }
 }
 
 /**
- * ゲーム開始時の極秘命令ポップアップを表示
+ * ゲーム開始時の極秘命令ポップアップを表示（GM画面のみ）
  */
 function showMissionBrief() {
+  const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const isGM = !!(createdBy && myId && createdBy === myId);
+  
+  // GMのみ表示
+  if (!isGM) return;
+  
   const modal = document.getElementById("mission-brief-modal");
   const contentEl = document.getElementById("mission-brief-content");
   const closeBtn = document.getElementById("mission-brief-close");
@@ -251,24 +309,6 @@ function showMissionBrief() {
 
   // モーダルを表示
   modal.classList.remove("hidden");
-  
-  // 自動スクロール（アニメーション）
-  contentEl.scrollTop = 0;
-  setTimeout(() => {
-    const scrollHeight = contentEl.scrollHeight - contentEl.clientHeight;
-    if (scrollHeight > 0) {
-      let currentScroll = 0;
-      const scrollInterval = setInterval(() => {
-        currentScroll += 2;
-        if (currentScroll >= scrollHeight) {
-          contentEl.scrollTop = scrollHeight;
-          clearInterval(scrollInterval);
-        } else {
-          contentEl.scrollTop = currentScroll;
-        }
-      }, 20);
-    }
-  }, 500);
 
   // 閉じるボタンのイベント
   if (closeBtn) {
@@ -365,8 +405,9 @@ function syncGameStateFromFirebase(roomData) {
     }
   }
   
-  // ターン結果ポップアップを表示（自動で閉じる）
-  if (gameState.turnResult) {
+  // ターン結果ポップアップを表示（自動で閉じる、重複防止）
+  if (gameState.turnResult && gameState.turnResult !== lastTurnResult) {
+    lastTurnResult = gameState.turnResult;
     const turn = gameState.turn || 1;
     if (gameState.turnResult === "success") {
       showAnnouncement(
@@ -383,8 +424,11 @@ function syncGameStateFromFirebase(roomData) {
         3000
       );
     }
-    
-    // ターン結果をクリア
+  } else if (!gameState.turnResult) {
+    lastTurnResult = null; // ターン結果がクリアされたらリセット
+  }
+  
+  // ターン結果をクリア
     const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
     if (roomId) {
       setTimeout(async () => {
@@ -589,20 +633,25 @@ function handlePhaseUI(roomData) {
     if (isGM) {
       checkWolfActionRequest(roomData);
       
-      // GM画面：サブフェーズに応じた操作中ポップアップを表示
+      // GM画面：サブフェーズに応じた操作中ポップアップを表示（継続表示）
       const subphase = gameState.subphase;
       const playersObj = roomData.players || {};
       
-      if (subphase === "wolf_decision") {
-        // 人狼が操作中
-        const wolfPlayer = Object.values(playersObj).find(p => p?.role === "wolf");
-        const wolfName = wolfPlayer?.name || "人狼";
-        showAnnouncement(`${wolfName}が操作中です。`, null, null, 2000);
+      if (subphase === "wolf_decision" || subphase === "wolf_resolving") {
+        // 人狼が操作中（継続表示）
+        showAnnouncement("人狼が操作中です。", null, null, 0); // 0 = 自動で閉じない
       } else if (subphase === "await_doctor") {
-        // ドクターが操作中
-        const doctorPlayer = Object.values(playersObj).find(p => p?.role === "doctor");
-        const doctorName = doctorPlayer?.name || "ドクター";
-        showAnnouncement(`${doctorName}が操作中です。`, null, null, 2000);
+        // ドクターが操作中（継続表示）
+        showAnnouncement("ドクターが操作中です。", null, null, 0); // 0 = 自動で閉じない
+      } else {
+        // 他のフェーズではアナウンスを閉じる
+        const announcementModal = document.getElementById("announcement-modal");
+        if (announcementModal && !announcementModal.classList.contains("hidden")) {
+          const titleEl = document.getElementById("announcement-title");
+          if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+            announcementModal.classList.add("hidden");
+          }
+        }
       }
     } else {
       // 参加者：人狼妨害の手番開始フェーズをチェック
@@ -813,14 +862,14 @@ function checkWolfActionRequest(roomData) {
     return;
   }
   
-  // 通常の妨害発動通知
+  // 通常の妨害発動通知（ゲストUIから操作された場合はOKボタンを要求）
   if (notification && notification.timestamp && notification.timestamp !== lastNotificationTimestamp) {
     lastNotificationTimestamp = notification.timestamp;
     // 統一アナウンスモーダルで妨害発動を表示
     const announcementTitle = notification.announcementTitle || `妨害『${notification.text}』が発動されました`;
     const announcementSubtitle = notification.announcementSubtitle || null;
     const logMessage = notification.logMessage || `妨害『${notification.text}』が発動されました`;
-    showAnnouncement(announcementTitle, announcementSubtitle, logMessage, 3000);
+    showAnnouncement(announcementTitle, announcementSubtitle, logMessage, 0, true); // OKボタンを要求
   }
   
   // フェーズが変わったら職業ルーレットモーダルを閉じる
@@ -1030,12 +1079,13 @@ async function handleDoctorPunchAction(data, roomId) {
   await addLog(roomId, { type: "doctorPunch", message: `ドクター神拳発動！ ${target} の失敗はなかったことになりました。`, playerId: userId });
   
   // 神拳発動アナウンス
-  showAnnouncement(
-    "ドクター神拳が発動されました。",
-    "ドクターが頑張ったのでこの失敗は打ち消されました。ﾊﾟｸﾊﾟｸ",
-    "ドクター神拳発動",
-    3000
-  );
+    showAnnouncement(
+      "ドクター神拳が発動されました。",
+      "ドクターが頑張ったのでこの失敗は打ち消されました。ﾊﾟｸﾊﾟｸ",
+      "ドクター神拳発動",
+      0,
+      true // OKボタンを要求（ゲストUIから操作されたため）
+    );
 }
 
 /**
