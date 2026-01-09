@@ -182,7 +182,16 @@ function startRoomSync(roomId) {
  */
 let announcementTimeout = null;
 
-function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 3000, requireOk = false) {
+function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 3000, requireOk = false, isWolfAction = false, gmOnly = false) {
+  const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const isGM = !!(createdBy && myId && createdBy === myId);
+  
+  // GM画面のみの場合はGM以外は表示しない
+  if (gmOnly && !isGM) {
+    return;
+  }
+  
   const modal = document.getElementById("announcement-modal");
   const titleEl = document.getElementById("announcement-title");
   const subtitleEl = document.getElementById("announcement-subtitle");
@@ -212,6 +221,16 @@ function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDe
   if (announcementTimeout) {
     clearTimeout(announcementTimeout);
     announcementTimeout = null;
+  }
+  
+  // 妨害アニメーション用のクラスを追加/削除
+  if (isWolfAction) {
+    modal.classList.add("wolf-action");
+    setTimeout(() => {
+      modal.classList.remove("wolf-action");
+    }, 800);
+  } else {
+    modal.classList.remove("wolf-action");
   }
   
   titleEl.textContent = title;
@@ -319,7 +338,10 @@ function showMissionBrief() {
         "作戦準備を行ってください",
         "GMのステージロールにより開始されます。",
         "ゲーム開始",
-        3000
+        3000,
+        false,
+        false,
+        true // GM画面のみ
       );
       closeBtn.removeEventListener("click", handleClose);
     };
@@ -385,7 +407,10 @@ function syncGameStateFromFirebase(roomData) {
         `${currentPlayer.name}の挑戦です。`,
         null,
         `${currentPlayer.name}の挑戦`,
-        3000
+        3000,
+        false,
+        false,
+        true // GM画面のみ
       );
     }
   }
@@ -400,7 +425,10 @@ function syncGameStateFromFirebase(roomData) {
         `${currentPlayer.name}の挑戦は失敗しました。`,
         "ドクター神拳によりこの失敗を打ち消すことができます。",
         `${currentPlayer.name}の挑戦：×`,
-        3000
+        3000,
+        false,
+        false,
+        true // GM画面のみ
       );
     }
   }
@@ -414,14 +442,20 @@ function syncGameStateFromFirebase(roomData) {
         "作戦結果：成功",
         "ターン結果に〇を付けて次のターンへ進みます。",
         `ターン${turn}結果：〇`,
-        3000
+        3000,
+        false,
+        false,
+        true // GM画面のみ
       );
     } else if (gameState.turnResult === "failure") {
       showAnnouncement(
         "作戦結果：失敗",
         "ターン結果に×を付けて次のターンへ進みます。",
         `ターン${turn}結果：×`,
-        3000
+        3000,
+        false,
+        false,
+        true // GM画面のみ
       );
     }
     
@@ -638,10 +672,10 @@ function handlePhaseUI(roomData) {
       
       if (subphase === "wolf_decision" || subphase === "wolf_resolving") {
         // 人狼が操作中（継続表示）
-        showAnnouncement("人狼が操作中です。", null, null, 0); // 0 = 自動で閉じない
+        showAnnouncement("人狼が操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
       } else if (subphase === "await_doctor") {
         // ドクターが操作中（継続表示）
-        showAnnouncement("ドクターが操作中です。", null, null, 0); // 0 = 自動で閉じない
+        showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
       } else {
         // 他のフェーズではアナウンスを閉じる
         const announcementModal = document.getElementById("announcement-modal");
@@ -762,7 +796,9 @@ function handleDiscussionPhase(roomData) {
       const seconds = Math.floor((remaining % 60000) / 1000);
       const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
       
-      timerEl.textContent = timeString;
+      if (timerEl) {
+        timerEl.textContent = timeString;
+      }
       
       // タイマーが0になった場合、自動で会議フェーズを終了
       if (remaining <= 0) {
@@ -776,13 +812,17 @@ function handleDiscussionPhase(roomData) {
       }
     }
 
-    // タイマーが更新された場合、インターバルを再設定
-    if (lastDiscussionEndTime !== discussionEndTime) {
+    // タイマーが更新された場合、または初回表示の場合、インターバルを再設定
+    const currentEndTime = Number(discussionEndTime);
+    const lastEndTime = Number(lastDiscussionEndTime);
+    
+    if (currentEndTime !== lastEndTime || !discussionTimerInterval) {
       if (discussionTimerInterval) {
         clearInterval(discussionTimerInterval);
+        discussionTimerInterval = null;
       }
-      lastDiscussionEndTime = discussionEndTime;
-      updateTimer();
+      lastDiscussionEndTime = currentEndTime;
+      updateTimer(); // 即座に更新
       discussionTimerInterval = setInterval(updateTimer, 1000);
     }
   }
@@ -1032,12 +1072,15 @@ async function handleSuccessAction(data, roomId) {
   const name = data?.playerName || "プレイヤー";
   await addLog(roomId, { type: "success", message: `${name} がステージ攻略に成功しました。`, playerId: userId });
   
-  // 挑戦結果アナウンス
+  // 挑戦結果アナウンス（GM画面のみ）
   showAnnouncement(
     `${name}の挑戦は成功しました。`,
     null,
     `${name}の挑戦：〇`,
-    3000
+    3000,
+    false,
+    false,
+    true // GM画面のみ
   );
 }
 
@@ -1062,7 +1105,10 @@ async function handleFailAction(data, roomId) {
       `${name}の挑戦は失敗しました。`,
       "ドクター神拳が残っていないため、強制的に失敗となります。",
       `${name}の挑戦：×`,
-      3000
+      3000,
+      false,
+      false,
+      true // GM画面のみ
     );
   }
   // isConfirmがfalseの場合は、subphaseがawait_doctorになった時にアナウンスを表示
@@ -1077,14 +1123,16 @@ async function handleDoctorPunchAction(data, roomId) {
   const target = data?.targetPlayerName || data?.playerName || "プレイヤー";
   await addLog(roomId, { type: "doctorPunch", message: `ドクター神拳発動！ ${target} の失敗はなかったことになりました。`, playerId: userId });
   
-  // 神拳発動アナウンス
-    showAnnouncement(
-      "ドクター神拳が発動されました。",
-      "ドクターが頑張ったのでこの失敗は打ち消されました。ﾊﾟｸﾊﾟｸ",
-      "ドクター神拳発動",
-      0,
-      true // OKボタンを要求（ゲストUIから操作されたため）
-    );
+  // 神拳発動アナウンス（GM画面のみ）
+  showAnnouncement(
+    "ドクター神拳が発動されました。",
+    "ドクターが頑張ったのでこの失敗は打ち消されました。ﾊﾟｸﾊﾟｸ",
+    "ドクター神拳発動",
+    0,
+    true, // OKボタンを要求（ゲストUIから操作されたため）
+    false,
+    true // GM画面のみ
+  );
 }
 
 /**
@@ -1153,12 +1201,15 @@ async function handleStageRouletteAction(data, roomId) {
     message: `ターン${GameState.turn}のステージ: ${stage}`,
   });
   
-  // ステージ結果アナウンス
+  // ステージ結果アナウンス（GM画面のみ）
   showAnnouncement(
     `作戦エリアは${stage}です`,
     null,
     `ステージ${stage}`,
-    3000
+    3000,
+    false,
+    false,
+    true // GM画面のみ
   );
 }
 

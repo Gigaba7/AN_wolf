@@ -68,6 +68,58 @@ body {
   }
 }
 
+/* 妨害アニメーション */
+@keyframes wolfActionSlideIn {
+  0% {
+    transform: translateX(-100%) scale(0.8);
+    opacity: 0;
+    filter: blur(10px);
+  }
+  50% {
+    filter: blur(5px);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes wolfActionLightning {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(255, 0, 0, 0);
+  }
+  25% {
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.8), 0 0 40px rgba(255, 100, 0, 0.6), inset 0 0 20px rgba(255, 0, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 0, 0, 1), 0 0 60px rgba(255, 100, 0, 0.8), inset 0 0 30px rgba(255, 0, 0, 0.5);
+  }
+  75% {
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.8), 0 0 40px rgba(255, 100, 0, 0.6), inset 0 0 20px rgba(255, 0, 0, 0.3);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(139, 230, 195, 0.8), 0 0 16px rgba(139, 230, 195, 0.4);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 12px rgba(139, 230, 195, 1), 0 0 24px rgba(139, 230, 195, 0.6);
+  }
+}
+
+#announcement-modal.wolf-action {
+  animation: wolfActionSlideIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#announcement-modal.wolf-action .modal-content {
+  animation: wolfActionLightning 0.8s ease-in-out;
+  border: 2px solid rgba(255, 0, 0, 0.5);
+}
+
 /* ホーム/待機（マッチング）画面は背景を不透明にする */
 body.opaque-bg {
   background: linear-gradient(135deg, #0a0d14 0%, #050712 50%, #0a0d14 100%);

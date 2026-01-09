@@ -755,6 +755,11 @@ function setupModals() {
     openRulebook();
   });
 
+  // ルールブックを開く（ゲストUI）
+  $("#open-rulebook-from-participant")?.addEventListener("click", () => {
+    openRulebook();
+  });
+
   // ルールブックのページ切り替え
   let currentRulebookPage = 1;
   const totalRulebookPages = 8;
