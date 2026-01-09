@@ -815,6 +815,44 @@ async function applyDoctorPunch(roomId) {
 }
 
 /**
+ * ドクター神拳発動後、OKボタンを押した時に次のプレイヤーの妨害フェーズに進む
+ */
+async function proceedToNextPlayerAfterDoctorPunch(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    // pendingDoctorPunchProceedフラグが立っている場合のみ実行
+    if (!data?.gameState?.pendingDoctorPunchProceed) {
+      throw new Error("Not waiting for doctor punch proceed");
+    }
+
+    const playersObj = data?.players || {};
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+    const idx = Number(data?.gameState?.currentPlayerIndex || 0);
+
+    // 次のプレイヤーの妨害フェーズを設定
+    const startPhase = computeStartSubphase(playersObj, order, idx);
+    tx.update(roomRef, {
+      "gameState.subphase": startPhase.subphase,
+      "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+      "gameState.wolfActionRequest": null,
+      "gameState.pendingDoctorPunchProceed": null, // フラグをクリア
+    });
+  });
+}
+
+/**
  * ドクター神拳をスキップ（使用しない）
  */
 async function applyDoctorSkip(roomId) {
