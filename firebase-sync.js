@@ -1210,8 +1210,6 @@ function showFinalPhaseModal(roomData) {
     role: data.role,
   }));
 
-  const gameState = roomData.gameState || {};
-  const votes = gameState.finalPhaseVotes || {};
   const myId = typeof window !== "undefined" ? window.__uid : null;
   const myRole = playersObj[myId]?.role || null;
   const hasVoted = myId && votes[myId] !== undefined;
