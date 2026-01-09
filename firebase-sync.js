@@ -573,9 +573,9 @@ function handlePhaseUI(roomData) {
         participant?.classList.add("active");
       }
       // 画面切替直後に描画（初回はここで描画しないと待機画面分岐でreturnしてしまう）
-      const renderAll = typeof window !== "undefined" ? window.renderAll : null;
-      if (renderAll && typeof renderAll === "function") {
-        renderAll();
+      const renderAllLocal = typeof window !== "undefined" ? window.renderAll : null;
+      if (renderAllLocal && typeof renderAllLocal === "function") {
+        renderAllLocal();
       }
       
       // ゲーム開始時に極秘命令ポップアップを表示（一度だけ）
@@ -583,6 +583,7 @@ function handlePhaseUI(roomData) {
         missionBriefShown = true;
         showMissionBrief();
       }
+    }
 
     // GM：人狼妨害の選出リクエストをチェック
     if (isGM) {
