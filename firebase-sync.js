@@ -1546,6 +1546,7 @@ function setupResultModalButtons(roomData) {
       
       try {
         // ゲーム状態をwaitingフェーズにリセット（すべてのゲームパラメータをリセット）
+        // ロビーに戻る確認メカニズムを初期化（全員がロビーに戻るまでゲーム開始をブロック）
         await updateGameState(roomId, {
           "gameState.phase": "waiting",
           "gameState.turn": 1,
@@ -1563,6 +1564,7 @@ function setupResultModalButtons(roomData) {
           "gameState.turnResult": null,
           "gameState.doctorHasFailed": false,
           "gameState.revealAcks": {}, // 役職公開の確認をリセット
+          "gameState.resultReturnLobbyAcks": {}, // ロビーに戻る確認を初期化（全員がロビーに戻るまでゲーム開始をブロック）
           "gameState.finalPhaseVotes": {}, // 最終フェーズの投票をリセット
           "gameState.discussionPhase": false, // 会議フェーズをリセット
           "gameState.discussionEndTime": null, // 会議フェーズの終了時刻をリセット
@@ -1571,6 +1573,14 @@ function setupResultModalButtons(roomData) {
           "gameState.pendingDoctorPunchProceed": null, // ドクター神拳発動後の進行フラグをリセット
           "gameState.lock": null, // 排他制御用ロックをリセット
         });
+        
+        // ロビーに戻る確認を記録（このユーザーがロビーに戻ったことを記録）
+        const userId = getCurrentUserId();
+        if (userId) {
+          await updateGameState(roomId, {
+            [`gameState.resultReturnLobbyAcks.${userId}`]: true,
+          });
+        }
         
         // プレイヤーのresourcesもリセット
         const roomData = await getDoc(doc(firestore, "rooms", roomId));

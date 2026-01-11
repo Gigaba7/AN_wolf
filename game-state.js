@@ -21,7 +21,7 @@ const GameState = {
   doctorPunchRemaining: 5,
   doctorPunchAvailableThisTurn: true,
   pendingFailure: null, // { playerId?:string, playerIndex?:number } | null
-  doctorHasFailed: false, // ドクターが一度でも失敗したか（神拳で打ち消しても失敗として記録）
+  doctorHasFailed: false, // ドクターが一度でも失敗したか（神拳で打ち消した場合もtrueにして、最終フェーズの逆転投票を防ぐ）
   currentStage: null,
   options: {
     sound: false,

@@ -339,6 +339,14 @@ async function startGameAsHost(roomId) {
       throw new Error("Player count must be 3-8 to start");
     }
 
+    // ロビーに戻る確認メカニズム：全員がロビーに戻るまでゲーム開始をブロック
+    const resultReturnLobbyAcks = data?.gameState?.resultReturnLobbyAcks || {};
+    const allReturnedLobby = playerIds.every((pid) => resultReturnLobbyAcks[pid] === true);
+    if (!allReturnedLobby && Object.keys(resultReturnLobbyAcks).length > 0) {
+      // resultReturnLobbyAcksが存在する場合（結果表示からロビーに戻った場合）、全員がロビーに戻るまで待つ
+      throw new Error("全員がロビーに戻るまでゲームを開始できません");
+    }
+
     // 役職：1狼 + 1ドクター + 残り市民
     const roles = ["wolf", "doctor"];
     while (roles.length < count) roles.push("citizen");
@@ -534,6 +542,8 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     "gameState.subphase": "gm_stage", // 常にステージ選出から開始
     "gameState.wolfDecisionPlayerId": null,
     "gameState.wolfActionRequest": null,
+    "gameState.pendingDoctorPunchProceed": null, // ドクター神拳進行フラグをクリア
+    "gameState.wolfActionNotification": null, // 妨害通知をクリア
   };
 
   // ターン開始時にドクター神拳を「使用可能」に戻す
@@ -550,7 +560,9 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
   updates["gameState.turnResult"] = isFailureTurn ? "failure" : "success";
 
   // ドクターが失敗し、神拳も使用できなかった場合は即座に人狼勝利（会議フェーズなし）
-  if (doctorHasFailed) {
+  // ただし、現在のターンで失敗した場合のみ（isFailureTurnがtrueで、doctorHasFailedがextraUpdatesで設定された場合）
+  const doctorFailedThisTurn = isFailureTurn && extraUpdates?.["gameState.doctorHasFailed"] === true;
+  if (doctorFailedThisTurn) {
     updates["gameState.phase"] = "finished";
     updates["gameState.gameResult"] = "wolf_win";
   }
@@ -638,14 +650,27 @@ async function applySuccess(roomId) {
     }
 
     const startPhase = computeStartSubphase(playersObj, order, nextIndex);
-    // そのターン中はステージを保持（次のプレイヤーに進んでも同じステージ）
-    tx.update(roomRef, {
+    
+    // 妨害効果の解除：次のプレイヤーの挑戦が完了したので、背水の陣などの効果を解除
+    const updates = {
       "gameState.currentPlayerIndex": nextIndex,
       // currentStage と stageTurn は保持（そのターン中は固定）
       "gameState.subphase": startPhase.subphase,
       "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
       "gameState.wolfActionRequest": null,
-    });
+    };
+    
+    // 背水の陣などの妨害効果を解除（次の挑戦が完了したので）
+    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+    if (doctorId) {
+      const doctorRes = playersObj[doctorId]?.resources || {};
+      if (doctorRes.doctorPunchAvailableThisTurn === false) {
+        // 妨害効果が適用されている場合、次の挑戦が完了したので解除
+        updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+      }
+    }
+    
+    tx.update(roomRef, updates);
   });
 }
 
@@ -731,6 +756,15 @@ async function applyFail(roomId) {
       updates["gameState.doctorHasFailed"] = true;
     }
     
+    // 妨害効果の解除：次のプレイヤーの挑戦が完了したので、背水の陣などの効果を解除
+    // doctorIdは既に定義されているので、doctorResを直接使用
+    if (doctorId && doctorRes) {
+      if (doctorRes.doctorPunchAvailableThisTurn === false) {
+        // 妨害効果が適用されている場合、次の挑戦が完了したので解除
+        updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+      }
+    }
+    
     endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, updates);
   });
 }
@@ -774,13 +808,14 @@ async function applyDoctorPunch(roomId) {
       throw new Error("Pending failure is not for current player");
     }
 
-    // ドクターが失敗した場合、失敗履歴を記録（神拳で打ち消しても失敗として記録）
+    // ドクターが失敗した場合、失敗履歴を記録（神拳で打ち消した場合は失敗として記録しない）
     const pendingPlayerId = pending?.playerId || currentPlayerId;
     const isPendingDoctor = pendingPlayerId === userId;
 
     const nextIndex = (idx + 1) % order.length;
 
     // 神拳使用＝成功扱いで次へ進む（ターン内は1回まで）
+    // ただし、神拳で打ち消した場合でもdoctorHasFailedをtrueにして、最終フェーズの逆転投票を防ぐ
     if (nextIndex === 0) {
       // 1周完了なので「○」でターン終了（次ターンでは使用可に戻す）
       const updates = {
@@ -788,6 +823,7 @@ async function applyDoctorPunch(roomId) {
         [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
         // 次ターン開始時に true に戻すので、ここでは設定しない
       };
+      // 神拳で打ち消した場合でも、最終フェーズの逆転投票を防ぐためにdoctorHasFailedをtrueにする
       if (isPendingDoctor) {
         updates["gameState.doctorHasFailed"] = true;
       }
@@ -806,6 +842,7 @@ async function applyDoctorPunch(roomId) {
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
       "gameState.pendingDoctorPunchProceed": true, // OKボタンで進むフラグ
     };
+    // 神拳で打ち消した場合でも、最終フェーズの逆転投票を防ぐためにdoctorHasFailedをtrueにする
     if (isPendingDoctor) {
       updates["gameState.doctorHasFailed"] = true;
     }
@@ -848,6 +885,7 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
       "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
       "gameState.wolfActionRequest": null,
       "gameState.pendingDoctorPunchProceed": null, // フラグをクリア
+      "gameState.pendingFailure": null, // 念のためpendingFailureもクリア
     });
   });
 }
@@ -1055,7 +1093,7 @@ async function resolveWolfActionRoulette(roomId, selectedJob, announcementTitle 
     const currentStage = data?.gameState?.currentStage || null;
     const nextSubphase = currentStage ? "await_result" : "gm_stage";
     
-    tx.update(roomRef, {
+    const updates = {
       "gameState.wolfActionNotification": { 
         text: `${actionText}（使用禁止職業: ${selectedJob}）`, 
         announcementTitle: announcementTitle || `妨害『${actionText}』が発動されました`,
@@ -1066,7 +1104,17 @@ async function resolveWolfActionRoulette(roomId, selectedJob, announcementTitle 
       "gameState.subphase": nextSubphase,
       "gameState.wolfActionRequest": null,
       logs: arrayUnion(logData),
-    });
+    };
+    
+    // 背水の陣が発動された場合、ドクター神拳使用不可フラグを設定
+    if (actionText === "背水の陣") {
+      const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+      if (doctorId) {
+        updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = false;
+      }
+    }
+    
+    tx.update(roomRef, updates);
   });
 }
 
@@ -1163,7 +1211,8 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
     const currentStage = data?.gameState?.currentStage || null;
     const nextSubphase = currentStage ? "await_result" : "gm_stage";
     
-    tx.update(roomRef, {
+    // 背水の陣が発動された場合、ドクター神拳使用不可フラグを設定
+    const updates = {
       [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
       "gameState.wolfActionNotification": { 
         text: actionText, 
@@ -1176,7 +1225,17 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
       logs: arrayUnion(logData),
-    });
+    };
+    
+    // 背水の陣が発動された場合、ドクター神拳使用不可フラグを設定
+    if (actionText === "背水の陣") {
+      const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+      if (doctorId) {
+        updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = false;
+      }
+    }
+    
+    tx.update(roomRef, updates);
   });
 }
 
@@ -1355,10 +1414,19 @@ async function endDiscussionPhase(roomId) {
       updates["gameState.turnResult"] = null;
     }
     // 最終フェーズ前の10分会議フェーズが終了した場合、最終フェーズに進む
+    // ただし、doctorHasFailedがtrueの場合（ドクターが失敗し神拳で打ち消した場合）は最終フェーズに進まず人狼勝利
     else if (gameState.pendingFinalPhaseDiscussion) {
-      updates["gameState.phase"] = "final_phase";
-      updates["gameState.finalPhaseVotes"] = {};
-      updates["gameState.pendingFinalPhaseDiscussion"] = false;
+      const doctorHasFailed = gameState.doctorHasFailed === true;
+      if (doctorHasFailed) {
+        // ドクターが失敗した場合（神拳で打ち消した場合も含む）は最終フェーズに進まず人狼勝利
+        updates["gameState.phase"] = "finished";
+        updates["gameState.gameResult"] = "wolf_win";
+        updates["gameState.pendingFinalPhaseDiscussion"] = false;
+      } else {
+        updates["gameState.phase"] = "final_phase";
+        updates["gameState.finalPhaseVotes"] = {};
+        updates["gameState.pendingFinalPhaseDiscussion"] = false;
+      }
     }
     // ターン結果表示後の会議フェーズの場合、次のターンに進む
     else if (gameState.turnResult) {
@@ -1390,6 +1458,8 @@ async function endDiscussionPhase(roomId) {
         updates["gameState.wolfDecisionPlayerId"] = null;
         updates["gameState.wolfActionRequest"] = null;
         updates["gameState.turnResult"] = null;
+        updates["gameState.pendingDoctorPunchProceed"] = null; // ドクター神拳進行フラグをクリア
+        updates["gameState.wolfActionNotification"] = null; // 妨害通知をクリア
 
         // ドクター神拳をリセット
         const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;

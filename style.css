@@ -937,6 +937,12 @@ button {
   box-shadow: 0 0 18px rgba(255, 157, 65, 0.9);
 }
 
+.roulette-item.selected {
+  background: linear-gradient(90deg, #ffaf3b, #ff6b18);
+  box-shadow: 0 0 18px rgba(255, 157, 65, 0.9);
+  font-weight: 600;
+}
+
 .role-confirmation-list {
   flex: 1;
   border-radius: 10px;

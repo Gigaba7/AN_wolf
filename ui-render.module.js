@@ -357,16 +357,25 @@ function renderWaitingScreen(roomId) {
       const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
       const myId = typeof window !== "undefined" ? window.__uid : null;
       const isHost = !!(createdBy && myId && createdBy === myId);
+      const resultReturnLobbyAcks = typeof window !== "undefined" ? window.RoomInfo?.gameState?.resultReturnLobbyAcks : {};
 
       const canStartCount = GameState.players.length >= 3 && GameState.players.length <= 8;
       const canStartPhase = !phase || phase === "waiting";
-      const canStart = isHost && canStartCount && canStartPhase;
+      
+      // ロビーに戻る確認メカニズム：全員がロビーに戻るまでゲーム開始をブロック
+      const playerIds = GameState.players.map(p => p.id);
+      const hasResultReturnLobbyAcks = resultReturnLobbyAcks && Object.keys(resultReturnLobbyAcks).length > 0;
+      const allReturnedLobby = !hasResultReturnLobbyAcks || playerIds.every((pid) => resultReturnLobbyAcks[pid] === true);
+      const canStart = isHost && canStartCount && canStartPhase && allReturnedLobby;
 
       startBtn.disabled = !canStart;
       if (!isHost) {
         startBtn.textContent = "ゲーム開始（ホストのみ）";
       } else if (!canStartPhase) {
         startBtn.textContent = "ゲーム開始（進行中）";
+      } else if (!allReturnedLobby && hasResultReturnLobbyAcks) {
+        const returnedCount = playerIds.filter((pid) => resultReturnLobbyAcks[pid] === true).length;
+        startBtn.textContent = `ゲーム開始（全員がロビーに戻るのを待っています ${returnedCount}/${playerIds.length}）`;
       } else if (canStartCount) {
         startBtn.textContent = `ゲーム開始 (${GameState.players.length}人)`;
       } else {
