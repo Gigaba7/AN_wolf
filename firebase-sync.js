@@ -20,6 +20,11 @@ let lastLogMessage = null; // 重複ログ防止用
 let lastAnnouncementTitle = null; // 重複アナウンス防止用
 let lastTurnResult = null; // ターン結果の重複防止用
 let previousTurn = null; // 前回のターン番号（ターン切り替え検出用）
+let lastStageAnnouncementTurn = null; // ステージ選出アナウンスの重複防止用
+let lastChallengeAnnouncementPlayerIndex = null; // 挑戦アナウンスの重複防止用
+let lastSuccessAnnouncementPlayerIndex = null; // 成功アナウンスの重複防止用
+let lastFailAnnouncementPlayerIndex = null; // 失敗アナウンスの重複防止用
+let lastDoctorPunchAnnouncement = null; // ドクター神拳アナウンスの重複防止用
 
 // グローバル変数として公開（main.jsからアクセス可能にする）
 if (typeof window !== 'undefined') {
@@ -179,11 +184,13 @@ function startRoomSync(roomId) {
  * @param {string} title - タイトル
  * @param {string|null} subtitle - サブタイトル（オプション）
  * @param {string|null} logMessage - ログメッセージ（オプション）
- * @param {number} autoCloseDelay - 自動閉じるまでの時間（ミリ秒、デフォルト3000）
+ * @param {number} autoCloseDelay - 自動閉じるまでの時間（ミリ秒、デフォルト2000）
  */
 let announcementTimeout = null;
+let announcementQueue = []; // アナウンスキュー
+let isProcessingQueue = false; // キュー処理中フラグ
 
-function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 3000, requireOk = false, isWolfAction = false, gmOnly = false, onOk = null) {
+function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 2000, requireOk = false, isWolfAction = false, gmOnly = false, onOk = null) {
   const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
   const myId = typeof window !== "undefined" ? window.__uid : null;
   const isGM = !!(createdBy && myId && createdBy === myId);
@@ -193,29 +200,115 @@ function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDe
     return;
   }
   
+  // 継続表示（autoCloseDelay=0）はキューに追加せず直接表示
+  if (autoCloseDelay === 0) {
+    _showAnnouncementDirect(title, subtitle, logMessage, autoCloseDelay, requireOk, isWolfAction, gmOnly, onOk);
+    return;
+  }
+  
+  // キューに追加
+  announcementQueue.push({
+    title,
+    subtitle,
+    logMessage,
+    autoCloseDelay,
+    requireOk,
+    isWolfAction,
+    gmOnly,
+    onOk,
+  });
+  
+  // キューを処理
+  processAnnouncementQueue();
+}
+
+/**
+ * 継続表示が表示中かチェック
+ */
+function _isContinuousAnnouncementShowing() {
+  const modal = document.getElementById("announcement-modal");
+  const titleEl = document.getElementById("announcement-title");
+  if (!modal || !titleEl || modal.classList.contains("hidden")) {
+    return false;
+  }
+  const currentTitle = titleEl.textContent;
+  return currentTitle === "人狼が操作中です。" || currentTitle === "ドクターが操作中です。";
+}
+
+/**
+ * アナウンスキューを処理（順番に表示）
+ */
+function processAnnouncementQueue() {
+  // 既に処理中またはキューが空の場合は何もしない
+  if (isProcessingQueue || announcementQueue.length === 0) {
+    return;
+  }
+  
+  // 継続表示が表示中の場合は、キュー処理をブロック（継続表示は表示し続ける）
+  if (_isContinuousAnnouncementShowing()) {
+    return;
+  }
+  
+  isProcessingQueue = true;
+  _processNextAnnouncement();
+}
+
+/**
+ * キューから次のアナウンスを表示
+ */
+function _processNextAnnouncement() {
+  // キューが空の場合は処理終了
+  if (announcementQueue.length === 0) {
+    isProcessingQueue = false;
+    return;
+  }
+  
+  // 継続表示が表示中の場合は、キュー処理をブロック（継続表示は表示し続ける）
+  if (_isContinuousAnnouncementShowing()) {
+    isProcessingQueue = false;
+    return;
+  }
+  
+  // キューから最初のアナウンスを取得
+  const item = announcementQueue.shift();
+  
+  // アナウンスを表示
+  _showAnnouncementDirect(
+    item.title,
+    item.subtitle,
+    item.logMessage,
+    item.autoCloseDelay,
+    item.requireOk,
+    item.isWolfAction,
+    item.gmOnly,
+    item.onOk
+  );
+}
+
+/**
+ * アナウンスを直接表示（内部関数）
+ */
+function _showAnnouncementDirect(title, subtitle = null, logMessage = null, autoCloseDelay = 2000, requireOk = false, isWolfAction = false, gmOnly = false, onOk = null) {
   const modal = document.getElementById("announcement-modal");
   const titleEl = document.getElementById("announcement-title");
   const subtitleEl = document.getElementById("announcement-subtitle");
   const actionsEl = document.getElementById("announcement-actions");
   const okBtn = document.getElementById("announcement-ok");
   
-  if (!modal || !titleEl) return;
-  
-  // 既に表示されている場合でも、同じタイトルの場合は更新する（継続表示用）
-  const isAlreadyShowing = !modal.classList.contains("hidden");
-  const isSameTitle = titleEl.textContent === title;
-  
-  // 重複チェック：同じタイトルとログメッセージの場合はスキップ
-  if (isSameTitle && title === lastAnnouncementTitle && logMessage === lastLogMessage) {
-    // 継続表示の場合は更新のみ（ログは追加しない）
-    if (autoCloseDelay === 0) {
-      return; // 継続表示の場合は何もしない
+  if (!modal || !titleEl) {
+    // モーダルが見つからない場合、キュー処理を続行
+    if (isProcessingQueue) {
+      _processNextAnnouncement();
     }
+    return;
   }
   
-  if (isAlreadyShowing && !isSameTitle && autoCloseDelay > 0 && !requireOk) {
-    // 既に別のアナウンスが表示されている場合は何もしない
-    return;
+  // 既に表示されている場合でも、同じタイトルの場合は更新する（継続表示用）
+  const isSameTitle = titleEl.textContent === title;
+  
+  // 重複チェック：同じタイトルとログメッセージの場合はスキップ（継続表示のみ）
+  if (isSameTitle && title === lastAnnouncementTitle && logMessage === lastLogMessage && autoCloseDelay === 0) {
+    return; // 継続表示の場合は何もしない
   }
   
   // 既存のタイマーをクリア
@@ -258,6 +351,10 @@ function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDe
         onOk();
       }
       okBtn.removeEventListener("click", handleOk);
+      // キュー処理を続行
+      if (isProcessingQueue) {
+        _processNextAnnouncement();
+      }
     };
     // 既存のイベントリスナーを削除してから追加
     okBtn.replaceWith(okBtn.cloneNode(true));
@@ -293,6 +390,10 @@ function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDe
         lastLogMessage = null; // リセット
       }
       announcementTimeout = null;
+      // キュー処理を続行
+      if (isProcessingQueue) {
+        _processNextAnnouncement();
+      }
     }, autoCloseDelay);
   }
 }
@@ -343,7 +444,7 @@ function showMissionBrief() {
         "作戦準備を行ってください",
         "GMのステージロールにより開始されます。",
         "ゲーム開始",
-        3000,
+        2000,
         false,
         false,
         true // GM画面のみ
@@ -402,13 +503,13 @@ function syncGameStateFromFirebase(roomData) {
   GameState.discussionPhase = gameState.discussionPhase === true;
   GameState.discussionEndTime = gameState.discussionEndTime || null;
   
-  // ターン切り替え時のポップアップを表示
-  if (previousTurn !== GameState.turn && GameState.turn > 1 && GameState.phase === "playing") {
+  // ターン切り替え時のポップアップを表示（1ターン目も含む）
+  if (previousTurn !== GameState.turn && GameState.phase === "playing") {
     showAnnouncement(
       `${GameState.turn}ターン目`,
       null,
       `${GameState.turn}ターン目開始`,
-      3000,
+      2000,
       false,
       false,
       true // GM画面のみ
@@ -427,7 +528,7 @@ function syncGameStateFromFirebase(roomData) {
         `${currentPlayer.name}の挑戦です。`,
         null,
         `${currentPlayer.name}の挑戦`,
-        3000,
+        2000,
         false,
         false,
         true // GM画面のみ
@@ -435,23 +536,8 @@ function syncGameStateFromFirebase(roomData) {
     }
   }
   
-  // await_doctorフェーズになった時にアナウンス（神拳が残っている場合）
-  if (GameState.phase === "playing" && GameState.subphase === "await_doctor" && previousSubphase !== "await_doctor") {
-    const order = GameState.playerOrder || Object.keys(players);
-    const currentPlayerId = order[GameState.currentPlayerIndex];
-    const currentPlayer = players[currentPlayerId];
-    if (currentPlayer) {
-      showAnnouncement(
-        `${currentPlayer.name}の挑戦は失敗しました。`,
-        "ドクター神拳によりこの失敗を打ち消すことができます。",
-        `${currentPlayer.name}の挑戦：×`,
-        3000,
-        false,
-        false,
-        true // GM画面のみ
-      );
-    }
-  }
+  // await_doctorフェーズになった時は「ドクターが操作中です。」が表示される（handlePhaseUIで処理）
+  // ここでは特に処理しない
   
   // ターン結果ポップアップを表示（自動で閉じる、重複防止）
   if (gameState.turnResult && gameState.turnResult !== lastTurnResult) {
@@ -462,7 +548,7 @@ function syncGameStateFromFirebase(roomData) {
         "作戦結果：成功",
         "ターン結果に〇を付けて次のターンへ進みます。",
         `ターン${turn}結果：〇`,
-        3000,
+        2000,
         false,
         false,
         true // GM画面のみ
@@ -472,7 +558,7 @@ function syncGameStateFromFirebase(roomData) {
         "作戦結果：失敗",
         "ターン結果に×を付けて次のターンへ進みます。",
         `ターン${turn}結果：×`,
-        3000,
+        2000,
         false,
         false,
         true // GM画面のみ
@@ -488,7 +574,7 @@ function syncGameStateFromFirebase(roomData) {
         } catch (e) {
           console.error("Failed to clear turn result:", e);
         }
-      }, 3000);
+      }, 2000);
     }
   } else if (!gameState.turnResult) {
     lastTurnResult = null; // ターン結果がクリアされたらリセット
@@ -708,6 +794,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
           const titleEl = document.getElementById("announcement-title");
           if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
             announcementModal.classList.add("hidden");
+            // 継続表示が閉じられたので、キューがあれば処理を再開
+            processAnnouncementQueue();
           }
         }
       }
@@ -765,6 +853,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
       const titleEl = document.getElementById("announcement-title");
       if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
         announcementModal.classList.add("hidden");
+        // 継続表示が閉じられたので、キューがあれば処理を再開
+        processAnnouncementQueue();
       }
     }
     
@@ -781,6 +871,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
       const titleEl = document.getElementById("announcement-title");
       if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
         announcementModal.classList.add("hidden");
+        // 継続表示が閉じられたので、キューがあれば処理を再開
+        processAnnouncementQueue();
       }
     }
   }
@@ -1121,8 +1213,8 @@ async function handleSuccessAction(data, roomId) {
   showAnnouncement(
     `${name}の挑戦は成功しました。`,
     null,
-    `${name}の挑戦：〇`,
-    3000,
+        `${name}の挑戦：〇`,
+        2000,
     false,
     false,
     true // GM画面のみ
@@ -1149,8 +1241,8 @@ async function handleFailAction(data, roomId) {
     showAnnouncement(
       `${name}の挑戦は失敗しました。`,
       "ドクター神拳が残っていないため、強制的に失敗となります。",
-      `${name}の挑戦：×`,
-      3000,
+        `${name}の挑戦：×`,
+        2000,
       false,
       false,
       true // GM画面のみ
@@ -1261,8 +1353,8 @@ async function handleStageRouletteAction(data, roomId) {
   showAnnouncement(
     `作戦エリアは${stage}です`,
     null,
-    `ステージ${stage}`,
-    3000,
+        `ステージ${stage}`,
+        2000,
     false,
     false,
     true // GM画面のみ
@@ -1624,6 +1716,8 @@ function setupResultModalButtons(roomData) {
           const titleEl = document.getElementById("announcement-title");
           if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
             announcementModal.classList.add("hidden");
+            // 継続表示が閉じられたので、キューがあれば処理を再開
+            processAnnouncementQueue();
           }
         }
         
@@ -1701,6 +1795,8 @@ function stopRoomSync() {
     const titleEl = document.getElementById("announcement-title");
     if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
       announcementModal.classList.add("hidden");
+      // 継続表示が閉じられたので、キューがあれば処理を再開
+      processAnnouncementQueue();
     }
   }
   
