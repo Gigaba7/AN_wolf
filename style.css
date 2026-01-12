@@ -103,11 +103,11 @@ body {
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
-    box-shadow: 0 0 8px rgba(139, 230, 195, 0.8), 0 0 16px rgba(139, 230, 195, 0.4);
+    box-shadow: 0 0 8px rgba(125, 211, 252, 0.8), 0 0 16px rgba(125, 211, 252, 0.4);
   }
   50% {
     opacity: 0.7;
-    box-shadow: 0 0 12px rgba(139, 230, 195, 1), 0 0 24px rgba(139, 230, 195, 0.6);
+    box-shadow: 0 0 12px rgba(125, 211, 252, 1), 0 0 24px rgba(125, 211, 252, 0.6);
   }
 }
 
@@ -169,7 +169,7 @@ button {
 /* ホーム画面 */
 .app-header {
   padding: 24px 28px 12px;
-  border-bottom: 2px solid rgba(139, 230, 195, 0.2);
+  border-bottom: 2px solid rgba(125, 211, 252, 0.2);
   background: linear-gradient(180deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
@@ -196,7 +196,7 @@ button {
   background: linear-gradient(145deg, #0f1219, #050712);
   border-radius: 12px;
   padding: 20px 20px 22px;
-  border: 2px solid rgba(139, 230, 195, 0.15);
+  border: 2px solid rgba(125, 211, 252, 0.15);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
@@ -322,7 +322,7 @@ button {
   justify-content: center;
   padding: 16px 24px;
   background: linear-gradient(145deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
-  border: 2px solid rgba(139, 230, 195, 0.15);
+  border: 2px solid rgba(125, 211, 252, 0.15);
   border-bottom: none;
   height: auto;
   flex: 0 0 auto;
@@ -455,7 +455,7 @@ button {
   background: linear-gradient(145deg, #0f1219, #050712);
   border-radius: 12px;
   padding: 20px;
-  border: 2px solid rgba(139, 230, 195, 0.15);
+  border: 2px solid rgba(125, 211, 252, 0.15);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
@@ -501,30 +501,30 @@ button {
   background: linear-gradient(145deg, rgba(15, 18, 25, 0.8), rgba(5, 7, 18, 0.9));
   align-items: center;
   transition: all 0.2s ease;
-  border: 2px solid rgba(139, 230, 195, 0.1);
+  border: 2px solid rgba(125, 211, 252, 0.1);
   min-height: 60px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .player-card.current {
-  background: linear-gradient(145deg, rgba(139, 230, 195, 0.15), rgba(76, 123, 255, 0.15));
-  border-color: rgba(139, 230, 195, 0.4);
+  background: linear-gradient(145deg, rgba(125, 211, 252, 0.15), rgba(76, 123, 255, 0.15));
+  border-color: rgba(125, 211, 252, 0.4);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(139, 230, 195, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 20px rgba(125, 211, 252, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .player-avatar {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: linear-gradient(145deg, rgba(139, 230, 195, 0.2), rgba(15, 18, 25, 0.8));
+  background: linear-gradient(145deg, rgba(125, 211, 252, 0.2), rgba(15, 18, 25, 0.8));
   display: flex;
   align-items: center;
   justify-content: center;
   color: #f5f5f7;
   font-size: 18px;
   font-weight: 600;
-  border: 2px solid rgba(139, 230, 195, 0.3);
+  border: 2px solid rgba(125, 211, 252, 0.3);
   overflow: hidden;
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -695,7 +695,7 @@ button {
 
 .log-entry.success,
 .log-item.log-success {
-  color: #8be6c3;
+  color: #7dd3fc;
 }
 
 .log-entry.fail,
@@ -750,7 +750,7 @@ button {
 /* ボタンスタイル */
 .btn {
   border-radius: 8px;
-  border: 2px solid rgba(139, 230, 195, 0.2);
+  border: 2px solid rgba(125, 211, 252, 0.2);
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 600;
@@ -766,10 +766,10 @@ button {
 }
 
 .btn.primary {
-  background: linear-gradient(135deg, rgba(139, 230, 195, 0.2), rgba(76, 123, 255, 0.2));
-  border-color: rgba(139, 230, 195, 0.4);
-  box-shadow: 0 4px 16px rgba(139, 230, 195, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  color: #8be6c3;
+  background: linear-gradient(135deg, rgba(125, 211, 252, 0.2), rgba(76, 123, 255, 0.2));
+  border-color: rgba(125, 211, 252, 0.4);
+  box-shadow: 0 4px 16px rgba(125, 211, 252, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: #7dd3fc;
 }
 
 .btn.secondary {
@@ -822,7 +822,7 @@ button {
 .btn:not(:disabled):hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  border-color: rgba(139, 230, 195, 0.5);
+  border-color: rgba(125, 211, 252, 0.5);
 }
 
 .link-button {
@@ -865,7 +865,7 @@ button {
   position: relative;
   background: linear-gradient(145deg, #0f1219, #050712);
   border-radius: 12px;
-  border: 2px solid rgba(139, 230, 195, 0.2);
+  border: 2px solid rgba(125, 211, 252, 0.2);
   padding: 24px 28px 22px;
   width: 420px;
   max-height: 80vh;
