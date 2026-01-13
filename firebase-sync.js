@@ -242,6 +242,34 @@ function _isContinuousAnnouncementShowing() {
 }
 
 /**
+ * ポップアップのキューが空で、表示中のポップアップもないかチェック
+ */
+function isAnnouncementQueueEmpty() {
+  // キューにアイテムが残っている場合はfalse
+  if (announcementQueue.length > 0) {
+    return false;
+  }
+  
+  // 継続表示が表示中の場合はfalse
+  if (_isContinuousAnnouncementShowing()) {
+    return false;
+  }
+  
+  // 通常のポップアップが表示中の場合はfalse
+  const modal = document.getElementById("announcement-modal");
+  if (modal && !modal.classList.contains("hidden")) {
+    return false;
+  }
+  
+  // キュー処理中の場合もfalse
+  if (isProcessingQueue) {
+    return false;
+  }
+  
+  return true;
+}
+
+/**
  * アナウンスキューを処理（順番に表示）
  */
 function processAnnouncementQueue() {
@@ -576,6 +604,10 @@ function syncGameStateFromFirebase(roomData) {
     const currentPlayer = players[currentPlayerId];
     // プレイヤーが変わった時、または前回のサブフェーズがawait_resultでない時に表示
     if (currentPlayer && (previousPlayerIndex !== GameState.currentPlayerIndex || previousSubphase !== "await_result")) {
+      // ステージ選出直後（currentStageが設定されていて、前回のサブフェーズがawait_resultでない）の場合、
+      // 「○の挑戦です」の表示後に妨害フェーズに移行する
+      const isAfterStageSelection = gameState.currentStage && previousSubphase !== "await_result";
+      
       showAnnouncement(
         `${currentPlayer.name}の挑戦です。`,
         null,
@@ -583,7 +615,37 @@ function syncGameStateFromFirebase(roomData) {
         2000,
         false,
         false,
-        true // GM画面のみ
+        true, // GM画面のみ
+        isAfterStageSelection ? async () => {
+          // ステージ選出後の「○の挑戦です」が表示された後、妨害フェーズに移行
+          const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+          if (!roomId) return;
+          
+          const roomRef = doc(firestore, "rooms", roomId);
+          await runTransaction(firestore, async (tx) => {
+            const snap = await tx.get(roomRef);
+            if (!snap.exists()) return;
+            const data = snap.data();
+            
+            const playersObj = data?.players || {};
+            const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+              ? data.gameState.playerOrder
+              : Object.keys(playersObj);
+            const currentPlayerIndex = Number(data?.gameState?.currentPlayerIndex || 0);
+            
+            // 現在のプレイヤーの手番開始時に妨害フェーズを設定
+            const startPhase = computeStartSubphase(playersObj, order, currentPlayerIndex);
+            
+            // 人狼の妨害フェーズの場合は wolf_decision、それ以外は await_result
+            const nextSubphase = startPhase.subphase === "wolf_decision" ? "wolf_decision" : "await_result";
+            
+            tx.update(roomRef, {
+              'gameState.subphase': nextSubphase,
+              'gameState.wolfDecisionPlayerId': startPhase.wolfDecisionPlayerId,
+              'gameState.wolfActionRequest': null,
+            });
+          });
+        } : null
       );
     }
   }
@@ -938,19 +1000,26 @@ function handleDiscussionPhase(roomData) {
     return;
   }
   
-  // 会議フェーズが開始された場合でも、ターン結果が表示中の場合は待機
-  // （ターン結果のポップアップが表示されている場合は、会議フェーズのタイマー表示を遅延させる）
+  // 会議フェーズが開始された場合でも、ポップアップのキューが残っている場合は待機
+  // （ターン結果のポップアップなどが表示されている場合は、会議フェーズのタイマー表示を遅延させる）
   if (discussionPhase && !previousDiscussionPhase) {
     // 会議フェーズが新しく開始された場合
-    // ターン結果のポップアップが表示されている可能性があるので、少し待機
-    // ただし、ターン結果が既にクリアされている場合は即座に表示
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    const GameState = typeof window !== 'undefined' ? window.GameState : null;
-    if (GameState && GameState.turnResult) {
-      // ターン結果がまだ設定されている場合、少し待機してから表示
+    // ポップアップのキューが空になるまで待機
+    if (!isAnnouncementQueueEmpty()) {
+      // キューが空になるまで定期的にチェック
+      const checkInterval = setInterval(() => {
+        if (isAnnouncementQueueEmpty()) {
+          clearInterval(checkInterval);
+          handleDiscussionPhase(roomData);
+        }
+      }, 100); // 100msごとにチェック
+      
+      // タイムアウト（最大10秒待機）
       setTimeout(() => {
+        clearInterval(checkInterval);
         handleDiscussionPhase(roomData);
-      }, 2100); // ターン結果のポップアップ表示時間（2000ms）+ バッファ（100ms）
+      }, 10000);
+      
       return;
     }
   }
@@ -1401,30 +1470,19 @@ async function handleStageRouletteAction(data, roomId) {
     timestamp: Date.now(),
   });
   
-  // ステージ選出完了後、最初のプレイヤーの手番開始時に妨害フェーズを設定
+  // ステージ選出完了後、まずawait_resultに設定（ポップアップ表示後に妨害フェーズに移行）
   const roomRef = doc(firestore, "rooms", roomId);
   await runTransaction(firestore, async (tx) => {
     const snap = await tx.get(roomRef);
     if (!snap.exists()) throw new Error("Room not found");
     const data = snap.data();
     
-    const playersObj = data?.players || {};
-    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
-      ? data.gameState.playerOrder
-      : Object.keys(playersObj);
-    const currentPlayerIndex = Number(data?.gameState?.currentPlayerIndex || 0);
-    
-    // 現在のプレイヤーの手番開始時に妨害フェーズを設定
-    const startPhase = computeStartSubphase(playersObj, order, currentPlayerIndex);
-    
-    // 人狼の妨害フェーズの場合は wolf_decision、それ以外は await_result（ステージ選出完了後）
-    const nextSubphase = startPhase.subphase === "wolf_decision" ? "wolf_decision" : "await_result";
-    
+    // まずawait_resultに設定（「ステージ選出結果」と「○の挑戦です」を表示してから妨害フェーズに移行）
     tx.update(roomRef, {
       'gameState.currentStage': stage,
       'gameState.stageTurn': GameState.turn,
-      'gameState.subphase': nextSubphase,
-      'gameState.wolfDecisionPlayerId': startPhase.wolfDecisionPlayerId,
+      'gameState.subphase': 'await_result', // まずawait_resultに設定
+      'gameState.wolfDecisionPlayerId': null, // 妨害フェーズに移行するまでnull
       'gameState.wolfActionRequest': null,
     });
   });
@@ -1435,15 +1493,21 @@ async function handleStageRouletteAction(data, roomId) {
   });
   
   // ステージ結果アナウンス（GM画面のみ）
+  // 「○の挑戦です」が表示された後に妨害フェーズに移行するため、onOkコールバックで処理
   showAnnouncement(
     `作戦エリアは${stage}です`,
     null,
-        `ステージ${stage}`,
-        2000,
+    `ステージ${stage}`,
+    2000,
     false,
     false,
-    true // GM画面のみ
+    true, // GM画面のみ
+    null // onOkは「○の挑戦です」のonOkで処理
   );
+  
+  // 「○の挑戦です」が表示された後に妨害フェーズに移行するため、
+  // syncGameStateFromFirebaseで「○の挑戦です」が表示されるのを待つ
+  // そのため、ここでは何もしない（「○の挑戦です」のonOkで処理する）
 }
 
 /**
