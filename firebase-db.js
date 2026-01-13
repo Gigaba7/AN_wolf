@@ -293,6 +293,7 @@ export {
   clearWolfActionNotification,
   clearDoctorSkipNotification,
   clearTurnResult,
+  proceedToNextPlayerChallenge,
   computeStartSubphase,
   identifyWolf,
   startDiscussionPhase,
@@ -549,7 +550,9 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
   const doctorHasFailed = data?.gameState?.doctorHasFailed === true || extraUpdates?.["gameState.doctorHasFailed"] === true;
 
   // ターン終了時に成功/失敗フラグを設定（ポップアップ表示用）
+  // 現在のターン番号を保存（次のターンに進む前に表示するため）
   updates["gameState.turnResult"] = isFailureTurn ? "failure" : "success";
+  updates["gameState.turnResultTurn"] = turn; // ターン結果を表示する際のターン番号
 
   // ドクターが失敗し、神拳も使用できなかった場合は即座に人狼勝利（会議フェーズなし）
   // ただし、現在のターンで失敗した場合のみ（isFailureTurnがtrueで、doctorHasFailedがextraUpdatesで設定された場合）
@@ -588,10 +591,15 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     }
   }
   // 次のターンに進む場合 → 会議フェーズを開始（5分）
+  // ただし、ターン結果ポップアップが表示されるまで待つため、discussionPhaseは後で設定
+  // （syncGameStateFromFirebaseでturnResultが表示された後にhandleDiscussionPhaseが呼ばれる）
   else {
+    // 会議フェーズを開始（5分）
+    // ただし、タイマー表示はターン結果ポップアップが閉じた後に行う
     const endTime = Date.now() + 5 * 60 * 1000;
-    updates["gameState.discussionPhase"] = true;
     updates["gameState.discussionEndTime"] = endTime;
+    // discussionPhaseは後で設定（turnResult表示後に）
+    // ここでは設定しない
   }
 
   tx.update(roomRef, updates);
@@ -642,10 +650,13 @@ async function applySuccess(roomId) {
     }
 
     // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
+    // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う
+    // ここでは次のプレイヤーのインデックスのみ更新し、subphaseはawait_resultのまま
     const updates = {
       "gameState.currentPlayerIndex": nextIndex,
       // currentStage と stageTurn は保持（そのターン中は固定）
-      "gameState.subphase": "challenge_start",
+      // subphaseはawait_resultのまま（挑戦結果ポップアップが表示された後にchallenge_startに移行）
+      "gameState.pendingNextPlayerChallenge": true, // 次のプレイヤーの挑戦開始フラグ
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
     };
@@ -1272,6 +1283,38 @@ async function clearWolfActionNotification(roomId) {
 async function clearTurnResult(roomId) {
   await updateDoc(doc(firestore, "rooms", roomId), {
     "gameState.turnResult": null,
+    "gameState.turnResultTurn": null,
+  });
+}
+
+/**
+ * 次のプレイヤーの挑戦開始フェーズに移行（挑戦結果ポップアップが閉じた後）
+ */
+async function proceedToNextPlayerChallenge(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    // pendingNextPlayerChallengeフラグが立っている場合のみ実行
+    if (!data?.gameState?.pendingNextPlayerChallenge) {
+      return; // フラグが立っていない場合は何もしない
+    }
+
+    // 次のプレイヤーの挑戦開始フェーズに移行
+    tx.update(roomRef, {
+      "gameState.subphase": "challenge_start",
+      "gameState.pendingNextPlayerChallenge": null, // フラグをクリア
+      "gameState.wolfDecisionPlayerId": null,
+      "gameState.wolfActionRequest": null,
+    });
   });
 }
 

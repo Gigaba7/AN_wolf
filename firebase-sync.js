@@ -1,5 +1,5 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, proceedToNextPlayerAfterDoctorPunch as proceedToNextPlayerAfterDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearDoctorSkipNotification as clearDoctorSkipNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase, identifyWolf as identifyWolfDB, startDiscussionPhase as startDiscussionPhaseDB, endDiscussionPhase as endDiscussionPhaseDB, extendDiscussionPhase as extendDiscussionPhaseDB } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, proceedToNextPlayerAfterDoctorPunch as proceedToNextPlayerAfterDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearDoctorSkipNotification as clearDoctorSkipNotificationDB, clearTurnResult as clearTurnResultDB, proceedToNextPlayerChallenge as proceedToNextPlayerChallengeDB, computeStartSubphase, identifyWolf as identifyWolfDB, startDiscussionPhase as startDiscussionPhaseDB, endDiscussionPhase as endDiscussionPhaseDB, extendDiscussionPhase as extendDiscussionPhaseDB } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
 import { doc, getDoc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -546,7 +546,8 @@ function syncGameStateFromFirebase(roomData) {
   const currentDiscussionPhase = GameState.discussionPhase;
   if (gameState.turnResult && gameState.turnResult !== lastTurnResult) {
     lastTurnResult = gameState.turnResult;
-    const turn = GameState.turn || 1;
+    // ターン結果を表示する際のターン番号（次のターンに進む前に保存された値）
+    const turn = gameState.turnResultTurn || GameState.turn || 1;
     if (gameState.turnResult === "success") {
       showAnnouncement(
         "作戦結果：成功",
@@ -555,7 +556,24 @@ function syncGameStateFromFirebase(roomData) {
         2000,
         false,
         false,
-        true // GM画面のみ
+        true, // GM画面のみ
+        async () => {
+          // ターン結果ポップアップが閉じた後、会議フェーズを開始
+          // 会議フェーズの開始は既にendTurnAndPrepareNextで設定されているが、
+          // タイマー表示はこのコールバック後に実行される
+          const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+          if (roomId) {
+            try {
+              // 会議フェーズを開始（discussionPhaseをtrueに設定）
+              const roomRef = doc(firestore, "rooms", roomId);
+              await updateDoc(roomRef, {
+                "gameState.discussionPhase": true,
+              });
+            } catch (e) {
+              console.error("Failed to start discussion phase:", e);
+            }
+          }
+        }
       );
     } else if (gameState.turnResult === "failure") {
       showAnnouncement(
@@ -565,7 +583,24 @@ function syncGameStateFromFirebase(roomData) {
         2000,
         false,
         false,
-        true // GM画面のみ
+        true, // GM画面のみ
+        async () => {
+          // ターン結果ポップアップが閉じた後、会議フェーズを開始
+          // 会議フェーズの開始は既にendTurnAndPrepareNextで設定されているが、
+          // タイマー表示はこのコールバック後に実行される
+          const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+          if (roomId) {
+            try {
+              // 会議フェーズを開始（discussionPhaseをtrueに設定）
+              const roomRef = doc(firestore, "rooms", roomId);
+              await updateDoc(roomRef, {
+                "gameState.discussionPhase": true,
+              });
+            } catch (e) {
+              console.error("Failed to start discussion phase:", e);
+            }
+          }
+        }
       );
     }
     
@@ -1377,6 +1412,7 @@ async function handleSuccessAction(data, roomId) {
   await addLog(roomId, { type: "success", message: `${name} がステージ攻略に成功しました。`, playerId: userId });
   
   // 挑戦結果アナウンス（GM画面のみ）
+  // ポップアップが閉じた後に次のプレイヤーの挑戦開始フェーズに移行
   showAnnouncement(
     `${name}の挑戦は成功しました。`,
     null,
@@ -1384,7 +1420,18 @@ async function handleSuccessAction(data, roomId) {
         2000,
     false,
     false,
-    true // GM画面のみ
+    true, // GM画面のみ
+    async () => {
+      // 挑戦結果ポップアップが閉じた後、次のプレイヤーの挑戦開始フェーズに移行
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (roomId) {
+        try {
+          await proceedToNextPlayerChallengeDB(roomId);
+        } catch (e) {
+          console.error("Failed to proceed to next player challenge:", e);
+        }
+      }
+    }
   );
 }
 
@@ -1411,7 +1458,18 @@ async function handleFailAction(data, roomId) {
         2000,
       false,
       false,
-      true // GM画面のみ
+      true, // GM画面のみ
+      async () => {
+        // 挑戦結果ポップアップが閉じた後、次のプレイヤーの挑戦開始フェーズに移行
+        const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+        if (roomId) {
+          try {
+            await proceedToNextPlayerChallenge(roomId);
+          } catch (e) {
+            console.error("Failed to proceed to next player challenge:", e);
+          }
+        }
+      }
     );
   }
   // isConfirmがfalseの場合は、subphaseがawait_doctorになった時にアナウンスを表示

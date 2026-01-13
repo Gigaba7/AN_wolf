@@ -14,7 +14,7 @@ const GameState = {
   turn: 1,
   maxTurns: 5,
   phase: "waiting", // waiting | revealing | playing | final_phase | finished
-  subphase: null, // wolf_decision | wolf_resolving | gm_stage | await_result | await_doctor | null
+  subphase: null, // challenge_start | wolf_decision | wolf_resolving | gm_stage | await_result | await_doctor | null
   whiteStars: 0,
   blackStars: 0,
   wolfActionsRemaining: 100, // 総コスト100
