@@ -424,6 +424,10 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
         lastLogMessage = null; // リセット
       }
       announcementTimeout = null;
+      // コールバックを実行（onOkが指定されている場合）
+      if (onOk && typeof onOk === "function") {
+        onOk();
+      }
       // キュー処理を続行
       if (isProcessingQueue) {
         _processNextAnnouncement();
@@ -629,16 +633,16 @@ function syncGameStateFromFirebase(roomData) {
             const currentPlayerIndex = Number(data?.gameState?.currentPlayerIndex || 0);
             
             // 人狼の妨害フェーズを設定（人狼のコストが残っている場合のみ）
-            const wolfPlayer = Object.values(playersObj).find(p => p?.role === "wolf");
+            const wolfPlayerId = Object.keys(playersObj).find(pid => playersObj[pid]?.role === "wolf");
+            const wolfPlayer = wolfPlayerId ? playersObj[wolfPlayerId] : null;
             const wolfRes = wolfPlayer?.resources || {};
             const wolfRemain = Number(wolfRes.wolfActionsRemaining || 0);
             
-            if (wolfRemain > 0 && wolfPlayer) {
+            if (wolfRemain > 0 && wolfPlayerId) {
               // 人狼の妨害フェーズ
-              const wolfDecisionPlayerId = wolfPlayer.id || Object.keys(playersObj).find(pid => playersObj[pid]?.role === "wolf");
               tx.update(roomRef, {
                 'gameState.subphase': 'wolf_decision',
-                'gameState.wolfDecisionPlayerId': wolfDecisionPlayerId,
+                'gameState.wolfDecisionPlayerId': wolfPlayerId,
                 'gameState.wolfActionRequest': null,
               });
             } else {
@@ -1504,16 +1508,11 @@ async function handleStageRouletteAction(data, roomId) {
     });
   });
   
-  await addLog(roomId, {
-    type: 'stage',
-    message: `ターン${GameState.turn}のステージ: ${stage}`,
-  });
-  
-  // ステージ結果アナウンス（GM画面のみ）
+  // ステージ結果アナウンス（GM画面のみ、ログメッセージでログにも記録）
   showAnnouncement(
     `作戦エリアは${stage}です`,
     null,
-    `ステージ${stage}`,
+    `ターン${GameState.turn}のステージ: ${stage}`,
     2000,
     false,
     false,

@@ -40,10 +40,10 @@
                 <label class="player-avatar-input" id="host-avatar-label" title="アイコン画像をアップロード">
                   <span id="host-avatar-letter">?</span>
                   <img id="host-avatar-preview" class="avatar-preview hidden" alt="host avatar preview" />
-                  <input type="file" id="host-avatar-file" accept="image/*" />
+                  <input type="file" id="host-avatar-file" name="host-avatar-file" accept="image/*" />
                 </label>
               </div>
-              <input type="text" id="host-name-input" placeholder="あなたの名前を入力" class="host-name-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-align: center;" />
+              <input type="text" id="host-name-input" name="host-name" placeholder="あなたの名前を入力" class="host-name-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-align: center;" />
               <button id="btn-create-room-confirm" class="btn primary" style="width: 100%;">ルーム作成</button>
             </div>
             <div id="join-room-form" class="join-room-form" style="display: none; margin-top: 12px;">
@@ -51,14 +51,14 @@
                 <label class="player-avatar-input" id="player-avatar-label" title="アイコン画像をアップロード">
                   <span id="player-avatar-letter">?</span>
                   <img id="player-avatar-preview" class="avatar-preview hidden" alt="player avatar preview" />
-                  <input type="file" id="player-avatar-file" accept="image/*" />
+                  <input type="file" id="player-avatar-file" name="player-avatar-file" accept="image/*" />
                 </label>
               </div>
               <div style="position: relative; width: 100%;">
-                <input type="password" id="room-id-input" placeholder="ルームIDを入力（6文字）" class="room-id-input" style="width: 100%; padding: 8px 40px 8px 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-transform: uppercase; text-align: center; letter-spacing: 0.1em;" maxlength="6" />
+                <input type="password" id="room-id-input" name="room-id" placeholder="ルームIDを入力（6文字）" class="room-id-input" style="width: 100%; padding: 8px 40px 8px 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-transform: uppercase; text-align: center; letter-spacing: 0.1em;" maxlength="6" />
                 <button type="button" id="toggle-room-id-visibility" class="toggle-password-btn" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #a0a4ba; cursor: pointer; font-size: 18px; padding: 4px;">👁</button>
               </div>
-              <input type="text" id="player-name-input" placeholder="あなたの名前を入力" class="player-name-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-align: center;" />
+              <input type="text" id="player-name-input" name="player-name" placeholder="あなたの名前を入力" class="player-name-input" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; text-align: center;" />
               <button id="btn-join-room-confirm" class="btn primary" style="width: 100%;">参加</button>
             </div>
           </section>
@@ -454,7 +454,7 @@
           <section class="options-section">
             <h3>サウンド</h3>
             <label class="toggle">
-              <input type="checkbox" id="opt-sound" />
+              <input type="checkbox" id="opt-sound" name="opt-sound" />
               <span>効果音を有効にする (デフォルトOFF)</span>
             </label>
           </section>
@@ -529,14 +529,14 @@
               <label>
                 対象ステージ範囲 (章)
                 <div class="inline-inputs">
-                  <select id="rules-stage-min">
+                  <select id="rules-stage-min" name="rules-stage-min">
                     <option value="2">2章</option>
                     <option value="3">3章</option>
                     <option value="4">4章</option>
                     <option value="5">5章</option>
                   </select>
                   <span>〜</span>
-                  <select id="rules-stage-max">
+                  <select id="rules-stage-max" name="rules-stage-max">
                     <option value="2">2章</option>
                     <option value="3" selected>3章</option>
                     <option value="4">4章</option>
@@ -551,6 +551,7 @@
                 人狼妨害カスタム (1行につき1項目)
                 <textarea
                   id="rules-wolf-actions"
+                  name="rules-wolf-actions"
                   rows="5"
                   placeholder="例：&#10;編成人数10人&#10;強襲ステージ&#10;推し+☆2以下編成&#10;ドクター神拳使用不可"
                 ></textarea>
