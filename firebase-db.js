@@ -40,7 +40,7 @@ async function createRoom(roomConfig) {
       whiteStars: 0,
       blackStars: 0,
       currentPlayerIndex: 0,
-      subphase: "gm_stage", // wolf_decision | wolf_resolving | gm_stage | await_result | await_doctor
+      subphase: "gm_stage", // challenge_start | wolf_decision | wolf_resolving | gm_stage | await_result | await_doctor
       wolfDecisionPlayerId: null,
       wolfActionRequest: null, // { playerId, turn }
       doctorHasFailed: false, // ドクターが一度でも失敗したか（神拳で打ち消しても失敗として記録）
@@ -80,17 +80,8 @@ function computeStartSubphase(playersObj, order, idx) {
     return { subphase: "gm_stage", wolfDecisionPlayerId: null };
   }
   
-  // 各プレイヤーの手番の前に、人狼に対して妨害フェーズを表示
-  // 人狼のコストが残っている場合のみ
-  const wolfPlayer = Object.values(playersObj).find(p => p?.role === "wolf");
-  const wolfRes = wolfPlayer?.resources || {};
-  const wolfRemain = Number(wolfRes.wolfActionsRemaining || 0);
-  
-  if (wolfRemain > 0 && wolfPlayer) {
-    // 人狼のIDを設定（人狼が妨害を選択する）
-    return { subphase: "wolf_decision", wolfDecisionPlayerId: wolfPlayer.id || Object.keys(playersObj).find(pid => playersObj[pid]?.role === "wolf") };
-  }
-  return { subphase: "gm_stage", wolfDecisionPlayerId: null };
+  // 各プレイヤーの手番は challenge_start から開始（「○○の挑戦です」を表示）
+  return { subphase: "challenge_start", wolfDecisionPlayerId: null };
 }
 
 /**
@@ -650,14 +641,12 @@ async function applySuccess(roomId) {
       return;
     }
 
-    const startPhase = computeStartSubphase(playersObj, order, nextIndex);
-    
-    // 妨害効果の解除：次のプレイヤーの挑戦が完了したので、背水の陣などの効果を解除
+    // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
     const updates = {
       "gameState.currentPlayerIndex": nextIndex,
       // currentStage と stageTurn は保持（そのターン中は固定）
-      "gameState.subphase": startPhase.subphase,
-      "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+      "gameState.subphase": "challenge_start",
+      "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
     };
     
@@ -879,11 +868,10 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
       : Object.keys(playersObj);
     const idx = Number(data?.gameState?.currentPlayerIndex || 0);
 
-    // 次のプレイヤーの妨害フェーズを設定
-    const startPhase = computeStartSubphase(playersObj, order, idx);
+    // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
     tx.update(roomRef, {
-      "gameState.subphase": startPhase.subphase,
-      "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
+      "gameState.subphase": "challenge_start",
+      "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
       "gameState.pendingDoctorPunchProceed": null, // フラグをクリア
       "gameState.pendingFailure": null, // 念のためpendingFailureもクリア

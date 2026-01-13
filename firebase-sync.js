@@ -596,17 +596,13 @@ function syncGameStateFromFirebase(roomData) {
     );
   }
   
-  // 手番表示アナウンス（プレイヤーが変わった時、またはawait_resultフェーズになった時）
-  // 手番の前に表示するため、await_resultフェーズになった時、またはプレイヤーが変わった時に表示
-  if (GameState.phase === "playing" && GameState.subphase === "await_result") {
+  // 挑戦開始フェーズ（challenge_start）：「○○の挑戦です」を表示してから妨害フェーズに移行
+  if (GameState.phase === "playing" && GameState.subphase === "challenge_start") {
     const order = GameState.playerOrder || Object.keys(players);
     const currentPlayerId = order[GameState.currentPlayerIndex];
     const currentPlayer = players[currentPlayerId];
-    // プレイヤーが変わった時、または前回のサブフェーズがawait_resultでない時に表示
-    if (currentPlayer && (previousPlayerIndex !== GameState.currentPlayerIndex || previousSubphase !== "await_result")) {
-      // ステージ選出直後（前回のサブフェーズがgm_stage）の場合、「○○の挑戦です」を表示してから妨害フェーズに移行
-      const isAfterStageSelection = previousSubphase === "gm_stage";
-      
+    // プレイヤーが変わった時、または前回のサブフェーズがchallenge_startでない時に表示
+    if (currentPlayer && (previousPlayerIndex !== GameState.currentPlayerIndex || previousSubphase !== "challenge_start")) {
       showAnnouncement(
         `${currentPlayer.name}の挑戦です。`,
         null,
@@ -615,8 +611,8 @@ function syncGameStateFromFirebase(roomData) {
         false,
         false,
         true, // GM画面のみ
-        isAfterStageSelection ? async () => {
-          // ステージ選出後の「○○の挑戦です」が表示された後、妨害フェーズに移行
+        async () => {
+          // 「○○の挑戦です」が表示された後、妨害フェーズに移行
           const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
           if (!roomId) return;
           
@@ -632,19 +628,29 @@ function syncGameStateFromFirebase(roomData) {
               : Object.keys(playersObj);
             const currentPlayerIndex = Number(data?.gameState?.currentPlayerIndex || 0);
             
-            // 現在のプレイヤーの手番開始時に妨害フェーズを設定
-            const startPhase = computeStartSubphase(playersObj, order, currentPlayerIndex);
+            // 人狼の妨害フェーズを設定（人狼のコストが残っている場合のみ）
+            const wolfPlayer = Object.values(playersObj).find(p => p?.role === "wolf");
+            const wolfRes = wolfPlayer?.resources || {};
+            const wolfRemain = Number(wolfRes.wolfActionsRemaining || 0);
             
-            // 人狼の妨害フェーズの場合は wolf_decision、それ以外は await_result
-            const nextSubphase = startPhase.subphase === "wolf_decision" ? "wolf_decision" : "await_result";
-            
-            tx.update(roomRef, {
-              'gameState.subphase': nextSubphase,
-              'gameState.wolfDecisionPlayerId': startPhase.wolfDecisionPlayerId,
-              'gameState.wolfActionRequest': null,
-            });
+            if (wolfRemain > 0 && wolfPlayer) {
+              // 人狼の妨害フェーズ
+              const wolfDecisionPlayerId = wolfPlayer.id || Object.keys(playersObj).find(pid => playersObj[pid]?.role === "wolf");
+              tx.update(roomRef, {
+                'gameState.subphase': 'wolf_decision',
+                'gameState.wolfDecisionPlayerId': wolfDecisionPlayerId,
+                'gameState.wolfActionRequest': null,
+              });
+            } else {
+              // 妨害フェーズなし、直接挑戦フェーズ（await_result）へ
+              tx.update(roomRef, {
+                'gameState.subphase': 'await_result',
+                'gameState.wolfDecisionPlayerId': null,
+                'gameState.wolfActionRequest': null,
+              });
+            }
           });
-        } : null
+        }
       );
     }
   }
@@ -860,7 +866,19 @@ function handlePhaseUI(roomData, previousPhase = null) {
         item.title && item.title.endsWith("の挑戦です。")
       );
       
-      if ((subphase === "wolf_decision" || subphase === "wolf_resolving") && !hasChallengeAnnouncementInQueue) {
+      if (subphase === "challenge_start") {
+        // challenge_startフェーズでは継続表示を開始しない（「○○の挑戦です」が表示される）
+        // 継続表示があれば閉じる
+        const announcementModal = document.getElementById("announcement-modal");
+        if (announcementModal && !announcementModal.classList.contains("hidden")) {
+          const titleEl = document.getElementById("announcement-title");
+          if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+            announcementModal.classList.add("hidden");
+            // 継続表示が閉じられたので、キューがあれば処理を再開
+            processAnnouncementQueue();
+          }
+        }
+      } else if ((subphase === "wolf_decision" || subphase === "wolf_resolving") && !hasChallengeAnnouncementInQueue) {
         // 人狼が操作中（継続表示）
         showAnnouncement("人狼が操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
       } else if (subphase === "await_doctor" && !hasChallengeAnnouncementInQueue) {
@@ -1469,18 +1487,18 @@ async function handleStageRouletteAction(data, roomId) {
     timestamp: Date.now(),
   });
   
-  // ステージ選出完了後、まずawait_resultに設定（「○○の挑戦です」を表示してから妨害フェーズに移行）
+  // ステージ選出完了後、challenge_startに設定（「○○の挑戦です」を表示してから妨害フェーズに移行）
   const roomRef = doc(firestore, "rooms", roomId);
   await runTransaction(firestore, async (tx) => {
     const snap = await tx.get(roomRef);
     if (!snap.exists()) throw new Error("Room not found");
     const data = snap.data();
     
-    // まずawait_resultに設定（「○○の挑戦です」を表示してから妨害フェーズに移行）
+    // challenge_startに設定（「○○の挑戦です」を表示してから妨害フェーズに移行）
     tx.update(roomRef, {
       'gameState.currentStage': stage,
       'gameState.stageTurn': GameState.turn,
-      'gameState.subphase': 'await_result', // まずawait_resultに設定
+      'gameState.subphase': 'challenge_start', // challenge_startに設定
       'gameState.wolfDecisionPlayerId': null, // 妨害フェーズに移行するまでnull
       'gameState.wolfActionRequest': null,
     });
