@@ -300,6 +300,7 @@ export {
   resolveWolfAction,
   resolveWolfActionRoulette,
   clearWolfActionNotification,
+  clearDoctorSkipNotification,
   clearTurnResult,
   computeStartSubphase,
   identifyWolf,
@@ -930,12 +931,41 @@ async function applyDoctorSkip(roomId) {
     const pendingPlayerId = pending?.playerId || order[idx];
     const isPendingDoctor = doctorId && pendingPlayerId === doctorId;
     
-    const updates = { "gameState.pendingFailure": null };
+    const updates = {
+      "gameState.pendingFailure": null,
+      // GM側で「失敗確定」ポップアップを出すための通知（表示後にクリアされる）
+      "gameState.doctorSkipNotification": {
+        playerId: pendingPlayerId,
+        timestamp: Date.now(),
+      },
+    };
     if (isPendingDoctor) {
       updates["gameState.doctorHasFailed"] = true;
     }
     
     endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, updates);
+  });
+}
+
+/**
+ * ドクター神拳不使用通知をクリア（GMのみ）
+ */
+async function clearDoctorSkipNotification(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) throw new Error("Only GM can clear doctor skip notification");
+
+    tx.update(roomRef, {
+      "gameState.doctorSkipNotification": null,
+    });
   });
 }
 

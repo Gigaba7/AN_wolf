@@ -1,5 +1,5 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, proceedToNextPlayerAfterDoctorPunch as proceedToNextPlayerAfterDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase, identifyWolf as identifyWolfDB, startDiscussionPhase as startDiscussionPhaseDB, endDiscussionPhase as endDiscussionPhaseDB, extendDiscussionPhase as extendDiscussionPhaseDB } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, proceedToNextPlayerAfterDoctorPunch as proceedToNextPlayerAfterDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearDoctorSkipNotification as clearDoctorSkipNotificationDB, clearTurnResult as clearTurnResultDB, computeStartSubphase, identifyWolf as identifyWolfDB, startDiscussionPhase as startDiscussionPhaseDB, endDiscussionPhase as endDiscussionPhaseDB, extendDiscussionPhase as extendDiscussionPhaseDB } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
 import { doc, getDoc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -15,6 +15,7 @@ let lastSubphase = null;
 let lastPhase = null;
 let discussionTimerInterval = null;
 let lastDiscussionEndTime = null;
+let previousDiscussionPhase = false;
 let missionBriefShown = false;
 let lastLogMessage = null; // 重複ログ防止用
 let lastAnnouncementTitle = null; // 重複アナウンス防止用
@@ -46,11 +47,15 @@ const roomClient = createRoomClient({
     success: (roomId, payload) => handleSuccessAction(payload, roomId),
     fail: (roomId, payload) => handleFailAction(payload, roomId),
     doctorPunch: (roomId, payload) => handleDoctorPunchAction(payload, roomId),
+    doctorSkip: (roomId, payload) => handleDoctorSkipAction(payload, roomId),
     wolfAction: (roomId, payload) => handleWolfActionAction(payload, roomId),
     stageRoulette: (roomId, payload) => handleStageRouletteAction(payload, roomId),
     updateConfig: (roomId, payload) => handleUpdateConfigAction(payload, roomId),
     clearWolfActionNotification: async (roomId, payload) => {
       await clearWolfActionNotificationDB(roomId);
+    },
+    clearDoctorSkipNotification: async (roomId, payload) => {
+      await clearDoctorSkipNotificationDB(roomId);
     },
     clearTurnResult: async (roomId, payload) => {
       await clearTurnResultDB(roomId);
@@ -504,46 +509,12 @@ function syncGameStateFromFirebase(roomData) {
   GameState.discussionPhase = gameState.discussionPhase === true;
   GameState.discussionEndTime = gameState.discussionEndTime || null;
   
-  // ターン切り替え時のポップアップを表示（1ターン目も含む）
-  if (previousTurn !== GameState.turn && GameState.phase === "playing") {
-    showAnnouncement(
-      `${GameState.turn}ターン目`,
-      null,
-      `${GameState.turn}ターン目開始`,
-      2000,
-      false,
-      false,
-      true // GM画面のみ
-    );
-  }
-  
-  // 手番表示アナウンス（プレイヤーが変わった時、またはawait_resultフェーズになった時）
-  // 手番の前に表示するため、await_resultフェーズになった時、またはプレイヤーが変わった時に表示
-  if (GameState.phase === "playing" && GameState.subphase === "await_result") {
-    const order = GameState.playerOrder || Object.keys(players);
-    const currentPlayerId = order[GameState.currentPlayerIndex];
-    const currentPlayer = players[currentPlayerId];
-    // プレイヤーが変わった時、または前回のサブフェーズがawait_resultでない時に表示
-    if (currentPlayer && (previousPlayerIndex !== GameState.currentPlayerIndex || previousSubphase !== "await_result")) {
-      showAnnouncement(
-        `${currentPlayer.name}の挑戦です。`,
-        null,
-        `${currentPlayer.name}の挑戦`,
-        2000,
-        false,
-        false,
-        true // GM画面のみ
-      );
-    }
-  }
-  
-  // await_doctorフェーズになった時は「ドクターが操作中です。」が表示される（handlePhaseUIで処理）
-  // ここでは特に処理しない
-  
   // ターン結果ポップアップを表示（自動で閉じる、重複防止）
+  // 会議フェーズが開始される前に表示する必要があるため、ここで処理
+  const currentDiscussionPhase = GameState.discussionPhase;
   if (gameState.turnResult && gameState.turnResult !== lastTurnResult) {
     lastTurnResult = gameState.turnResult;
-    const turn = gameState.turn || 1;
+    const turn = GameState.turn || 1;
     if (gameState.turnResult === "success") {
       showAnnouncement(
         "作戦結果：成功",
@@ -580,6 +551,45 @@ function syncGameStateFromFirebase(roomData) {
   } else if (!gameState.turnResult) {
     lastTurnResult = null; // ターン結果がクリアされたらリセット
   }
+  
+  // 前回の会議フェーズ状態を更新（ターン結果表示後に会議フェーズを処理するため）
+  previousDiscussionPhase = currentDiscussionPhase;
+  
+  // ターン切り替え時のポップアップを表示（1ターン目も含む）
+  if (previousTurn !== GameState.turn && GameState.phase === "playing") {
+    showAnnouncement(
+      `${GameState.turn}ターン目`,
+      null,
+      `${GameState.turn}ターン目開始`,
+      2000,
+      false,
+      false,
+      true // GM画面のみ
+    );
+  }
+  
+  // 手番表示アナウンス（プレイヤーが変わった時、またはawait_resultフェーズになった時）
+  // 手番の前に表示するため、await_resultフェーズになった時、またはプレイヤーが変わった時に表示
+  if (GameState.phase === "playing" && GameState.subphase === "await_result") {
+    const order = GameState.playerOrder || Object.keys(players);
+    const currentPlayerId = order[GameState.currentPlayerIndex];
+    const currentPlayer = players[currentPlayerId];
+    // プレイヤーが変わった時、または前回のサブフェーズがawait_resultでない時に表示
+    if (currentPlayer && (previousPlayerIndex !== GameState.currentPlayerIndex || previousSubphase !== "await_result")) {
+      showAnnouncement(
+        `${currentPlayer.name}の挑戦です。`,
+        null,
+        `${currentPlayer.name}の挑戦`,
+        2000,
+        false,
+        false,
+        true // GM画面のみ
+      );
+    }
+  }
+  
+  // await_doctorフェーズになった時は「ドクターが操作中です。」が表示される（handlePhaseUIで処理）
+  // ここでは特に処理しない
   
   // 妨害発動通知をクリア（表示後）
   if (gameState.wolfActionNotification) {
@@ -777,6 +787,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
     // GM：人狼妨害の選出リクエストをチェック
     if (isGM) {
       checkWolfActionRequest(roomData);
+      checkDoctorSkipNotification(roomData);
       
       // GM画面：サブフェーズに応じた操作中ポップアップを表示（継続表示）
       const subphase = gameState.subphase;
@@ -854,6 +865,14 @@ function handlePhaseUI(roomData, previousPhase = null) {
 
   // finished: ゲーム終了（勝利画面表示）
   if (phase === 'finished') {
+    // finished直前/直後に通知が入るケースがあるため、GM側はここでもチェック
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    if (isGM) {
+      checkDoctorSkipNotification(roomData);
+    }
+
     // ゲーム終了時は「ドクターが操作中です」「人狼が操作中です」のアナウンスをクリア
     const announcementModal = document.getElementById("announcement-modal");
     if (announcementModal && !announcementModal.classList.contains("hidden")) {
@@ -915,7 +934,25 @@ function handleDiscussionPhase(roomData) {
       modal.classList.add("hidden");
     }
     lastDiscussionEndTime = null;
+    previousDiscussionPhase = false;
     return;
+  }
+  
+  // 会議フェーズが開始された場合でも、ターン結果が表示中の場合は待機
+  // （ターン結果のポップアップが表示されている場合は、会議フェーズのタイマー表示を遅延させる）
+  if (discussionPhase && !previousDiscussionPhase) {
+    // 会議フェーズが新しく開始された場合
+    // ターン結果のポップアップが表示されている可能性があるので、少し待機
+    // ただし、ターン結果が既にクリアされている場合は即座に表示
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    const GameState = typeof window !== 'undefined' ? window.GameState : null;
+    if (GameState && GameState.turnResult) {
+      // ターン結果がまだ設定されている場合、少し待機してから表示
+      setTimeout(() => {
+        handleDiscussionPhase(roomData);
+      }, 2100); // ターン結果のポップアップ表示時間（2000ms）+ バッファ（100ms）
+      return;
+    }
   }
 
   // GMのみ会議フェーズモーダルを表示
@@ -1061,6 +1098,39 @@ function checkWolfActionRequest(roomData) {
     if (jobModal && !jobModal.classList.contains("hidden")) {
       jobModal.classList.add("hidden");
     }
+  }
+}
+
+// GM：ドクター神拳「不使用」通知をチェック
+let lastDoctorSkipNotificationTimestamp = null;
+function checkDoctorSkipNotification(roomData) {
+  const gameState = roomData.gameState || {};
+  const notif = gameState.doctorSkipNotification || null;
+  if (!notif || !notif.timestamp) return;
+  if (notif.timestamp === lastDoctorSkipNotificationTimestamp) return;
+
+  lastDoctorSkipNotificationTimestamp = notif.timestamp;
+
+  const playersObj = roomData.players || {};
+  const pid = notif.playerId || null;
+  const name = pid && playersObj[pid]?.name ? playersObj[pid].name : "プレイヤー";
+
+  showAnnouncement(
+    `${name}の挑戦は失敗しました。`,
+    null,
+    `${name}の挑戦：×`,
+    2000,
+    false,
+    false,
+    true // GM画面のみ
+  );
+
+  // 表示後は通知をクリア（重複表示防止）
+  const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+  if (roomId) {
+    syncToFirebase("clearDoctorSkipNotification", { roomId }).catch((e) => {
+      console.error("Failed to clear doctor skip notification:", e);
+    });
   }
 }
 
@@ -1236,10 +1306,9 @@ async function handleFailAction(data, roomId) {
   await applyFailDB(roomId);
   const name = data?.playerName || "プレイヤー";
   const isConfirm = data?.isConfirm === true;
-  const msg = isConfirm
-    ? `${name} の失敗が確定しました。（神拳なし）`
-    : `${name} の失敗が入力されました。${"ドクターは神拳で救済できます。"} `;
-  await addLog(roomId, { type: "fail", message: msg.trim(), playerId: userId });
+
+  // ログ: 「○ がステージ攻略に失敗しました。」
+  await addLog(roomId, { type: "fail", message: `${name} がステージ攻略に失敗しました。`, playerId: userId });
   
   // 挑戦結果アナウンス
   // isConfirmがtrueの場合は神拳が残っていない（正確な判定はsubphaseで行う）
@@ -1259,6 +1328,15 @@ async function handleFailAction(data, roomId) {
 }
 
 /**
+ * ドクター神拳を使用しない（ドクターのみ）
+ * - 失敗確定となり、ターン終了に進む
+ * - GM画面に「○さんの挑戦は失敗しました。」を表示する
+ */
+async function handleDoctorSkipAction(data, roomId) {
+  await applyDoctorSkipDB(roomId);
+}
+
+/**
  * ドクター神拳アクションの処理
  */
 async function handleDoctorPunchAction(data, roomId) {
@@ -1270,7 +1348,7 @@ async function handleDoctorPunchAction(data, roomId) {
   // 神拳発動アナウンス（GM画面のみ、打ち消された旨を表示）
   showAnnouncement(
     "ドクター神拳が発動されました。",
-    `${target}の失敗は打ち消されました。`,
+    "失敗が帳消しにされ、成功判定とします。",
     "ドクター神拳発動",
     0,
     true, // OKボタンを要求

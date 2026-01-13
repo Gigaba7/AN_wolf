@@ -3,11 +3,11 @@
 import { GameState, $ } from "./game-state.js";
 import { openModal, switchScreen, closeModal } from "./ui-modals.js";
 import { logSystem, logTurn } from "./game-logging.js";
-import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, syncToFirebase, endDiscussionPhase, extendDiscussionPhase } from "./firebase-sync.js";
+import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, syncToFirebase, endDiscussionPhase, extendDiscussionPhase, wolfDecisionDB } from "./firebase-sync.js";
 import { signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./game-roles.js";
 import { renderAll, renderWaitingScreen } from "./ui-render.module.js";
-import { onSuccess, onFail, onDoctorPunch } from "./game-logic.js";
+import { onSuccess, onFail, onDoctorPunch, onDoctorSkip } from "./game-logic.js";
 import { resolveWolfAction } from "./firebase-sync.js";
 
 async function fileToResizedAvatarDataUrl(file) {
@@ -441,23 +441,7 @@ function setupParticipantScreen() {
   // 参加者画面：役職ボタンのみ（神拳）
   // 人狼妨害ボタンは削除（常に妨害選択モーダルを表示するため）
   $("#btn-doctor-punch")?.addEventListener("click", onDoctorPunch);
-  $("#btn-doctor-skip")?.addEventListener("click", async () => {
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    if (!roomId) return;
-    try {
-      const { applyDoctorSkipDB, syncToFirebase } = await import("./firebase-sync.js");
-      const { getCurrentUserId } = await import("./firebase-auth.js");
-      await applyDoctorSkipDB(roomId);
-      await syncToFirebase("log", {
-        type: "doctorSkip",
-        message: "ドクター神拳は使用されませんでした。",
-        playerId: getCurrentUserId(),
-        roomId,
-      });
-    } catch (error) {
-      console.error('Failed to skip doctor punch:', error);
-    }
-  });
+  $("#btn-doctor-skip")?.addEventListener("click", onDoctorSkip);
 }
 
 function setupModals() {
@@ -545,7 +529,6 @@ function setupModals() {
   });
   
   // 参加者：人狼妨害のスキップ（妨害選択UIから閉じる場合）
-  // 注: 妨害選択UIから直接発動するため、スキップ処理は不要（モーダルを閉じるだけでOK）
   // モーダル外をクリックしても閉じないようにする（閉じるボタンのみで処理）
   // モーダル自体のクリックイベントを無効化（モーダルコンテンツ内のクリックは有効）
   const wolfActionModal = document.getElementById("wolf-action-select-modal");
@@ -556,6 +539,28 @@ function setupModals() {
         e.stopPropagation();
       }
     });
+    
+    // 「閉じる」ボタンの処理：妨害なしとして処理
+    const closeBtn = wolfActionModal.querySelector('[data-close-modal="wolf-action-select-modal"]');
+    if (closeBtn) {
+      // 既存のイベントリスナーを削除（setupModalsで追加されたものと重複しないように）
+      const newCloseBtn = closeBtn.cloneNode(true);
+      closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+      
+      newCloseBtn.addEventListener("click", async () => {
+        const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+        if (!roomId) return;
+        
+        try {
+          const { wolfDecision } = await import("./firebase-sync.js");
+          await wolfDecision(roomId, "skip");
+          closeModal("wolf-action-select-modal");
+        } catch (error) {
+          console.error('Failed to skip wolf action:', error);
+          alert(error?.message || "妨害選択のキャンセルに失敗しました。");
+        }
+      });
+    }
   }
   
   

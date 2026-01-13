@@ -105,4 +105,27 @@ async function onDoctorPunch() {
   }
 }
 
-export { onSuccess, onFail, onDoctorPunch };
+async function onDoctorSkip() {
+  if (!GameState.players.length || GameState.resultLocked) return;
+  if (!GameState.pendingFailure) return;
+
+  // 神拳対象は「失敗保留中のプレイヤー」
+  const targetId = GameState.pendingFailure?.playerId || null;
+  const targetPlayer = targetId ? GameState.players.find((p) => p.id === targetId) : null;
+  const targetName = targetPlayer?.name || "プレイヤー";
+
+  // Firebase同期（ドクター側の「不使用」決定）
+  const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+  if (roomId) {
+    try {
+      await syncToFirebase('doctorSkip', {
+        targetPlayerName: targetName,
+        roomId,
+      });
+    } catch (error) {
+      console.error('Failed to sync doctor skip:', error);
+    }
+  }
+}
+
+export { onSuccess, onFail, onDoctorPunch, onDoctorSkip };
