@@ -604,9 +604,8 @@ function syncGameStateFromFirebase(roomData) {
     const currentPlayer = players[currentPlayerId];
     // プレイヤーが変わった時、または前回のサブフェーズがawait_resultでない時に表示
     if (currentPlayer && (previousPlayerIndex !== GameState.currentPlayerIndex || previousSubphase !== "await_result")) {
-      // ステージ選出直後（currentStageが設定されていて、前回のサブフェーズがawait_resultでない）の場合、
-      // 「○の挑戦です」の表示後に妨害フェーズに移行する
-      const isAfterStageSelection = gameState.currentStage && previousSubphase !== "await_result";
+      // ステージ選出直後（前回のサブフェーズがgm_stage）の場合、「○○の挑戦です」を表示してから妨害フェーズに移行
+      const isAfterStageSelection = previousSubphase === "gm_stage";
       
       showAnnouncement(
         `${currentPlayer.name}の挑戦です。`,
@@ -617,7 +616,7 @@ function syncGameStateFromFirebase(roomData) {
         false,
         true, // GM画面のみ
         isAfterStageSelection ? async () => {
-          // ステージ選出後の「○の挑戦です」が表示された後、妨害フェーズに移行
+          // ステージ選出後の「○○の挑戦です」が表示された後、妨害フェーズに移行
           const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
           if (!roomId) return;
           
@@ -1470,14 +1469,14 @@ async function handleStageRouletteAction(data, roomId) {
     timestamp: Date.now(),
   });
   
-  // ステージ選出完了後、まずawait_resultに設定（ポップアップ表示後に妨害フェーズに移行）
+  // ステージ選出完了後、まずawait_resultに設定（「○○の挑戦です」を表示してから妨害フェーズに移行）
   const roomRef = doc(firestore, "rooms", roomId);
   await runTransaction(firestore, async (tx) => {
     const snap = await tx.get(roomRef);
     if (!snap.exists()) throw new Error("Room not found");
     const data = snap.data();
     
-    // まずawait_resultに設定（「ステージ選出結果」と「○の挑戦です」を表示してから妨害フェーズに移行）
+    // まずawait_resultに設定（「○○の挑戦です」を表示してから妨害フェーズに移行）
     tx.update(roomRef, {
       'gameState.currentStage': stage,
       'gameState.stageTurn': GameState.turn,
@@ -1493,7 +1492,6 @@ async function handleStageRouletteAction(data, roomId) {
   });
   
   // ステージ結果アナウンス（GM画面のみ）
-  // 「○の挑戦です」が表示された後に妨害フェーズに移行するため、onOkコールバックで処理
   showAnnouncement(
     `作戦エリアは${stage}です`,
     null,
@@ -1501,13 +1499,8 @@ async function handleStageRouletteAction(data, roomId) {
     2000,
     false,
     false,
-    true, // GM画面のみ
-    null // onOkは「○の挑戦です」のonOkで処理
+    true // GM画面のみ
   );
-  
-  // 「○の挑戦です」が表示された後に妨害フェーズに移行するため、
-  // syncGameStateFromFirebaseで「○の挑戦です」が表示されるのを待つ
-  // そのため、ここでは何もしない（「○の挑戦です」のonOkで処理する）
 }
 
 /**
