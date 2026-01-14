@@ -301,6 +301,7 @@ export {
   startDiscussionPhase,
   endDiscussionPhase,
   extendDiscussionPhase,
+  endTurnAfterLastPlayerResult,
 };
 
 /**
@@ -496,6 +497,37 @@ async function advanceToPlayingIfAllAcked(roomId) {
 }
 
 /**
+ * 最後のプレイヤーの挑戦結果表示後にターンを確定して次ターンへ進める
+ */
+async function endTurnAfterLastPlayerResult(roomId) {
+  const userId = getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const roomRef = doc(firestore, "rooms", roomId);
+
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) throw new Error("Room not found");
+    const data = snap.data();
+
+    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+
+    // pendingLastPlayerResultフラグが立っている場合のみ実行
+    if (!data?.gameState?.pendingLastPlayerResult) {
+      throw new Error("Not waiting for last player result");
+    }
+
+    const playersObj = data?.players || {};
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+
+    // ターン終了処理を実行（成功として）
+    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false);
+  });
+}
+
+/**
  * ターンを確定して次ターンへ進める（○ or × を追加し、順番を再抽選、ステージをクリア）
  * - ○: 1周（=全員行動）が完了したとき
  * - ×: 失敗して「神拳を使わない」が確定したとき（即次ターン）
@@ -526,19 +558,19 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
   // プレイ順は保持（ターンごとのシャッフルは不要）
   const nextOrder = [...order];
 
+  // 勝敗判定（×が過半数以上の場合、ターンを進めずに最終フェーズに突入）
+  const majority = Math.ceil(maxTurns / 2); // 過半数（3ターンの場合は2、5ターンの場合は3）
+  const shouldEnterFinalPhase = blackStars >= majority;
+
   // ターン開始時は常にステージ選出から始まる（妨害フェーズはステージ選出後に設定される）
+  // ただし、最終フェーズに突入する場合はターンを進めない
   /** @type {Record<string, any>} */
   const updates = {
     ...extraUpdates,
     "gameState.whiteStars": whiteStars,
     "gameState.blackStars": blackStars,
-    "gameState.turn": nextTurn,
     "gameState.playerOrder": nextOrder,
-    "gameState.currentPlayerIndex": 0,
     "gameState.pendingFailure": null,
-    "gameState.currentStage": null,
-    "gameState.stageTurn": null,
-    "gameState.subphase": "gm_stage", // 常にステージ選出から開始
     "gameState.wolfDecisionPlayerId": null,
     "gameState.wolfActionRequest": null,
     "gameState.pendingDoctorPunchProceed": null, // ドクター神拳進行フラグをクリア
@@ -547,14 +579,27 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     "gameState.pendingDoctorPunchSuccess": null, // ドクター神拳成功ポップアップ表示用フラグをクリア
   };
 
-  // ターン開始時にドクター神拳を「使用可能」に戻す
-  const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
-  if (doctorId) {
-    updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+  // 最終フェーズに突入する場合はターンを進めない
+  if (!shouldEnterFinalPhase) {
+    updates["gameState.turn"] = nextTurn;
+    updates["gameState.currentPlayerIndex"] = 0;
+    updates["gameState.currentStage"] = null;
+    updates["gameState.stageTurn"] = null;
+    updates["gameState.subphase"] = "gm_stage"; // 常にステージ選出から開始
+  } else {
+    // 最終フェーズに突入する場合、ターンは進めない（turnは更新しない）
+    // currentPlayerIndex、currentStage、stageTurn、subphaseも更新しない（最後のプレイヤーの状態を保持）
+  }
+
+  // ターン開始時にドクター神拳を「使用可能」に戻す（最終フェーズに突入する場合を除く）
+  if (!shouldEnterFinalPhase) {
+    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+    if (doctorId) {
+      updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+    }
   }
 
   // 勝敗判定
-  const majority = Math.ceil(maxTurns / 2); // 過半数（3ターンの場合は2、5ターンの場合は3）
   const doctorHasFailed = data?.gameState?.doctorHasFailed === true || extraUpdates?.["gameState.doctorHasFailed"] === true;
 
   // ターン終了時に成功/失敗フラグを設定（ポップアップ表示用）
@@ -574,14 +619,14 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     updates["gameState.phase"] = "finished";
     updates["gameState.gameResult"] = "citizen_win";
   }
-  // ×が過半数以上 → 10分の会議フェーズ後に最終フェーズへ（5分の会議フェーズは飛ばす）
-  else if (blackStars >= majority) {
-    // 10分の会議フェーズを直接開始（5分の会議フェーズは飛ばす）
-    const endTime = Date.now() + 10 * 60 * 1000;
-    updates["gameState.discussionPhase"] = true;
-    updates["gameState.discussionEndTime"] = endTime;
-    updates["gameState.pendingFinalPhaseDiscussion"] = true; // 最終フェーズ前の10分会議フラグ
-    // 最終フェーズへの移行は会議フェーズ終了時に実行
+  // ×が過半数以上 → 次のターンに移行せずに最終フェーズへ
+  else if (shouldEnterFinalPhase) {
+    // ターンを進めずに最終フェーズに突入
+    // ただし、最後のプレイヤーの挑戦結果ポップアップを表示してから最終フェーズ説明ポップアップを表示する
+    // turnResultは設定済み（最後のプレイヤーの挑戦結果ポップアップ表示用）
+    updates["gameState.pendingFinalPhaseExplanation"] = true; // 最終フェーズ説明ポップアップ表示用フラグ
+    // ターンは進めない（turnは更新しない）
+    // phaseはplayingのまま（説明ポップアップのOK押下後にfinal_phaseに移行）
   }
   // 次のターンに進む場合 → 会議フェーズを開始（5分）
   // ただし、ターン結果ポップアップが表示されるまで待つため、discussionPhaseは後で設定
@@ -637,8 +682,17 @@ async function applySuccess(roomId) {
 
     const nextIndex = (idx + 1) % order.length;
     // 1周したら「○」でターン終了（=全員完了）
+    // ただし、最後のプレイヤーの挑戦結果ポップアップを表示してからターン終了処理を行う
     if (nextIndex === 0) {
-      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false);
+      // 最後のプレイヤーの場合、成功ポップアップを表示してからターン終了処理を行う
+      // 成功ポップアップはhandleSuccessActionで表示される
+      // ここではpendingLastPlayerResultフラグを設定して、成功ポップアップのonOkでendTurnAndPrepareNextを呼ぶ
+      const updates = {
+        "gameState.pendingLastPlayerResult": true, // 最後のプレイヤーの挑戦結果表示待ちフラグ
+        "gameState.wolfDecisionPlayerId": null,
+        "gameState.wolfActionRequest": null,
+      };
+      tx.update(roomRef, updates);
       return;
     }
 
