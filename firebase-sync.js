@@ -551,9 +551,62 @@ function syncGameStateFromFirebase(roomData) {
     }
   }
   
+  // await_doctor_punch_resultフェーズ：ドクター神拳発動後の成功ポップアップを表示（ターン結果ポップアップより先に表示）
   // ターン結果ポップアップを表示（自動で閉じる、重複防止）
   // 会議フェーズが開始される前に表示する必要があるため、ここで処理
   const currentDiscussionPhase = GameState.discussionPhase;
+  
+  // await_doctor_punch_resultフェーズの処理を先に実行（ターン結果ポップアップより先に表示）
+  if (GameState.phase === "playing" && GameState.subphase === "await_doctor_punch_result") {
+    const pendingSuccess = gameState.pendingDoctorPunchSuccess || null;
+    if (pendingSuccess && pendingSuccess.playerId) {
+      const playersObj = roomData.players || {};
+      const successPlayerId = pendingSuccess.playerId;
+      const successPlayer = playersObj[successPlayerId];
+      const successPlayerName = successPlayer?.name || "プレイヤー";
+      
+      // 重複防止：同じプレイヤーの成功ポップアップが既に表示されている場合はスキップ
+      const order = GameState.playerOrder || Object.keys(playersObj);
+      const successPlayerIndex = order.indexOf(successPlayerId);
+      const previousSubphase = typeof window !== "undefined" ? window.__previousSubphase : null;
+      if (lastSuccessAnnouncementPlayerIndex === successPlayerIndex && previousSubphase === "await_doctor_punch_result" && GameState.subphase === "await_doctor_punch_result") {
+        // 既に表示済みの場合はスキップ（同じプレイヤー、同じsubphaseの場合のみ）
+        // ターン結果ポップアップの処理に進む
+      } else {
+        lastSuccessAnnouncementPlayerIndex = successPlayerIndex;
+        if (typeof window !== "undefined") {
+          window.__previousSubphase = GameState.subphase;
+        }
+        
+        // 成功ポップアップを表示（GM画面のみ）
+        showAnnouncement(
+          `${successPlayerName}の挑戦は成功しました。`,
+          null,
+          `${successPlayerName}の挑戦：〇`,
+          2000,
+          false,
+          false,
+          true, // GM画面のみ
+          async () => {
+            // ポップアップが閉じた後、次の処理に進む
+            const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+            if (roomId) {
+              try {
+                // proceedToNextPlayerAfterDoctorPunchで、最後のプレイヤーの場合はendTurnAndPrepareNextが呼ばれる
+                // それ以外の場合は、次のプレイヤーの挑戦開始フェーズに進む
+                await proceedToNextPlayerAfterDoctorPunchDB(roomId);
+              } catch (e) {
+                console.error("Failed to proceed after doctor punch success:", e);
+              }
+            }
+          }
+        );
+        // 成功ポップアップを表示したので、ターン結果ポップアップの処理はスキップ（次回のsyncGameStateFromFirebaseで処理される）
+        return;
+      }
+    }
+  }
+  
   if (gameState.turnResult && gameState.turnResult !== lastTurnResult) {
     lastTurnResult = gameState.turnResult;
     // ターン結果を表示する際のターン番号（次のターンに進む前に保存された値）
@@ -1105,8 +1158,9 @@ function handlePhaseUI(roomData, previousPhase = null) {
   // 会議フェーズの処理
   handleDiscussionPhase(roomData);
   
-  // 最終フェーズ説明ポップアップの表示
-  if (gameState.pendingFinalPhaseExplanation && GameState.phase === "playing") {
+  // 最終フェーズ説明ポップアップの表示（ターン結果ポップアップの後に表示）
+  // ターン結果ポップアップが表示されていない場合のみ表示（キューが空の場合）
+  if (gameState.pendingFinalPhaseExplanation && GameState.phase === "playing" && !gameState.turnResult && isAnnouncementQueueEmpty()) {
     const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
     const myId = typeof window !== "undefined" ? window.__uid : null;
     const isGM = !!(createdBy && myId && createdBy === myId);
@@ -1131,6 +1185,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
                 "gameState.phase": "final_phase",
                 "gameState.finalPhaseVotes": {},
                 "gameState.pendingFinalPhaseExplanation": null,
+                "gameState.turnResult": null, // ターン結果をクリア（最終フェーズに進むため）
               });
             } catch (e) {
               console.error("Failed to proceed to final phase:", e);
@@ -1640,7 +1695,7 @@ async function handleDoctorPunchAction(data, roomId) {
     2000,
     false, // OKボタンは不要（自動で閉じる）
     false,
-    false, // 全員に表示
+    true, // GM画面のみに表示
     null // onOkは不要（成功ポップアップのonOkで処理される）
   );
 }
@@ -1896,12 +1951,19 @@ function showFinalPhaseModal(roomData) {
   // 全員が投票した場合、「投票結果へ」ボタンを表示
   const allVoted = votedCount === voterCount;
   if (allVoted) {
+    // 既に「投票結果へ」ボタンが存在する場合は追加しない
+    const existingResultBtn = extraEl.querySelector(".btn-primary[data-action='show-vote-result']");
+    if (existingResultBtn) {
+      return; // 既にボタンが存在する場合は何もしない
+    }
+    
     const resultBtn = document.createElement("button");
     resultBtn.className = "btn primary";
     resultBtn.textContent = "投票結果へ";
+    resultBtn.setAttribute("data-action", "show-vote-result");
     resultBtn.style.marginTop = "12px";
     resultBtn.style.width = "100%";
-    resultBtn.addEventListener("click", () => {
+    resultBtn.addEventListener("click", async () => {
       // 投票結果を計算してポップアップで表示
       const voteCounts = {};
       Object.values(votes).forEach(votedPlayerId => {
@@ -1921,6 +1983,33 @@ function showFinalPhaseModal(roomData) {
           isTie = true;
         }
       });
+      
+      // 結果を確定してFirestoreに保存
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (roomId) {
+        try {
+          const roomRef = doc(firestore, "rooms", roomId);
+          if (mostVotedPlayerId && !isTie) {
+            // 最多得票者が1人だけの場合、そのプレイヤーが人狼かどうかで勝敗が決まる
+            const suspectedPlayer = playersArr.find(p => p.id === mostVotedPlayerId);
+            const isWolf = suspectedPlayer?.role === "wolf";
+            await updateDoc(roomRef, {
+              "gameState.phase": "finished",
+              "gameState.gameResult": isWolf ? "citizen_win_reverse" : "wolf_win",
+            });
+          } else {
+            // 同率1位の場合は人狼勝利
+            await updateDoc(roomRef, {
+              "gameState.phase": "finished",
+              "gameState.gameResult": "wolf_win",
+            });
+          }
+        } catch (e) {
+          console.error("Failed to finalize vote result:", e);
+          alert("結果の確定に失敗しました。");
+          return;
+        }
+      }
       
       // 投票結果を表示
       let resultText = "投票結果:\n";

@@ -806,13 +806,11 @@ async function applyDoctorPunch(roomId) {
     const pendingPlayerId = pending?.playerId || currentPlayerId;
     const isPendingDoctor = pendingPlayerId === userId;
 
-    const nextIndex = (idx + 1) % order.length;
-
     // 神拳使用＝成功扱いで次へ進む（ターン内は1回まで）
     // ドクター神拳発動後は、成功ポップアップを表示してから次のプレイヤーに進む
     // 最後のプレイヤーの場合も、成功ポップアップを表示してからターン終了する
+    // 注意：currentPlayerIndexはここでは更新しない（proceedToNextPlayerAfterDoctorPunchで更新する）
     const updates = {
-      "gameState.currentPlayerIndex": nextIndex === 0 ? 0 : nextIndex, // 最後のプレイヤーの場合は0のまま（ターン終了処理で更新される）
       "gameState.pendingFailure": null,
       // currentStage と stageTurn は保持（そのターン中は固定）
       "gameState.subphase": "await_doctor_punch_result", // ドクター神拳発動後の成功ポップアップ表示フェーズ
@@ -1384,20 +1382,8 @@ async function identifyWolf(roomId, suspectedPlayerId) {
       "gameState.finalPhaseVotes": votes,
     };
 
-    // 全員が投票した場合、結果を確定
-    if (allVoted) {
-      if (mostVotedPlayerId && !isTie) {
-        // 最多得票者が1人だけの場合、そのプレイヤーが人狼かどうかで勝敗が決まる
-        const suspectedPlayer = playersObj[mostVotedPlayerId];
-        const isWolf = suspectedPlayer?.role === "wolf";
-        updates["gameState.phase"] = "finished";
-        updates["gameState.gameResult"] = isWolf ? "citizen_win_reverse" : "wolf_win";
-      } else {
-        // 同率1位の場合は人狼勝利
-        updates["gameState.phase"] = "finished";
-        updates["gameState.gameResult"] = "wolf_win";
-      }
-    }
+    // 全員が投票した場合でも、結果は確定しない（GMが「投票結果へ」ボタンを押すまで待つ）
+    // 結果の確定はshowFinalPhaseModalの「投票結果へ」ボタンで行う
 
     tx.update(roomRef, updates);
   });
