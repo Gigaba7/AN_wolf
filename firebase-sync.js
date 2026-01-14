@@ -524,7 +524,7 @@ function syncGameStateFromFirebase(roomData) {
   const previousPlayerIndex = GameState.currentPlayerIndex;
   const previousSubphase = GameState.subphase;
   const previousPhase = GameState.phase;
-  const previousTurn = GameState.turn || 1;
+  const currentTurn = GameState.turn || 1;
   
   GameState.phase = gameState.phase || "waiting";
   GameState.turn = gameState.turn || 1;
@@ -623,17 +623,17 @@ function syncGameStateFromFirebase(roomData) {
   previousDiscussionPhase = currentDiscussionPhase;
   
   // ターン切り替え時のポップアップを表示（1ターン目も含む）
-  if (previousTurn !== GameState.turn && GameState.phase === "playing") {
+  if (previousTurn !== currentTurn && GameState.phase === "playing") {
     showAnnouncement(
-      `${GameState.turn}ターン目`,
+      `${currentTurn}ターン目`,
       null,
-      `${GameState.turn}ターン目開始`,
+      `${currentTurn}ターン目開始`,
       2000,
       false,
       false,
       true // GM画面のみ
     );
-    previousTurn = GameState.turn; // 更新を記録
+    previousTurn = currentTurn; // 更新を記録
   }
   
   // pendingNextPlayerChallengeフラグが立っている場合、次のプレイヤーの挑戦開始フェーズに移行
@@ -1462,13 +1462,22 @@ async function handleFailAction(data, roomId) {
   // ログ: 「○ がステージ攻略に失敗しました。」
   await addLog(roomId, { type: "fail", message: `${name} がステージ攻略に失敗しました。`, playerId: userId });
   
+  // applyFailの結果を確認（ルームの状態を取得）
+  const roomRef = doc(firestore, "rooms", roomId);
+  const snap = await getDoc(roomRef);
+  if (!snap.exists()) return;
+  
+  const roomData = snap.data();
+  const gameState = roomData?.gameState || {};
+  const subphase = gameState.subphase;
+  
   // 挑戦結果アナウンス
-  // isConfirmがtrueの場合は神拳が残っていない（正確な判定はsubphaseで行う）
-  if (isConfirm) {
-    // 神拳が残っていない
+  // isConfirmがtrueの場合、またはsubphaseがawait_doctorでない場合（神拳が使えない場合）はポップアップを表示
+  if (isConfirm || subphase !== "await_doctor") {
+    // 神拳が残っていない、または失敗確定
     showAnnouncement(
       `${name}の挑戦は失敗しました。`,
-      "ドクター神拳が残っていないため、強制的に失敗となります。",
+      isConfirm ? "ドクター神拳が残っていないため、強制的に失敗となります。" : null,
         `${name}の挑戦：×`,
         2000,
       false,
@@ -1476,10 +1485,20 @@ async function handleFailAction(data, roomId) {
       true, // GM画面のみ
       async () => {
         // 挑戦結果ポップアップが閉じた後、次のプレイヤーの挑戦開始フェーズに移行
+        // ただし、ターン終了処理が実行された場合は何もしない
         const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
         if (roomId) {
           try {
-            await proceedToNextPlayerChallenge(roomId);
+            // ルームの状態を確認してから処理
+            const roomRef = doc(firestore, "rooms", roomId);
+            const snap = await getDoc(roomRef);
+            if (snap.exists()) {
+              const roomData = snap.data();
+              // ターン終了処理が実行されていない場合（subphaseがawait_resultのまま）のみ処理
+              if (roomData?.gameState?.phase === "playing" && roomData?.gameState?.pendingNextPlayerChallenge) {
+                await proceedToNextPlayerChallengeDB(roomId);
+              }
+            }
           } catch (e) {
             console.error("Failed to proceed to next player challenge:", e);
           }
@@ -1487,7 +1506,7 @@ async function handleFailAction(data, roomId) {
       }
     );
   }
-  // isConfirmがfalseの場合は、subphaseがawait_doctorになった時にアナウンスを表示
+  // subphaseがawait_doctorになった場合は、ドクターが操作中ポップアップが表示される（handlePhaseUIで処理）
 }
 
 /**

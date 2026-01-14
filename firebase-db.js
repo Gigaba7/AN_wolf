@@ -1313,12 +1313,16 @@ async function proceedToNextPlayerChallenge(roomId) {
 
   const roomRef = doc(firestore, "rooms", roomId);
 
-  await runTransaction(firestore, async (tx) => {
-    const snap = await tx.get(roomRef);
+  // トランザクションではなく通常の更新を使用（競合を避けるため）
+  try {
+    const snap = await getDoc(roomRef);
     if (!snap.exists()) throw new Error("Room not found");
     const data = snap.data();
 
-    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+    if (data?.gameState?.phase !== "playing") {
+      // ゲームが進行中でない場合は何もしない
+      return;
+    }
 
     // pendingNextPlayerChallengeフラグが立っている場合のみ実行
     if (!data?.gameState?.pendingNextPlayerChallenge) {
@@ -1326,13 +1330,16 @@ async function proceedToNextPlayerChallenge(roomId) {
     }
 
     // 次のプレイヤーの挑戦開始フェーズに移行
-    tx.update(roomRef, {
+    await updateDoc(roomRef, {
       "gameState.subphase": "challenge_start",
       "gameState.pendingNextPlayerChallenge": null, // フラグをクリア
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
     });
-  });
+  } catch (error) {
+    // エラーが発生した場合はログに記録するが、処理を続行
+    console.warn("Failed to proceed to next player challenge (may be already processed):", error);
+  }
 }
 
 /**
