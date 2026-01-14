@@ -579,8 +579,6 @@ function syncGameStateFromFirebase(roomData) {
         }
         
         // 最後のプレイヤーかどうかを確認
-        const order = GameState.playerOrder || Object.keys(playersObj);
-        const successPlayerIndex = order.indexOf(successPlayerId);
         const isLastPlayer = successPlayerIndex === order.length - 1;
         
         // 成功ポップアップを表示（GM画面のみ）
