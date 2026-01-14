@@ -1138,12 +1138,14 @@ function handlePhaseUI(roomData, previousPhase = null) {
     }
   }
 
-  // 会議フェーズの処理
-  handleDiscussionPhase(roomData);
+  // 会議フェーズの処理（final_phaseの時はスキップ）
+  if (phase !== "final_phase") {
+    handleDiscussionPhase(roomData);
+  }
   
   // 最終フェーズ説明ポップアップの表示（ターン結果ポップアップの後に表示）
   // ターン結果ポップアップが表示されていない場合のみ表示（キューが空の場合）
-  if (gameState.pendingFinalPhaseExplanation && GameState.phase === "playing" && !gameState.turnResult && isAnnouncementQueueEmpty()) {
+  if (gameState.pendingFinalPhaseExplanation && phase === "playing" && !gameState.turnResult && isAnnouncementQueueEmpty()) {
     const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
     const myId = typeof window !== "undefined" ? window.__uid : null;
     const isGM = !!(createdBy && myId && createdBy === myId);
@@ -1188,6 +1190,13 @@ function handlePhaseUI(roomData, previousPhase = null) {
  */
 function handleDiscussionPhase(roomData) {
   const gameState = roomData.gameState || {};
+  const phase = gameState.phase || "waiting";
+  
+  // final_phaseの時は処理しない（showFinalPhaseGMModalで処理される）
+  if (phase === "final_phase") {
+    return;
+  }
+  
   const discussionPhase = gameState.discussionPhase === true;
   const discussionEndTime = gameState.discussionEndTime || null;
   const userId = getCurrentUserId();
@@ -2003,23 +2012,33 @@ let lastFinalPhaseGMModalTimestamp = null;
 let finalPhaseTimerInterval = null;
 
 function showFinalPhaseGMModal(roomData) {
+  console.log("[showFinalPhaseGMModal] Called", roomData);
   const modal = document.getElementById("discussion-modal");
   const timerEl = document.getElementById("discussion-timer");
   const titleEl = modal?.querySelector("h2");
   const summaryEl = modal?.querySelector("p");
   const actionsEl = modal?.querySelector(".modal-actions");
   
-  if (!modal || !timerEl || !titleEl || !actionsEl) return;
+  console.log("[showFinalPhaseGMModal] Elements:", { modal, timerEl, titleEl, actionsEl });
+  if (!modal || !timerEl || !titleEl || !actionsEl) {
+    console.error("[showFinalPhaseGMModal] Missing required elements");
+    return;
+  }
 
   const gameState = roomData.gameState || {};
   const votes = gameState.finalPhaseVotes || {};
   const discussionEndTime = gameState.finalPhaseDiscussionEndTime || null;
   const votesTimestamp = JSON.stringify(votes);
   
-  // 投票データが更新された場合のみ再描画
+  // 投票データが更新された場合のみ再描画（ただし、discussionEndTimeが設定されている場合のみ）
   if (votesTimestamp === lastFinalPhaseGMModalTimestamp && !modal.classList.contains("hidden") && discussionEndTime) {
     // タイマーのみ更新
     updateFinalPhaseTimer(timerEl, discussionEndTime);
+    return;
+  }
+  // discussionEndTimeが設定されていない場合は、タイマーを表示しない（説明ポップアップのOK押下待ち）
+  if (!discussionEndTime) {
+    console.log("[showFinalPhaseGMModal] discussionEndTime not set yet, waiting for explanation popup OK");
     return;
   }
   lastFinalPhaseGMModalTimestamp = votesTimestamp;
