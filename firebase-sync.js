@@ -641,8 +641,12 @@ function syncGameStateFromFirebase(roomData) {
           if (roomId) {
             try {
               if (pendingFinalPhase) {
-                // 最終フェーズに突入する場合、最終フェーズ説明ポップアップを表示（ターン結果ポップアップの後に表示）
-                // pendingFinalPhaseExplanationフラグは既に設定されているので、そのまま表示される
+                // 最終フェーズに突入する場合、turnResultをクリアしてから最終フェーズ説明ポップアップを表示
+                const roomRef = doc(firestore, "rooms", roomId);
+                await updateDoc(roomRef, {
+                  "gameState.turnResult": null, // ターン結果をクリア（最終フェーズ説明ポップアップの表示条件を満たすため）
+                });
+                // pendingFinalPhaseExplanationフラグは既に設定されているので、次回のsyncGameStateFromFirebaseで表示される
               } else {
                 // 会議フェーズを開始（discussionPhaseをtrueに設定）
                 const roomRef = doc(firestore, "rooms", roomId);
@@ -671,8 +675,12 @@ function syncGameStateFromFirebase(roomData) {
           if (roomId) {
             try {
               if (pendingFinalPhase) {
-                // 最終フェーズに突入する場合、最終フェーズ説明ポップアップを表示（ターン結果ポップアップの後に表示）
-                // pendingFinalPhaseExplanationフラグは既に設定されているので、そのまま表示される
+                // 最終フェーズに突入する場合、turnResultをクリアしてから最終フェーズ説明ポップアップを表示
+                const roomRef = doc(firestore, "rooms", roomId);
+                await updateDoc(roomRef, {
+                  "gameState.turnResult": null, // ターン結果をクリア（最終フェーズ説明ポップアップの表示条件を満たすため）
+                });
+                // pendingFinalPhaseExplanationフラグは既に設定されているので、次回のsyncGameStateFromFirebaseで表示される
               } else {
                 // 会議フェーズを開始（discussionPhaseをtrueに設定）
                 const roomRef = doc(firestore, "rooms", roomId);

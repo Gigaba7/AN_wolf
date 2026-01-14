@@ -588,7 +588,9 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     updates["gameState.subphase"] = "gm_stage"; // 常にステージ選出から開始
   } else {
     // 最終フェーズに突入する場合、ターンは進めない（turnは更新しない）
-    // currentPlayerIndex、currentStage、stageTurn、subphaseも更新しない（最後のプレイヤーの状態を保持）
+    // currentPlayerIndex、currentStage、stageTurnも更新しない（最後のプレイヤーの状態を保持）
+    // subphaseはnullに設定（最終フェーズ説明ポップアップ表示中はsubphaseをクリア）
+    updates["gameState.subphase"] = null;
   }
 
   // ターン開始時にドクター神拳を「使用可能」に戻す（最終フェーズに突入する場合を除く）
