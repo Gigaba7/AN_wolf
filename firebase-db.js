@@ -40,7 +40,7 @@ async function createRoom(roomConfig) {
       whiteStars: 0,
       blackStars: 0,
       currentPlayerIndex: 0,
-      subphase: "gm_stage", // challenge_start | wolf_decision | wolf_resolving | gm_stage | await_result | await_doctor
+      subphase: "gm_stage", // challenge_start | wolf_decision | wolf_resolving | gm_stage | await_result | await_doctor | await_doctor_punch_result
       wolfDecisionPlayerId: null,
       wolfActionRequest: null, // { playerId, turn }
       doctorHasFailed: false, // ドクターが一度でも失敗したか（神拳で打ち消しても失敗として記録）
@@ -544,6 +544,7 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     "gameState.pendingDoctorPunchProceed": null, // ドクター神拳進行フラグをクリア
     "gameState.wolfActionNotification": null, // 妨害通知をクリア
     "gameState.pendingNextPlayerChallenge": null, // 次のプレイヤーの挑戦開始フラグをクリア
+    "gameState.pendingDoctorPunchSuccess": null, // ドクター神拳成功ポップアップ表示用フラグをクリア
   };
 
   // ターン開始時にドクター神拳を「使用可能」に戻す
@@ -808,27 +809,17 @@ async function applyDoctorPunch(roomId) {
     const nextIndex = (idx + 1) % order.length;
 
     // 神拳使用＝成功扱いで次へ進む（ターン内は1回まで）
-    if (nextIndex === 0) {
-      // 1周完了なので「○」でターン終了（次ターンでは使用可に戻す）
-      const updates = {
-        "gameState.pendingFailure": null,
-        [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
-        // 次ターン開始時に true に戻すので、ここでは設定しない
-      };
-      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false, updates);
-      return;
-    }
-
-    // ドクター神拳発動後は、OKボタンを押すまで次のプレイヤーに進まない
-    // subphaseはawait_resultのままにして、OKボタンで妨害フェーズに移行する
+    // ドクター神拳発動後は、成功ポップアップを表示してから次のプレイヤーに進む
+    // 最後のプレイヤーの場合も、成功ポップアップを表示してからターン終了する
     const updates = {
-      "gameState.currentPlayerIndex": nextIndex,
+      "gameState.currentPlayerIndex": nextIndex === 0 ? 0 : nextIndex, // 最後のプレイヤーの場合は0のまま（ターン終了処理で更新される）
       "gameState.pendingFailure": null,
       // currentStage と stageTurn は保持（そのターン中は固定）
-      "gameState.subphase": "await_result", // OKボタンを押すまでawait_resultのまま
+      "gameState.subphase": "await_doctor_punch_result", // ドクター神拳発動後の成功ポップアップ表示フェーズ
       [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
       "gameState.pendingDoctorPunchProceed": true, // OKボタンで進むフラグ
+      "gameState.pendingDoctorPunchSuccess": { playerId: pendingPlayerId }, // 成功ポップアップ表示用
     };
     
     tx.update(roomRef, updates);
@@ -862,16 +853,19 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
       : Object.keys(playersObj);
     const idx = Number(data?.gameState?.currentPlayerIndex || 0);
 
-    // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
-    // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う
-    // ここでは次のプレイヤーのインデックスのみ更新し、subphaseはawait_resultのまま
+    // 次のプレイヤーのインデックスを計算
     const nextIndex = (idx + 1) % order.length;
+    
     // 1周したら「○」でターン終了（=全員完了）
     if (nextIndex === 0) {
+      // ターン終了処理を実行（成功として）
       endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false);
       return;
     }
     
+    // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
+    // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う
+    // ここでは次のプレイヤーのインデックスのみ更新し、subphaseはawait_resultのまま
     tx.update(roomRef, {
       "gameState.currentPlayerIndex": nextIndex,
       "gameState.subphase": "await_result", // 挑戦結果ポップアップが表示されるまで待つ
@@ -880,6 +874,7 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
       "gameState.wolfActionRequest": null,
       "gameState.pendingDoctorPunchProceed": null, // フラグをクリア
       "gameState.pendingFailure": null, // 念のためpendingFailureもクリア
+      "gameState.pendingDoctorPunchSuccess": null, // 成功ポップアップ表示用フラグをクリア
     });
   });
 }
@@ -1467,12 +1462,13 @@ async function endDiscussionPhase(roomId) {
     };
 
     // 会議フェーズ後の遷移先を決定
-    // 最終フェーズ前の10分会議フェーズが終了した場合、最終フェーズに進む
+    // 最終フェーズ前の10分会議フェーズが終了した場合、最終フェーズ説明ポップアップを表示
     // （逆転指名の制限は撤廃：doctorHasFailedのチェックを削除）
     if (gameState.pendingFinalPhaseDiscussion) {
-      updates["gameState.phase"] = "final_phase";
-      updates["gameState.finalPhaseVotes"] = {};
+      // 最終フェーズ説明ポップアップ表示用フラグを設定
+      updates["gameState.pendingFinalPhaseExplanation"] = true;
       updates["gameState.pendingFinalPhaseDiscussion"] = false;
+      // 最終フェーズへの移行は説明ポップアップのOKボタンで実行
     }
     // ターン結果表示後の会議フェーズの場合、次のターンに進む
     else if (gameState.turnResult) {

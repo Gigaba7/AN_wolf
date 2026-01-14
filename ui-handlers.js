@@ -446,10 +446,23 @@ function setupMainScreen() {
 }
 
 function setupParticipantScreen() {
-  // 参加者画面：役職ボタンのみ（神拳）
-  // 人狼妨害ボタンは削除（常に妨害選択モーダルを表示するため）
-  $("#btn-doctor-punch")?.addEventListener("click", onDoctorPunch);
-  $("#btn-doctor-skip")?.addEventListener("click", onDoctorSkip);
+  // 参加者画面：役職ボタンは画面中央のポップアップとして表示
+  // 画面中央のドクター神拳ポップアップのボタン
+  $("#doctor-punch-modal-use")?.addEventListener("click", () => {
+    const modal = document.getElementById("doctor-punch-modal");
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+    onDoctorPunch();
+  });
+  
+  $("#doctor-punch-modal-skip")?.addEventListener("click", () => {
+    const modal = document.getElementById("doctor-punch-modal");
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+    onDoctorSkip();
+  });
 }
 
 function setupModals() {

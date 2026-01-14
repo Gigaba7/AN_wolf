@@ -222,9 +222,6 @@ function updateControlPermissions() {
   const btnSuccess = $("#btn-success");
   const btnFail = $("#btn-fail");
 
-  // 参加者画面のボタン（役職ボタンのみ）
-  const btnDoc = $("#btn-doctor-punch");
-
   const inPlaying = phase === "playing";
   const subphase = typeof window !== "undefined" ? window.RoomInfo?.gameState?.subphase : null;
 
@@ -255,35 +252,45 @@ function updateControlPermissions() {
     const pendingForMe = !!(hasPendingFailure && myId && GameState.pendingFailure?.playerId === myId);
 
     // ドクター神拳：ドクターのみ表示（await_doctorフェーズで、pendingFailureが存在する場合）
-    const btnDocSkip = document.getElementById("btn-doctor-skip");
-    if (btnDoc) {
-      const isAwaitDoctor = subphase === "await_doctor";
-      const isDoctor = myRole === "doctor";
-      
-      // ドクターのみ表示（pendingFailureが存在すれば、どのプレイヤーの失敗でも可）
-      btnDoc.style.display = isDoctor && isAwaitDoctor && hasPendingFailure ? "block" : "none";
-      btnDoc.disabled = !(
-        inPlaying &&
+    // ゲストUIでは画面中央のポップアップとして表示
+    const doctorPunchModal = document.getElementById("doctor-punch-modal");
+    const isAwaitDoctor = subphase === "await_doctor";
+    const isDoctor = myRole === "doctor";
+    const shouldShowDoctorPunch = isDoctor && isAwaitDoctor && hasPendingFailure;
+    
+    // 画面中央のポップアップを表示/非表示
+    if (doctorPunchModal) {
+      const canUsePunch = inPlaying &&
         isDoctor &&
         isAwaitDoctor &&
         hasPendingFailure &&
         GameState.doctorPunchAvailableThisTurn &&
-        GameState.doctorPunchRemaining > 0
-      );
+        GameState.doctorPunchRemaining > 0;
       
-      // 使用しないボタンもドクターのみ表示
-      if (btnDocSkip) {
-        btnDocSkip.style.display = isDoctor && isAwaitDoctor && hasPendingFailure ? "block" : "none";
-        // 使用しないボタンは常に有効（条件を満たしていれば）
-        btnDocSkip.disabled = !(
-          inPlaying &&
-          isDoctor &&
-          isAwaitDoctor &&
-          hasPendingFailure
-        );
+      // 重複表示防止：既に表示されている場合は更新のみ
+      const isModalVisible = !doctorPunchModal.classList.contains("hidden");
+      
+      if (shouldShowDoctorPunch) {
+        // ポップアップを表示（既に表示されている場合は更新のみ）
+        if (!isModalVisible) {
+          doctorPunchModal.classList.remove("hidden");
+        }
+        
+        // ボタンの有効/無効を設定
+        const useBtn = document.getElementById("doctor-punch-modal-use");
+        const skipBtn = document.getElementById("doctor-punch-modal-skip");
+        if (useBtn) {
+          useBtn.disabled = !canUsePunch;
+        }
+        if (skipBtn) {
+          skipBtn.disabled = false; // 使用しないボタンは常に有効
+        }
+      } else {
+        // ポップアップを非表示
+        if (isModalVisible) {
+          doctorPunchModal.classList.add("hidden");
+        }
       }
-    } else if (btnDocSkip) {
-      btnDocSkip.style.display = "none";
     }
   }
 }

@@ -541,6 +541,16 @@ function syncGameStateFromFirebase(roomData) {
   GameState.discussionPhase = gameState.discussionPhase === true;
   GameState.discussionEndTime = gameState.discussionEndTime || null;
   
+  // プレイヤー、ターン、サブフェーズが変わった時に重複防止フラグをリセット
+  if (previousPlayerIndex !== GameState.currentPlayerIndex || previousTurn !== currentTurn || previousSubphase !== GameState.subphase) {
+    lastSuccessAnnouncementPlayerIndex = null;
+    lastFailAnnouncementPlayerIndex = null;
+    lastChallengeAnnouncementPlayerIndex = null;
+    if (typeof window !== "undefined") {
+      window.__previousSubphase = GameState.subphase;
+    }
+  }
+  
   // ターン結果ポップアップを表示（自動で閉じる、重複防止）
   // 会議フェーズが開始される前に表示する必要があるため、ここで処理
   const currentDiscussionPhase = GameState.discussionPhase;
@@ -624,6 +634,14 @@ function syncGameStateFromFirebase(roomData) {
   
   // ターン切り替え時のポップアップを表示（1ターン目も含む）
   if (previousTurn !== currentTurn && GameState.phase === "playing") {
+    // ターンが変わった時は重複防止フラグをリセット
+    lastSuccessAnnouncementPlayerIndex = null;
+    lastFailAnnouncementPlayerIndex = null;
+    lastChallengeAnnouncementPlayerIndex = null;
+    if (typeof window !== "undefined") {
+      window.__previousSubphase = null;
+    }
+    
     showAnnouncement(
       `${currentTurn}ターン目`,
       null,
@@ -636,11 +654,55 @@ function syncGameStateFromFirebase(roomData) {
     previousTurn = currentTurn; // 更新を記録
   }
   
-  // pendingDoctorPunchProceedフラグが立っている場合、ドクター神拳発動後の処理を待つ
-  // （handleDoctorPunchActionでポップアップが表示されるまで待つ）
-  // ここでは特に処理しない（handleDoctorPunchActionで処理される）
-  // ただし、ポップアップが表示されていない場合は、syncGameStateFromFirebaseで検出して表示する必要がある
-  // しかし、handleDoctorPunchActionで既に表示されているので、ここでは処理しない
+  // await_doctor_punch_resultフェーズ：ドクター神拳発動後の成功ポップアップを表示
+  if (GameState.phase === "playing" && GameState.subphase === "await_doctor_punch_result") {
+    const pendingSuccess = gameState.pendingDoctorPunchSuccess || null;
+    if (pendingSuccess && pendingSuccess.playerId) {
+      const playersObj = roomData.players || {};
+      const successPlayerId = pendingSuccess.playerId;
+      const successPlayer = playersObj[successPlayerId];
+      const successPlayerName = successPlayer?.name || "プレイヤー";
+      
+      // 重複防止：同じプレイヤーの成功ポップアップが既に表示されている場合はスキップ
+      const order = GameState.playerOrder || Object.keys(playersObj);
+      const successPlayerIndex = order.indexOf(successPlayerId);
+      // pendingDoctorPunchSuccessのplayerIdとlastSuccessAnnouncementPlayerIndexを比較
+      // ただし、subphaseが変わった場合は再表示を許可（前回のsubphaseを記録）
+      const previousSubphase = typeof window !== "undefined" ? window.__previousSubphase : null;
+      if (lastSuccessAnnouncementPlayerIndex === successPlayerIndex && previousSubphase === "await_doctor_punch_result" && GameState.subphase === "await_doctor_punch_result") {
+        // 既に表示済みの場合はスキップ（同じプレイヤー、同じsubphaseの場合のみ）
+        return;
+      }
+      lastSuccessAnnouncementPlayerIndex = successPlayerIndex;
+      if (typeof window !== "undefined") {
+        window.__previousSubphase = GameState.subphase;
+      }
+      
+      // 成功ポップアップを表示（GM画面のみ）
+      showAnnouncement(
+        `${successPlayerName}の挑戦は成功しました。`,
+        null,
+        `${successPlayerName}の挑戦：〇`,
+        2000,
+        false,
+        false,
+        true, // GM画面のみ
+        async () => {
+          // ポップアップが閉じた後、次の処理に進む
+          const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+          if (roomId) {
+            try {
+              // proceedToNextPlayerAfterDoctorPunchで、最後のプレイヤーの場合はendTurnAndPrepareNextが呼ばれる
+              // それ以外の場合は、次のプレイヤーの挑戦開始フェーズに進む
+              await proceedToNextPlayerAfterDoctorPunchDB(roomId);
+            } catch (e) {
+              console.error("Failed to proceed after doctor punch success:", e);
+            }
+          }
+        }
+      );
+    }
+  }
   
   // pendingNextPlayerChallengeフラグが立っている場合、次のプレイヤーの挑戦開始フェーズに移行
   if (GameState.phase === "playing" && gameState.pendingNextPlayerChallenge && GameState.subphase === "await_result") {
@@ -975,15 +1037,13 @@ function handlePhaseUI(roomData, previousPhase = null) {
     const isGM = !!(createdBy && myId && createdBy === myId);
     const playersObj = roomData.players || {};
     const myRole = playersObj[myId]?.role || null;
-    const isDoctor = myRole === "doctor";
-    const isCitizen = myRole === "citizen";
 
-    // 市民とドクター：人狼投票モーダルを表示
-    if (isDoctor || isCitizen) {
+    // 全プレイヤー（市民・ドクター・人狼）：人狼投票モーダルを表示
+    if (myRole) {
       showFinalPhaseModal(roomData);
     } else if (isGM) {
       // GM：投票待機ポップアップを表示
-      showAnnouncement("最終判定フェーズ（市民とドクターが投票中）", null, null, 2000, false, false, true); // GM画面のみ
+      showAnnouncement("最終判定フェーズ（全プレイヤーが投票中）", null, null, 2000, false, false, true); // GM画面のみ
     } else {
       // その他の参加者：待機画面を表示
       const waiting = document.getElementById("waiting-screen");
@@ -1044,6 +1104,42 @@ function handlePhaseUI(roomData, previousPhase = null) {
 
   // 会議フェーズの処理
   handleDiscussionPhase(roomData);
+  
+  // 最終フェーズ説明ポップアップの表示
+  if (gameState.pendingFinalPhaseExplanation && GameState.phase === "playing") {
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    
+    // GM画面のみ表示
+    if (isGM) {
+      showAnnouncement(
+        "最終フェーズ（逆転指名）",
+        "全プレイヤーが人狼を指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーが人狼かどうかで勝敗が決まります。",
+        "最終フェーズ開始",
+        0,
+        true, // OKボタンを要求
+        false,
+        true, // GM画面のみ
+        async () => {
+          // OKボタンを押した後に最終フェーズに進む
+          const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+          if (roomId) {
+            try {
+              const roomRef = doc(firestore, "rooms", roomId);
+              await updateDoc(roomRef, {
+                "gameState.phase": "final_phase",
+                "gameState.finalPhaseVotes": {},
+                "gameState.pendingFinalPhaseExplanation": null,
+              });
+            } catch (e) {
+              console.error("Failed to proceed to final phase:", e);
+            }
+          }
+        }
+      );
+    }
+  }
 }
 
 /**
@@ -1533,26 +1629,19 @@ async function handleDoctorPunchAction(data, roomId) {
   const target = data?.targetPlayerName || data?.playerName || "プレイヤー";
   await addLog(roomId, { type: "doctorPunch", message: `ドクター神拳発動！ ${target} の失敗はなかったことになりました。`, playerId: userId });
   
-  // 神拳発動アナウンス（GM画面のみ、打ち消された旨を表示）
+  // 神拳発動アナウンス（全員に表示、画面中央に表示）
+  // 注意：このポップアップのonOkでは何もしない
+  // 成功ポップアップはsyncGameStateFromFirebaseでawait_doctor_punch_resultを検出して表示される
+  // 成功ポップアップのonOkでproceedToNextPlayerAfterDoctorPunchDBが呼ばれる
   showAnnouncement(
     "ドクター神拳が発動されました。",
     "失敗が帳消しにされ、成功判定とします。",
     "ドクター神拳発動",
-    0,
-    true, // OKボタンを要求
+    2000,
+    false, // OKボタンは不要（自動で閉じる）
     false,
-    true, // GM画面のみ
-    async () => {
-      // OKボタンを押した後に次のプレイヤーの妨害フェーズに進む
-      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-      if (roomId) {
-        try {
-          await proceedToNextPlayerAfterDoctorPunchDB(roomId);
-        } catch (e) {
-          console.error("Failed to proceed to next player after doctor punch:", e);
-        }
-      }
-    }
+    false, // 全員に表示
+    null // onOkは不要（成功ポップアップのonOkで処理される）
   );
 }
 
@@ -1724,7 +1813,7 @@ function showFinalPhaseModal(roomData) {
   const hasVoted = myId && votes[myId] !== undefined;
 
   titleEl.textContent = "最終判定: 人狼投票フェーズ";
-  summaryEl.textContent = "×が過半数ですが、ドクターは一度も失敗していません。プレイヤーからの話し合いをもとに、人狼だと思うプレイヤーに投票してください。過半数の票が集まった場合のみ逆転勝利となります。";
+  summaryEl.textContent = "全プレイヤーが人狼を指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーが人狼かどうかで勝敗が決まります。";
 
   // プレイヤー一覧を表示
   if (rolesEl) {
@@ -1752,11 +1841,12 @@ function showFinalPhaseModal(roomData) {
   // 投票ボタンを表示
   extraEl.innerHTML = "";
   
-  // 投票状況を表示
+  // 投票状況を表示（全プレイヤーをカウント）
   const voteInfo = document.createElement("p");
-  const voters = playersArr.filter(p => p.role === "doctor" || p.role === "citizen");
+  const voters = playersArr; // 全プレイヤー（人狼も含む）
   const votedCount = Object.keys(votes).length;
-  voteInfo.textContent = `投票状況: ${votedCount}/${voters.length}人`;
+  const voterCount = voters.length;
+  voteInfo.textContent = `投票状況: ${votedCount}/${voterCount}人`;
   voteInfo.style.marginBottom = "12px";
   voteInfo.style.color = "#a0a4ba";
   extraEl.appendChild(voteInfo);
@@ -1782,6 +1872,7 @@ function showFinalPhaseModal(roomData) {
         if (roomId) {
           try {
             await identifyWolfDB(roomId, p.id);
+            // 投票後もモーダルを閉じない（全員が投票するまで開いたまま）
           } catch (e) {
             console.error("Failed to vote for wolf:", e);
             alert(e?.message || "投票に失敗しました。");
@@ -1801,6 +1892,68 @@ function showFinalPhaseModal(roomData) {
     votedInfo.style.color = "#8be6c3";
     extraEl.appendChild(votedInfo);
   }
+  
+  // 全員が投票した場合、「投票結果へ」ボタンを表示
+  const allVoted = votedCount === voterCount;
+  if (allVoted) {
+    const resultBtn = document.createElement("button");
+    resultBtn.className = "btn primary";
+    resultBtn.textContent = "投票結果へ";
+    resultBtn.style.marginTop = "12px";
+    resultBtn.style.width = "100%";
+    resultBtn.addEventListener("click", () => {
+      // 投票結果を計算してポップアップで表示
+      const voteCounts = {};
+      Object.values(votes).forEach(votedPlayerId => {
+        voteCounts[votedPlayerId] = (voteCounts[votedPlayerId] || 0) + 1;
+      });
+      
+      // 最多得票者を特定
+      let maxVotes = 0;
+      let mostVotedPlayerId = null;
+      let isTie = false;
+      Object.entries(voteCounts).forEach(([playerId, count]) => {
+        if (count > maxVotes) {
+          maxVotes = count;
+          mostVotedPlayerId = playerId;
+          isTie = false;
+        } else if (count === maxVotes) {
+          isTie = true;
+        }
+      });
+      
+      // 投票結果を表示
+      let resultText = "投票結果:\n";
+      playersArr.forEach((p) => {
+        const count = voteCounts[p.id] || 0;
+        resultText += `${p.name}: ${count}票\n`;
+      });
+      
+      if (mostVotedPlayerId && !isTie) {
+        const suspectedPlayer = playersArr.find(p => p.id === mostVotedPlayerId);
+        const isWolf = suspectedPlayer?.role === "wolf";
+        resultText += `\n最多得票者: ${suspectedPlayer?.name || "不明"}\n`;
+        resultText += isWolf ? "人狼が指名されました。市民・ドクター勝利（逆転勝利）" : "人狼以外が指名されました。人狼勝利";
+      } else {
+        resultText += "\n同率1位のため、人狼勝利";
+      }
+      
+      // ポップアップで表示
+      showAnnouncement(
+        "投票結果",
+        resultText,
+        "投票結果",
+        0,
+        true, // OKボタンを要求
+        false,
+        false, // 全員に表示
+        null
+      );
+    });
+    extraEl.appendChild(resultBtn);
+  }
+  
+  // モーダルを表示（投票後も閉じない）
   modal.classList.remove("hidden");
 }
 

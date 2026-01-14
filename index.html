@@ -248,14 +248,8 @@
             </div>
 
             <div class="participant-actions">
-              <!-- 役職ボタンは役職に応じて表示/非表示を制御（ui-render.module.jsで制御） -->
-              <button id="btn-doctor-punch" class="btn info wide" style="display: none;">
-                ドクター神拳
-              </button>
-              <button id="btn-doctor-skip" class="btn ghost wide" style="display: none;">
-                使用しない
-              </button>
-              <button id="open-rulebook-from-participant" class="btn ghost wide" style="margin-top: 12px;">
+              <!-- 役職ボタンは画面中央のポップアップとして表示（ui-render.module.jsで制御） -->
+              <button id="open-rulebook-from-participant" class="btn ghost wide">
                 ルールブック
               </button>
             </div>
@@ -305,6 +299,21 @@
           <p id="announcement-subtitle" class="announcement-subtitle" style="display: none;"></p>
           <div id="announcement-actions" class="modal-actions" style="display: none; justify-content: center; margin-top: 20px;">
             <button id="announcement-ok" class="btn primary">OK</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ドクター神拳選択ポップアップ（ゲストUI用） -->
+      <div id="doctor-punch-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+          <h2>ドクター神拳</h2>
+          <p class="modal-subtitle" style="margin: 20px 0; color: #a0a4ba;">
+            失敗を打ち消して成功判定にしますか？
+          </p>
+          <div class="modal-actions" style="justify-content: center; gap: 12px; margin-top: 24px;">
+            <button id="doctor-punch-modal-use" class="btn info">ドクター神拳</button>
+            <button id="doctor-punch-modal-skip" class="btn ghost">使用しない</button>
           </div>
         </div>
       </div>
@@ -404,40 +413,82 @@
             </div>
             <div id="rulebook-page-3" class="rulebook-page" style="display: none;">
               <h3>ステージ攻略と判定について</h3>
-              <p style="color: #a0a4ba; line-height: 1.8;">
-                <strong>ステージ選出</strong><br />
-                GMが設定したステージ範囲から、ルーレットでランダムにステージが選出されます。
-              </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>ステージ攻略</strong><br />
-                選出されたステージを、挑戦プレイヤーが実際にプレイします。人狼の妨害が適用されている場合は、その制約に従ってプレイする必要があります。
-              </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>成功/失敗判定</strong><br />
-                ステージをクリアできた場合は成功（○）、クリアできなかった場合は失敗（×）となります。判定はGMが行います。
-              </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>ドクター神拳</strong><br />
-                失敗した場合、ドクターが「ドクター神拳」を使用することで、失敗をなかったことにできます。ただし、ドクター神拳は1ゲーム中に5回までしか使用できません。
-              </p>
+              <div style="margin-top: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 24px;">🎲</span>
+                  <strong style="color: #f5f5f7;">ステージ選出</strong>
+                </div>
+                <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
+                  GMが設定したステージ範囲から、ルーレットでランダムにステージが選出されます。
+                </p>
+              </div>
+              <div style="margin-top: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 24px;">⚔️</span>
+                  <strong style="color: #f5f5f7;">ステージ攻略</strong>
+                </div>
+                <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
+                  選出されたステージを、挑戦プレイヤーが実際にプレイします。人狼の妨害が適用されている場合は、その制約に従ってプレイする必要があります。
+                </p>
+              </div>
+              <div style="margin-top: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 24px;">✓</span>
+                  <strong style="color: #f5f5f7;">成功/失敗判定</strong>
+                </div>
+                <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
+                  ステージをクリアできた場合は成功（○）、クリアできなかった場合は失敗（×）となります。判定はGMが行います。
+                </p>
+              </div>
+              <div style="margin-top: 16px; padding: 16px; background: rgba(139, 230, 195, 0.1); border-radius: 8px; border-left: 4px solid #8be6c3;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <span style="font-size: 24px;">👊</span>
+                  <strong style="color: #8be6c3;">ドクター神拳</strong>
+                </div>
+                <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
+                  失敗した場合、ドクターが「ドクター神拳」を使用することで、失敗をなかったことにできます。<br />
+                  <span style="color: #8be6c3;">※ 1ゲーム中に5回まで使用可能</span>
+                </p>
+              </div>
             </div>
             <div id="rulebook-page-4" class="rulebook-page" style="display: none;">
               <h3>役職について</h3>
-              <p style="color: #a0a4ba; line-height: 1.8;">
+              <p style="color: #a0a4ba; line-height: 1.8; margin-bottom: 16px;">
                 このゲームには3つの役職があります：
               </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>市民</strong><br />
-                通常のプレイヤーです。ステージを攻略することを目標とします。特別な能力はありませんが、協力してステージをクリアしていきます。
-              </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>ドクター</strong><br />
-                失敗したステージを「ドクター神拳」で打ち消すことができます。1ゲーム中に5回まで使用可能です。市民陣営の勝利を目指します。
-              </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>レユニオン（人狼）</strong><br />
-                ステージ攻略を妨害する役職です。各挑戦の開始時に妨害を選択できます。妨害にはコストが設定されており、コストの合計が初期コスト（デフォルト100）を超えない範囲で使用できます。人狼陣営の勝利を目指します。
-              </p>
+              <div style="display: grid; gap: 12px; margin-top: 16px;">
+                <div style="padding: 16px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 24px;">👤</span>
+                    <strong style="color: #f5f5f7;">市民</strong>
+                  </div>
+                  <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
+                    通常のプレイヤーです。ステージを攻略することを目標とします。特別な能力はありませんが、協力してステージをクリアしていきます。
+                  </p>
+                </div>
+                <div style="padding: 16px; background: rgba(139, 230, 195, 0.1); border-radius: 8px; border: 1px solid rgba(139, 230, 195, 0.3);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 24px;">👨‍⚕️</span>
+                    <strong style="color: #8be6c3;">ドクター</strong>
+                  </div>
+                  <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
+                    失敗したステージを「ドクター神拳」で打ち消すことができます。<br />
+                    <span style="color: #8be6c3;">※ 1ゲーム中に5回まで使用可能</span><br />
+                    市民陣営の勝利を目指します。
+                  </p>
+                </div>
+                <div style="padding: 16px; background: rgba(255, 100, 100, 0.1); border-radius: 8px; border: 1px solid rgba(255, 100, 100, 0.3);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 24px;">🐺</span>
+                    <strong style="color: #ff6464;">レユニオン（人狼）</strong>
+                  </div>
+                  <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
+                    ステージ攻略を妨害する役職です。各挑戦の開始時に妨害を選択できます。<br />
+                    <span style="color: #ff6464;">※ 妨害コストの合計が初期コスト（デフォルト100）を超えない範囲で使用可能</span><br />
+                    人狼陣営の勝利を目指します。
+                  </p>
+                </div>
+              </div>
             </div>
             <div id="rulebook-page-5" class="rulebook-page" style="display: none;">
               <h3>役職ごとのルールと行動指針（市民）</h3>
@@ -480,32 +531,73 @@
             </div>
             <div id="rulebook-page-7" class="rulebook-page" style="display: none;">
               <h3>役職ごとのルールと行動指針（レユニオン）</h3>
-              <p style="color: #a0a4ba; line-height: 1.8;">
-                <strong>レユニオン（人狼）の役割</strong><br />
-                レユニオンは、ステージ攻略を妨害することで、失敗（×）を増やすことが主な役割です。各挑戦の開始時に妨害を選択できます。
-              </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>妨害の選択</strong><br />
-                ・各挑戦の開始時に、妨害を選択するかどうかを決定します<br />
-                ・妨害を選択する場合は、コストを消費して妨害を発動します<br />
-                ・妨害にはコストが設定されており、コストの合計が初期コスト（デフォルト100）を超えない範囲で使用できます<br />
-                ・妨害を選択しないことも可能です
-              </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>妨害の種類</strong><br />
-                ・強襲作戦（コスト20）：作戦に問題が生じたため、強襲作戦となります<br />
-                ・ジャミング（コスト15）：編成上限8名<br />
-                ・整備不良（コスト10）：ランダム職業使用禁止<br />
-                ・背水の陣（コスト30）：ドクター神拳使用不可<br />
-                ・補給遮断（コスト15）：再配置禁止<br />
-                ・工作（コスト10）：手動スキル使用禁止
-              </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>行動指針</strong><br />
-                ・コストを考慮しながら、効果的な妨害を選択する<br />
-                ・重要なターンや、成功が致命的になる場面で妨害を使用する<br />
-                ・会議フェーズでは、人狼であることを隠しながら議論に参加する
-              </p>
+              <div style="margin-top: 16px; padding: 16px; background: rgba(255, 100, 100, 0.1); border-radius: 8px; border-left: 4px solid #ff6464;">
+                <strong style="color: #ff6464; display: block; margin-bottom: 8px;">🐺 レユニオン（人狼）の役割</strong>
+                <p style="color: #a0a4ba; line-height: 1.8;">
+                  ステージ攻略を妨害することで、失敗（×）を増やすことが主な役割です。各挑戦の開始時に妨害を選択できます。
+                </p>
+              </div>
+              <div style="margin-top: 16px;">
+                <strong style="color: #f5f5f7; display: block; margin-bottom: 8px;">妨害の選択</strong>
+                <ul style="color: #a0a4ba; line-height: 1.8; margin-left: 20px;">
+                  <li>各挑戦の開始時に、妨害を選択するかどうかを決定します</li>
+                  <li>妨害を選択する場合は、コストを消費して妨害を発動します</li>
+                  <li>妨害にはコストが設定されており、コストの合計が初期コスト（デフォルト100）を超えない範囲で使用できます</li>
+                  <li>妨害を選択しないことも可能です</li>
+                </ul>
+              </div>
+              <div style="margin-top: 16px;">
+                <strong style="color: #f5f5f7; display: block; margin-bottom: 8px;">妨害の種類</strong>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 8px; overflow: hidden;">
+                  <thead>
+                    <tr style="background: rgba(255, 100, 100, 0.2);">
+                      <th style="padding: 8px; text-align: left; color: #f5f5f7; border-bottom: 1px solid rgba(255,255,255,0.1);">妨害名</th>
+                      <th style="padding: 8px; text-align: right; color: #f5f5f7; border-bottom: 1px solid rgba(255,255,255,0.1);">コスト</th>
+                      <th style="padding: 8px; text-align: left; color: #f5f5f7; border-bottom: 1px solid rgba(255,255,255,0.1);">効果</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">強襲作戦</td>
+                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">20</td>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">作戦に問題が生じたため、強襲作戦となります</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">ジャミング</td>
+                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">15</td>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">編成上限8名</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">整備不良</td>
+                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">10</td>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">ランダム職業使用禁止</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">背水の陣</td>
+                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">30</td>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">ドクター神拳使用不可</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">補給遮断</td>
+                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">15</td>
+                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">再配置禁止</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px; color: #a0a4ba;">工作</td>
+                      <td style="padding: 8px; color: #ff6464; text-align: right;">10</td>
+                      <td style="padding: 8px; color: #a0a4ba;">手動スキル使用禁止</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div style="margin-top: 16px;">
+                <strong style="color: #f5f5f7; display: block; margin-bottom: 8px;">行動指針</strong>
+                <ul style="color: #a0a4ba; line-height: 1.8; margin-left: 20px;">
+                  <li>コストを考慮しながら、効果的な妨害を選択する</li>
+                  <li>重要なターンや、成功が致命的になる場面で妨害を使用する</li>
+                  <li>会議フェーズでは、人狼であることを隠しながら議論に参加する</li>
+                </ul>
+              </div>
             </div>
             <div id="rulebook-page-8" class="rulebook-page" style="display: none;">
               <h3>最終フェーズ（逆転指名）について</h3>
@@ -526,12 +618,6 @@
                 　- 人狼が指名された場合：市民・ドクター勝利（逆転勝利）<br />
                 　- 人狼以外が指名された場合：人狼勝利<br />
                 ・同率1位の場合は人狼勝利
-              </p>
-              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>補足</strong><br />
-                ・ドクターが一度でも失敗した場合でも、最終フェーズ（逆転指名）に進むことができます<br />
-                ・5分の会議フェーズは飛ばされ、直接10分の会議フェーズから開始されます<br />
-                ・人狼も投票に参加できます
               </p>
             </div>
             <div id="rulebook-page-9" class="rulebook-page" style="display: none;">
