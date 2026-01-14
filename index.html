@@ -357,9 +357,15 @@
                 このゲームは、アークナイツのステージを攻略する協力型ゲームです。プレイヤーは役職に分かれ、協力してステージをクリアしていきます。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>勝利条件：</strong><br />
-                ・市民陣営：全ターン終了時に成功（○）が過半数以上になること<br />
-                ・人狼陣営：全ターン終了時に失敗（×）が過半数以上になること、またはドクターが失敗し神拳も使用できなかった場合
+                <strong>市民・ドクターの勝利条件：</strong><br />
+                ・ターン成功（○）が過半数以上になった場合（3ターンゲーム：2ターン成功、5ターンゲーム：3ターン成功）<br />
+                ・会議フェーズなしで即座に市民勝利
+              </p>
+              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
+                <strong>人狼の勝利条件：</strong><br />
+                ・ターン失敗（×）が過半数以上になった場合、最終フェーズ（逆転指名）で人狼への投票数が過半数を超えなかった場合<br />
+                ・ドクターが失敗し、ドクター神拳も使用できなかった場合（会議フェーズなしで即座に人狼勝利）<br />
+                ・最終フェーズ（逆転指名）で人狼への投票数が過半数を超えなかった場合
               </p>
             </div>
             <div id="rulebook-page-2" class="rulebook-page" style="display: none;">
@@ -388,8 +394,12 @@
                 ターン終了後、5分間の会議フェーズが開始されます。この間にプレイヤーは自由に話し合いができます。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>5. ゲーム終了</strong><br />
-                全ターン終了後、または勝利条件を満たした時点でゲームが終了し、勝敗が決定します。
+                <strong>5. 最終フェーズ（逆転指名）</strong><br />
+                ターン失敗（×）が過半数以上になった場合、10分の会議フェーズの後、最終フェーズ（逆転指名）が開始されます。全プレイヤー（市民・ドクター・人狼）が人狼を指名し、全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーが人狼かどうかで勝敗が決まります。
+              </p>
+              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
+                <strong>6. ゲーム終了</strong><br />
+                勝利条件を満たした時点でゲームが終了し、勝敗が決定します。過半数がターン数を取得した時点で勝敗が決まるため、全ターン終了を待つ必要はありません。
               </p>
             </div>
             <div id="rulebook-page-3" class="rulebook-page" style="display: none;">
@@ -498,6 +508,33 @@
               </p>
             </div>
             <div id="rulebook-page-8" class="rulebook-page" style="display: none;">
+              <h3>最終フェーズ（逆転指名）について</h3>
+              <p style="color: #a0a4ba; line-height: 1.8;">
+                <strong>最終フェーズの条件</strong><br />
+                ターン失敗（×）が過半数以上になった場合、最終フェーズ（逆転指名）に進みます。
+              </p>
+              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
+                <strong>最終フェーズの流れ</strong><br />
+                1. 10分の会議フェーズ（最終フェーズ前の会議）<br />
+                2. 最終フェーズ（逆転指名）<br />
+                　・全プレイヤー（市民・ドクター・人狼）が人狼を指名します<br />
+                　・全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーが人狼かどうかで勝敗が決まります
+              </p>
+              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
+                <strong>最終フェーズの勝敗判定</strong><br />
+                ・最多得票者が1人だけの場合：<br />
+                　- 人狼が指名された場合：市民・ドクター勝利（逆転勝利）<br />
+                　- 人狼以外が指名された場合：人狼勝利<br />
+                ・同率1位の場合は人狼勝利
+              </p>
+              <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
+                <strong>補足</strong><br />
+                ・ドクターが一度でも失敗した場合でも、最終フェーズ（逆転指名）に進むことができます<br />
+                ・5分の会議フェーズは飛ばされ、直接10分の会議フェーズから開始されます<br />
+                ・人狼も投票に参加できます
+              </p>
+            </div>
+            <div id="rulebook-page-9" class="rulebook-page" style="display: none;">
               <h3>禁止行為</h3>
               <p style="color: #a0a4ba; line-height: 1.8;">
                 以下の行為は禁止されています：
@@ -525,7 +562,7 @@
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
             <button id="rulebook-prev" class="btn ghost" disabled>前へ</button>
-            <span id="rulebook-page-indicator" style="color: #a0a4ba;">1 / 8</span>
+            <span id="rulebook-page-indicator" style="color: #a0a4ba;">1 / 9</span>
             <button id="rulebook-next" class="btn ghost">次へ</button>
           </div>
         </div>

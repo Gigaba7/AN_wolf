@@ -636,6 +636,12 @@ function syncGameStateFromFirebase(roomData) {
     previousTurn = currentTurn; // 更新を記録
   }
   
+  // pendingDoctorPunchProceedフラグが立っている場合、ドクター神拳発動後の処理を待つ
+  // （handleDoctorPunchActionでポップアップが表示されるまで待つ）
+  // ここでは特に処理しない（handleDoctorPunchActionで処理される）
+  // ただし、ポップアップが表示されていない場合は、syncGameStateFromFirebaseで検出して表示する必要がある
+  // しかし、handleDoctorPunchActionで既に表示されているので、ここでは処理しない
+  
   // pendingNextPlayerChallengeフラグが立っている場合、次のプレイヤーの挑戦開始フェーズに移行
   if (GameState.phase === "playing" && gameState.pendingNextPlayerChallenge && GameState.subphase === "await_result") {
     const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;

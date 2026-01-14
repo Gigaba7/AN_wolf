@@ -788,7 +788,7 @@ function setupModals() {
 
   // ルールブックのページ切り替え
   let currentRulebookPage = 1;
-  const totalRulebookPages = 8;
+  const totalRulebookPages = 9;
 
   function updateRulebookPage() {
     // すべてのページを非表示

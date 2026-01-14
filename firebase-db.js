@@ -543,6 +543,7 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     "gameState.wolfActionRequest": null,
     "gameState.pendingDoctorPunchProceed": null, // ドクター神拳進行フラグをクリア
     "gameState.wolfActionNotification": null, // 妨害通知をクリア
+    "gameState.pendingNextPlayerChallenge": null, // 次のプレイヤーの挑戦開始フラグをクリア
   };
 
   // ターン開始時にドクター神拳を「使用可能」に戻す
@@ -572,29 +573,14 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     updates["gameState.phase"] = "finished";
     updates["gameState.gameResult"] = "citizen_win";
   }
-  // ×が過半数以上 → 会議フェーズ後に最終フェーズへ
+  // ×が過半数以上 → 10分の会議フェーズ後に最終フェーズへ（5分の会議フェーズは飛ばす）
   else if (blackStars >= majority) {
-    // 会議フェーズを開始（5分）
-    const endTime = Date.now() + 5 * 60 * 1000;
+    // 10分の会議フェーズを直接開始（5分の会議フェーズは飛ばす）
+    const endTime = Date.now() + 10 * 60 * 1000;
     updates["gameState.discussionPhase"] = true;
     updates["gameState.discussionEndTime"] = endTime;
-    updates["gameState.pendingFinalPhase"] = true; // 最終フェーズ前の会議フラグ
+    updates["gameState.pendingFinalPhaseDiscussion"] = true; // 最終フェーズ前の10分会議フラグ
     // 最終フェーズへの移行は会議フェーズ終了時に実行
-  }
-  // ターン数が最大に達した場合
-  else if (finished) {
-    // 同数の場合は×が多い方が勝利（通常は到達しないが念のため）
-    if (blackStars > whiteStars) {
-      // 会議フェーズを開始（5分）
-      const endTime = Date.now() + 5 * 60 * 1000;
-      updates["gameState.discussionPhase"] = true;
-      updates["gameState.discussionEndTime"] = endTime;
-      updates["gameState.pendingFinalPhase"] = true; // 最終フェーズ前の会議フラグ
-      // 最終フェーズへの移行は会議フェーズ終了時に実行
-    } else {
-      updates["gameState.phase"] = "finished";
-      updates["gameState.gameResult"] = "citizen_win";
-    }
   }
   // 次のターンに進む場合 → 会議フェーズを開始（5分）
   // ただし、ターン結果ポップアップが表示されるまで待つため、discussionPhaseは後で設定
@@ -822,7 +808,6 @@ async function applyDoctorPunch(roomId) {
     const nextIndex = (idx + 1) % order.length;
 
     // 神拳使用＝成功扱いで次へ進む（ターン内は1回まで）
-    // ただし、神拳で打ち消した場合でもdoctorHasFailedをtrueにして、最終フェーズの逆転投票を防ぐ
     if (nextIndex === 0) {
       // 1周完了なので「○」でターン終了（次ターンでは使用可に戻す）
       const updates = {
@@ -830,10 +815,6 @@ async function applyDoctorPunch(roomId) {
         [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
         // 次ターン開始時に true に戻すので、ここでは設定しない
       };
-      // 神拳で打ち消した場合でも、最終フェーズの逆転投票を防ぐためにdoctorHasFailedをtrueにする
-      if (isPendingDoctor) {
-        updates["gameState.doctorHasFailed"] = true;
-      }
       endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false, updates);
       return;
     }
@@ -849,10 +830,6 @@ async function applyDoctorPunch(roomId) {
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
       "gameState.pendingDoctorPunchProceed": true, // OKボタンで進むフラグ
     };
-    // 神拳で打ち消した場合でも、最終フェーズの逆転投票を防ぐためにdoctorHasFailedをtrueにする
-    if (isPendingDoctor) {
-      updates["gameState.doctorHasFailed"] = true;
-    }
     
     tx.update(roomRef, updates);
   });
@@ -971,18 +948,23 @@ async function clearDoctorSkipNotification(roomId) {
   if (!userId) throw new Error("User not authenticated");
 
   const roomRef = doc(firestore, "rooms", roomId);
-  await runTransaction(firestore, async (tx) => {
-    const snap = await tx.get(roomRef);
+  
+  // トランザクションではなく通常の更新を使用（競合を避けるため）
+  try {
+    const snap = await getDoc(roomRef);
     if (!snap.exists()) throw new Error("Room not found");
     const data = snap.data();
 
     const createdBy = data?.config?.createdBy;
     if (createdBy !== userId) throw new Error("Only GM can clear doctor skip notification");
 
-    tx.update(roomRef, {
+    await updateDoc(roomRef, {
       "gameState.doctorSkipNotification": null,
     });
-  });
+  } catch (error) {
+    // エラーが発生した場合はログに記録するが、処理を続行
+    console.warn("Failed to clear doctor skip notification (may be already cleared):", error);
+  }
 }
 
 /**
@@ -1364,8 +1346,8 @@ async function identifyWolf(roomId, suspectedPlayerId) {
 
     const playersObj = data?.players || {};
     const me = playersObj?.[userId];
-    if (!me || (me.role !== "doctor" && me.role !== "citizen")) {
-      throw new Error("Only doctor and citizens can vote");
+    if (!me) {
+      throw new Error("Player not found");
     }
 
     if (!playersObj[suspectedPlayerId]) {
@@ -1376,10 +1358,9 @@ async function identifyWolf(roomId, suspectedPlayerId) {
     const votes = data?.gameState?.finalPhaseVotes || {};
     votes[userId] = suspectedPlayerId;
 
-    // 市民とドクターの数をカウント
-    const voters = Object.values(playersObj).filter(p => p.role === "doctor" || p.role === "citizen");
+    // 全プレイヤーの数をカウント（人狼も含む）
+    const voters = Object.values(playersObj);
     const voterCount = voters.length;
-    const majority = Math.ceil(voterCount / 2);
 
     // 各プレイヤーへの投票数をカウント
     const voteCounts = {};
@@ -1401,23 +1382,23 @@ async function identifyWolf(roomId, suspectedPlayerId) {
       }
     });
 
-    // 全員が投票したか、過半数に達したかをチェック
+    // 全員が投票したかをチェック
     const allVoted = Object.keys(votes).length === voterCount;
-    const hasMajority = !isTie && maxVotes >= majority;
 
     let updates = {
       "gameState.finalPhaseVotes": votes,
     };
 
-    // 全員が投票した、または過半数に達した場合、結果を確定
-    if (allVoted || hasMajority) {
+    // 全員が投票した場合、結果を確定
+    if (allVoted) {
       if (mostVotedPlayerId && !isTie) {
+        // 最多得票者が1人だけの場合、そのプレイヤーが人狼かどうかで勝敗が決まる
         const suspectedPlayer = playersObj[mostVotedPlayerId];
         const isWolf = suspectedPlayer?.role === "wolf";
         updates["gameState.phase"] = "finished";
         updates["gameState.gameResult"] = isWolf ? "citizen_win_reverse" : "wolf_win";
       } else {
-        // 同票または過半数未満の場合は人狼勝利
+        // 同率1位の場合は人狼勝利
         updates["gameState.phase"] = "finished";
         updates["gameState.gameResult"] = "wolf_win";
       }
@@ -1486,32 +1467,12 @@ async function endDiscussionPhase(roomId) {
     };
 
     // 会議フェーズ後の遷移先を決定
-    const pendingFinalPhase = gameState.pendingFinalPhase;
-    
-    // 最終フェーズ前の会議フェーズの場合、10分の会議フェーズを開始
-    if (pendingFinalPhase) {
-      // 10分の会議フェーズを開始
-      const endTime = Date.now() + 10 * 60 * 1000;
-      updates["gameState.discussionPhase"] = true;
-      updates["gameState.discussionEndTime"] = endTime;
-      updates["gameState.pendingFinalPhase"] = false;
-      updates["gameState.pendingFinalPhaseDiscussion"] = true; // 最終フェーズ前の10分会議フラグ
-      updates["gameState.turnResult"] = null;
-    }
     // 最終フェーズ前の10分会議フェーズが終了した場合、最終フェーズに進む
-    // ただし、doctorHasFailedがtrueの場合（ドクターが失敗し神拳で打ち消した場合）は最終フェーズに進まず人狼勝利
-    else if (gameState.pendingFinalPhaseDiscussion) {
-      const doctorHasFailed = gameState.doctorHasFailed === true;
-      if (doctorHasFailed) {
-        // ドクターが失敗した場合（神拳で打ち消した場合も含む）は最終フェーズに進まず人狼勝利
-        updates["gameState.phase"] = "finished";
-        updates["gameState.gameResult"] = "wolf_win";
-        updates["gameState.pendingFinalPhaseDiscussion"] = false;
-      } else {
-        updates["gameState.phase"] = "final_phase";
-        updates["gameState.finalPhaseVotes"] = {};
-        updates["gameState.pendingFinalPhaseDiscussion"] = false;
-      }
+    // （逆転指名の制限は撤廃：doctorHasFailedのチェックを削除）
+    if (gameState.pendingFinalPhaseDiscussion) {
+      updates["gameState.phase"] = "final_phase";
+      updates["gameState.finalPhaseVotes"] = {};
+      updates["gameState.pendingFinalPhaseDiscussion"] = false;
     }
     // ターン結果表示後の会議フェーズの場合、次のターンに進む
     else if (gameState.turnResult) {
