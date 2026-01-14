@@ -909,9 +909,17 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
     const nextIndex = (idx + 1) % order.length;
     
     // 1周したら「○」でターン終了（=全員完了）
+    // ただし、成功ポップアップが表示されて閉じた後にターン終了処理を実行するため、
+    // ここではpendingLastPlayerResultフラグを設定する
     if (nextIndex === 0) {
-      // ターン終了処理を実行（成功として）
-      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false);
+      // 最後のプレイヤーの場合、成功ポップアップが表示されて閉じた後にターン終了処理を実行
+      // ここではpendingLastPlayerResultフラグを設定する
+      // pendingDoctorPunchSuccessは成功ポップアップが表示されるまで保持する
+      tx.update(roomRef, {
+        "gameState.pendingLastPlayerResult": true, // 最後のプレイヤーの挑戦結果表示待ちフラグ
+        "gameState.pendingDoctorPunchProceed": null, // フラグをクリア
+        // pendingDoctorPunchSuccessは成功ポップアップが表示された後にクリアされる
+      });
       return;
     }
     
@@ -965,8 +973,9 @@ async function applyDoctorSkip(roomId) {
       throw new Error("Pending failure is not for current player");
     }
 
-    // 神拳を使わない＝失敗確定で即次ターンへ
-    // ドクターが失敗した場合、失敗履歴を記録
+    // 神拳を使わない＝失敗確定
+    // ただし、GM側の「失敗確定」ポップアップが表示され終わってからターン終了処理を実行する
+    // （先にターンを進めてしまうと、ポップアップが次ターン側にズレて表示されるため）
     const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
     const pendingPlayerId = pending?.playerId || order[idx];
     const isPendingDoctor = doctorId && pendingPlayerId === doctorId;
@@ -978,12 +987,16 @@ async function applyDoctorSkip(roomId) {
         playerId: pendingPlayerId,
         timestamp: Date.now(),
       },
+      // 「失敗確定ポップアップが閉じたらターン終了する」ための待機フラグ
+      "gameState.pendingDoctorSkipTurnEnd": true,
+      // 進行を止める（次プレイヤーの挑戦に進めないようにする）
+      "gameState.subphase": "await_doctor_skip_result",
     };
     if (isPendingDoctor) {
       updates["gameState.doctorHasFailed"] = true;
     }
-    
-    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, updates);
+
+    tx.update(roomRef, updates);
   });
 }
 
@@ -995,23 +1008,42 @@ async function clearDoctorSkipNotification(roomId) {
   if (!userId) throw new Error("User not authenticated");
 
   const roomRef = doc(firestore, "rooms", roomId);
-  
-  // トランザクションではなく通常の更新を使用（競合を避けるため）
-  try {
-    const snap = await getDoc(roomRef);
+
+  // 失敗確定ポップアップが閉じた後に呼ばれる想定：
+  // - 通知をクリア
+  // - pendingDoctorSkipTurnEnd が立っていれば、このタイミングでターン終了処理を実行
+  await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(roomRef);
     if (!snap.exists()) throw new Error("Room not found");
     const data = snap.data();
 
     const createdBy = data?.config?.createdBy;
     if (createdBy !== userId) throw new Error("Only GM can clear doctor skip notification");
 
-    await updateDoc(roomRef, {
+    const playersObj = data?.players || {};
+    const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
+      ? data.gameState.playerOrder
+      : Object.keys(playersObj);
+
+    const pendingTurnEnd = data?.gameState?.pendingDoctorSkipTurnEnd === true;
+
+    if (pendingTurnEnd) {
+      // このタイミングでターン終了（失敗ターン）を確定する
+      const extraUpdates = {
+        "gameState.doctorSkipNotification": null,
+        "gameState.pendingDoctorSkipTurnEnd": null,
+        "gameState.subphase": "await_result", // 念のため進行停止サブフェーズを解除（次の状態はendTurnAndPrepareNextで設定される）
+      };
+      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, extraUpdates);
+      return;
+    }
+
+    // 既に処理済みの場合は通知だけクリア
+    tx.update(roomRef, {
       "gameState.doctorSkipNotification": null,
+      "gameState.pendingDoctorSkipTurnEnd": null,
     });
-  } catch (error) {
-    // エラーが発生した場合はログに記録するが、処理を続行
-    console.warn("Failed to clear doctor skip notification (may be already cleared):", error);
-  }
+  });
 }
 
 /**

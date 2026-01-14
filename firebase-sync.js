@@ -578,6 +578,11 @@ function syncGameStateFromFirebase(roomData) {
           window.__previousSubphase = GameState.subphase;
         }
         
+        // 最後のプレイヤーかどうかを確認
+        const order = GameState.playerOrder || Object.keys(playersObj);
+        const successPlayerIndex = order.indexOf(successPlayerId);
+        const isLastPlayer = successPlayerIndex === order.length - 1;
+        
         // 成功ポップアップを表示（GM画面のみ）
         showAnnouncement(
           `${successPlayerName}の挑戦は成功しました。`,
@@ -592,9 +597,19 @@ function syncGameStateFromFirebase(roomData) {
             const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
             if (roomId) {
               try {
-                // proceedToNextPlayerAfterDoctorPunchで、最後のプレイヤーの場合はendTurnAndPrepareNextが呼ばれる
-                // それ以外の場合は、次のプレイヤーの挑戦開始フェーズに進む
-                await proceedToNextPlayerAfterDoctorPunchDB(roomId);
+                // pendingDoctorPunchSuccessフラグをクリア
+                const roomRef = doc(firestore, "rooms", roomId);
+                await updateDoc(roomRef, {
+                  "gameState.pendingDoctorPunchSuccess": null,
+                });
+                
+                if (isLastPlayer) {
+                  // 最後のプレイヤーの場合、ターン終了処理を実行
+                  await endTurnAfterLastPlayerResultDB(roomId);
+                } else {
+                  // 最後のプレイヤーでない場合、次のプレイヤーの挑戦開始フェーズに進む
+                  await proceedToNextPlayerAfterDoctorPunchDB(roomId);
+                }
               } catch (e) {
                 console.error("Failed to proceed after doctor punch success:", e);
               }
@@ -1384,16 +1399,19 @@ function checkDoctorSkipNotification(roomData) {
     2000,
     false,
     false,
-    true // GM画面のみ
+    true, // GM画面のみ
+    async () => {
+      // ポップアップが閉じた後に通知をクリア（このタイミングでターン終了処理が走る）
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (roomId) {
+        syncToFirebase("clearDoctorSkipNotification", { roomId }).catch((e) => {
+          console.error("Failed to clear doctor skip notification:", e);
+        });
+      }
+    }
   );
 
-  // 表示後は通知をクリア（重複表示防止）
-  const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-  if (roomId) {
-    syncToFirebase("clearDoctorSkipNotification", { roomId }).catch((e) => {
-      console.error("Failed to clear doctor skip notification:", e);
-    });
-  }
+  // 通知クリアは onOk（autoClose 後）に移動した
 }
 
 // GM：全員の役職一覧を表示
