@@ -3,7 +3,6 @@ import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerSta
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
 import { doc, getDoc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-import { endTurnAndPrepareNext as endTurnAndPrepareNextDB } from "./firebase-db.js";
 import { createRoomClient } from "./room-client.js";
 import { $ } from "./game-state.js";
 import { switchScreen } from "./ui-modals.js";
