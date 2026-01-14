@@ -633,6 +633,21 @@ function syncGameStateFromFirebase(roomData) {
       false,
       true // GM画面のみ
     );
+    previousTurn = GameState.turn; // 更新を記録
+  }
+  
+  // pendingNextPlayerChallengeフラグが立っている場合、次のプレイヤーの挑戦開始フェーズに移行
+  if (GameState.phase === "playing" && gameState.pendingNextPlayerChallenge && GameState.subphase === "await_result") {
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (roomId) {
+      setTimeout(async () => {
+        try {
+          await proceedToNextPlayerChallengeDB(roomId);
+        } catch (e) {
+          console.error("Failed to proceed to next player challenge:", e);
+        }
+      }, 100);
+    }
   }
   
   // 挑戦開始フェーズ（challenge_start）：「○○の挑戦です」を表示してから妨害フェーズに移行

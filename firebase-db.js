@@ -886,8 +886,19 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
     const idx = Number(data?.gameState?.currentPlayerIndex || 0);
 
     // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
+    // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う
+    // ここでは次のプレイヤーのインデックスのみ更新し、subphaseはawait_resultのまま
+    const nextIndex = (idx + 1) % order.length;
+    // 1周したら「○」でターン終了（=全員完了）
+    if (nextIndex === 0) {
+      endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, false);
+      return;
+    }
+    
     tx.update(roomRef, {
-      "gameState.subphase": "challenge_start",
+      "gameState.currentPlayerIndex": nextIndex,
+      "gameState.subphase": "await_result", // 挑戦結果ポップアップが表示されるまで待つ
+      "gameState.pendingNextPlayerChallenge": true, // 次のプレイヤーの挑戦開始フラグ
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
       "gameState.pendingDoctorPunchProceed": null, // フラグをクリア
