@@ -413,6 +413,7 @@ function refreshRulesSettingsModalControls() {
   const minEl = $("#rules-stage-min");
   const maxEl = $("#rules-stage-max");
   const wolfEl = $("#rules-wolf-actions");
+  const wolfCostEl = $("#rules-wolf-initial-cost");
 
   if (minEl instanceof HTMLSelectElement) {
     minEl.value = String(GameState.options.stageMinChapter);
@@ -422,6 +423,13 @@ function refreshRulesSettingsModalControls() {
   }
   if (wolfEl instanceof HTMLTextAreaElement) {
     wolfEl.value = GameState.options.wolfActionTexts.join("\n");
+  }
+  if (wolfCostEl instanceof HTMLInputElement) {
+    // ルーム設定から初期コストを取得、なければデフォルト100
+    const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    const roomInfo = typeof window !== "undefined" ? window.RoomInfo : null;
+    const wolfInitialCost = roomInfo?.config?.wolfInitialCost || 100;
+    wolfCostEl.value = String(wolfInitialCost);
   }
 }
 
@@ -653,6 +661,7 @@ function setupModals() {
     const minEl = $("#rules-stage-min");
     const maxEl = $("#rules-stage-max");
     const wolfEl = $("#rules-wolf-actions");
+    const wolfCostEl = $("#rules-wolf-initial-cost");
 
     if (minEl instanceof HTMLSelectElement && maxEl instanceof HTMLSelectElement) {
       const min = Number(minEl.value);
@@ -673,6 +682,17 @@ function setupModals() {
         GameState.options.wolfActionTexts = lines;
       }
     }
+    
+    let wolfInitialCost = 100; // デフォルト値
+    if (wolfCostEl instanceof HTMLInputElement) {
+      const cost = Number(wolfCostEl.value);
+      if (Number.isFinite(cost) && cost >= 1 && cost <= 200) {
+        wolfInitialCost = cost;
+      } else {
+        alert("人狼の初期コストは1〜200の範囲で設定してください。");
+        return;
+      }
+    }
 
     // ルームに同期（ホストのみ）
     const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
@@ -684,6 +704,7 @@ function setupModals() {
         stageMinChapter: GameState.options.stageMinChapter,
         stageMaxChapter: GameState.options.stageMaxChapter,
         wolfActionTexts: GameState.options.wolfActionTexts,
+        wolfInitialCost: wolfInitialCost,
         roomId,
       }).catch((e) => {
         console.error("Failed to update config:", e);

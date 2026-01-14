@@ -1595,12 +1595,16 @@ async function handleUpdateConfigAction(data, roomId) {
   const min = Number(data?.stageMinChapter);
   const max = Number(data?.stageMaxChapter);
   const wolfActionTexts = Array.isArray(data?.wolfActionTexts) ? data.wolfActionTexts : null;
+  const wolfInitialCost = Number(data?.wolfInitialCost);
 
   /** @type {Record<string, any>} */
   const updates = {};
   if (Number.isFinite(min)) updates["config.stageMinChapter"] = min;
   if (Number.isFinite(max)) updates["config.stageMaxChapter"] = max;
   if (wolfActionTexts && wolfActionTexts.length) updates["config.wolfActionTexts"] = wolfActionTexts;
+  if (Number.isFinite(wolfInitialCost) && wolfInitialCost >= 1 && wolfInitialCost <= 200) {
+    updates["config.wolfInitialCost"] = wolfInitialCost;
+  }
 
   if (!Object.keys(updates).length) return;
 

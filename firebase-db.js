@@ -123,6 +123,8 @@ async function joinRoom(roomId, playerName, avatarImage = null, avatarLetter = n
     });
   } else {
     // 新規参加
+    // ルーム設定から初期コストを取得、なければデフォルト100
+    const wolfInitialCost = roomData?.config?.wolfInitialCost || 100;
     await updateDoc(roomRef, {
       [`players.${userId}`]: {
         name: playerName,
@@ -131,7 +133,7 @@ async function joinRoom(roomId, playerName, avatarImage = null, avatarLetter = n
         role: null,
         status: 'ready',
         resources: {
-          wolfActionsRemaining: 100, // 総コスト100
+          wolfActionsRemaining: wolfInitialCost,
           doctorPunchRemaining: 5,
           doctorPunchAvailableThisTurn: true,
         },
@@ -375,7 +377,9 @@ async function startGameAsHost(roomId) {
       // resourcesを初期化（役職に応じて）
       const role = roles[idx];
       if (role === "wolf") {
-        updates[`players.${pid}.resources.wolfActionsRemaining`] = 100; // 総コスト100
+        // ルーム設定から初期コストを取得、なければデフォルト100
+        const wolfInitialCost = data?.config?.wolfInitialCost || 100;
+        updates[`players.${pid}.resources.wolfActionsRemaining`] = wolfInitialCost;
       }
       if (role === "doctor") {
         updates[`players.${pid}.resources.doctorPunchRemaining`] = 5;
@@ -449,10 +453,12 @@ async function advanceToPlayingIfAllAcked(roomId) {
       
       // 人狼のコストが設定されていない場合は初期化
       if (role === "wolf" && (res.wolfActionsRemaining === undefined || res.wolfActionsRemaining === null)) {
-        resourceUpdates[`players.${pid}.resources.wolfActionsRemaining`] = 100; // 総コスト100
+        // ルーム設定から初期コストを取得、なければデフォルト100
+        const wolfInitialCost = data?.config?.wolfInitialCost || 100;
+        resourceUpdates[`players.${pid}.resources.wolfActionsRemaining`] = wolfInitialCost;
         if (!updatedPlayersObj[pid]) updatedPlayersObj[pid] = {};
         if (!updatedPlayersObj[pid].resources) updatedPlayersObj[pid].resources = {};
-        updatedPlayersObj[pid].resources.wolfActionsRemaining = 100;
+        updatedPlayersObj[pid].resources.wolfActionsRemaining = wolfInitialCost;
       }
       // ドクターのリソースが設定されていない場合は初期化
       if (role === "doctor") {
