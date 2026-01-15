@@ -190,9 +190,10 @@
 
           <!-- ② 操作パネル -->
           <aside class="panel control-panel">
-            <h2>操作</h2>
             <div class="control-group">
-              <!-- 次のプレイヤーは自動進行のため削除 -->
+              <button id="btn-open-stage-roulette" class="btn primary wide">
+                ステージ選出開始
+              </button>
             </div>
             <div class="control-group">
               <button id="btn-success" class="btn success wide">
@@ -200,11 +201,6 @@
               </button>
               <button id="btn-fail" class="btn danger wide">
                 失敗
-              </button>
-            </div>
-            <div class="control-group">
-              <button id="btn-open-stage-roulette" class="btn primary wide">
-                ステージ選出開始
               </button>
             </div>
           </aside>
@@ -341,7 +337,7 @@
       <!-- ゲーム開始時の極秘命令ポップアップ -->
       <div id="mission-brief-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
-        <div class="modal-content" style="max-width: 1200px;">
+        <div class="modal-content" style="width: 1200px; max-width: 1200px;">
           <h2 style="text-align: center; margin-bottom: 24px; color: #f5f5f7;">極秘命令</h2>
           <div id="mission-brief-content" class="mission-brief-content" style="padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 8px; line-height: 1.8; color: #e0e0e0; font-size: 16px; white-space: pre-line;">
           </div>

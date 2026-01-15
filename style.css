@@ -934,7 +934,7 @@ button {
 }
 
 .control-panel {
-  gap: 8px;
+  gap: 6px;
   height: 220px;
   max-height: 220px;
   padding-top: 12px;
@@ -946,8 +946,8 @@ button {
 .control-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .wide {

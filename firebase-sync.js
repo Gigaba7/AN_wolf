@@ -1027,14 +1027,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
             processAnnouncementQueue();
           }
         }
-      } else if ((subphase === "wolf_decision" || subphase === "wolf_resolving") && !hasChallengeAnnouncementInQueue) {
-        // 人狼が操作中（継続表示）
-        showAnnouncement("人狼が操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
-      } else if (subphase === "await_doctor" && !hasChallengeAnnouncementInQueue) {
-        // ドクターが操作中（継続表示）
-        showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
       } else if (subphase === "await_doctor_punch_result") {
-        // ドクター神拳発動後は「ドクターが操作中です。」を閉じる
+        // ドクター神拳発動後は「ドクターが操作中です。」を閉じる（優先的にチェック）
         const announcementModal = document.getElementById("announcement-modal");
         if (announcementModal && !announcementModal.classList.contains("hidden")) {
           const titleEl = document.getElementById("announcement-title");
@@ -1044,6 +1038,12 @@ function handlePhaseUI(roomData, previousPhase = null) {
             processAnnouncementQueue();
           }
         }
+      } else if ((subphase === "wolf_decision" || subphase === "wolf_resolving") && !hasChallengeAnnouncementInQueue) {
+        // 人狼が操作中（継続表示）
+        showAnnouncement("人狼が操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
+      } else if (subphase === "await_doctor" && !hasChallengeAnnouncementInQueue) {
+        // ドクターが操作中（継続表示）
+        showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
       } else {
         // 他のフェーズではアナウンスを閉じる
         const announcementModal = document.getElementById("announcement-modal");
