@@ -20,6 +20,7 @@ let missionBriefShown = false;
 let lastAnnouncementTitle = null; // 重複アナウンス防止用
 let lastTurnResult = null; // ターン結果の重複防止用
 let previousTurn = null; // 前回のターン番号（ターン切り替え検出用）
+let lastDoctorPunchAutoProceedKey = null; // ドクター神拳後の自動進行（二重実行防止）
 let lastStageAnnouncementTurn = null; // ステージ選出アナウンスの重複防止用
 let lastChallengeAnnouncementPlayerIndex = null; // 挑戦アナウンスの重複防止用
 let lastSuccessAnnouncementPlayerIndex = null; // 成功アナウンスの重複防止用
@@ -587,22 +588,46 @@ function syncGameStateFromFirebase(roomData) {
           false,
           false,
           true, // GM画面のみ
-          async () => {
-            const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-            if (roomId) {
-              try {
-                if (isLastPlayer) {
-                  await endTurnAfterLastPlayerResultDB(roomId);
-                } else {
-                  await proceedToNextPlayerAfterDoctorPunchDB(roomId);
-                }
-              } catch (e) {
-                console.error("Failed to proceed after doctor punch success:", e);
-              }
-            }
-          }
+          null
         );
-        return;
+      }
+    }
+  }
+
+  // ドクター神拳の「進行」自体は、ポップアップ表示に依存させずDBフラグで自動実行する
+  // 根本理由：GM画面限定ポップアップのコールバックに進行が依存すると、キュー/表示タイミングで停止し得る
+  if (GameState.phase === "playing" && GameState.subphase === "await_doctor_punch_result") {
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    const playersObj = roomData.players || {};
+    const order = GameState.playerOrder || Object.keys(playersObj);
+    const idx = Number(gameState.currentPlayerIndex || 0);
+    const currentPlayerId = order[idx] || null;
+    const key = `${roomId || "no-room"}:${gameState.turn || ""}:${currentPlayerId || ""}:${gameState.pendingDoctorPunchProceed ? "proceed" : ""}:${gameState.pendingLastPlayerResult ? "last" : ""}`;
+
+    if (roomId && key !== lastDoctorPunchAutoProceedKey) {
+      // 非最後プレイヤー：pendingDoctorPunchProceed が立っている場合に自動で次へ
+      if (gameState.pendingDoctorPunchProceed === true) {
+        lastDoctorPunchAutoProceedKey = key;
+        setTimeout(async () => {
+          try {
+            await proceedToNextPlayerAfterDoctorPunchDB(roomId);
+          } catch (e) {
+            // 他クライアントが先に進めた場合などは無視
+            console.warn("Auto proceed after doctor punch failed (may be already processed):", e);
+          }
+        }, 2100);
+      }
+
+      // 最後プレイヤー：pendingLastPlayerResult が立っている場合に自動でターン終了
+      if (gameState.pendingLastPlayerResult === true) {
+        lastDoctorPunchAutoProceedKey = key;
+        setTimeout(async () => {
+          try {
+            await endTurnAfterLastPlayerResultDB(roomId);
+          } catch (e) {
+            console.warn("Auto end turn after last player result failed (may be already processed):", e);
+          }
+        }, 2100);
       }
     }
   }

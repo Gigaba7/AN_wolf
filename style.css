@@ -949,11 +949,24 @@ button {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 6px;
-  align-items: center;
   width: 100%;
 }
 
 .wide {
+  width: 100%;
+}
+
+/* GM操作パネルは中央寄せ */
+.control-panel .control-group {
+  align-items: center;
+}
+
+/* 参加者UIはボタン幅を揃えて伸ばす */
+.participant-panel .control-group {
+  align-items: stretch;
+}
+
+.participant-panel .btn {
   width: 100%;
 }
 
@@ -1199,8 +1212,6 @@ button {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
-}
-  box-shadow: 0 26px 46px rgba(0, 0, 0, 0.6);
 }
 
 .modal-content.wide {
