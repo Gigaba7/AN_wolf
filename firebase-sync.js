@@ -21,6 +21,7 @@ let lastAnnouncementTitle = null; // 重複アナウンス防止用
 let lastTurnResult = null; // ターン結果の重複防止用
 let previousTurn = null; // 前回のターン番号（ターン切り替え検出用）
 let lastDoctorPunchAutoProceedKey = null; // ドクター神拳後の自動進行（二重実行防止）
+let lastDoctorPunchStateLogKey = null; // ドクター神拳状態ログ（二重出力防止）
 let lastStageAnnouncementTurn = null; // ステージ選出アナウンスの重複防止用
 let lastChallengeAnnouncementPlayerIndex = null; // 挑戦アナウンスの重複防止用
 let lastSuccessAnnouncementPlayerIndex = null; // 成功アナウンスの重複防止用
@@ -562,6 +563,21 @@ function syncGameStateFromFirebase(roomData) {
       const successPlayerId = pendingSuccess.playerId;
       const successPlayer = playersObj[successPlayerId];
       const successPlayerName = successPlayer?.name || pendingSuccess?.playerName || "プレイヤー";
+
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      const stateKey = `${roomId || "no-room"}:${gameState.turn || ""}:${gameState.currentPlayerIndex || ""}:${gameState.pendingDoctorPunchProceed ? "proceed" : ""}:${gameState.pendingLastPlayerResult ? "last" : ""}:${successPlayerId}`;
+      if (stateKey !== lastDoctorPunchStateLogKey) {
+        lastDoctorPunchStateLogKey = stateKey;
+        console.log("[DoctorPunch] state", {
+          roomId,
+          turn: gameState.turn,
+          subphase: gameState.subphase,
+          currentPlayerIndex: gameState.currentPlayerIndex,
+          pendingDoctorPunchProceed: gameState.pendingDoctorPunchProceed,
+          pendingLastPlayerResult: gameState.pendingLastPlayerResult,
+          pendingDoctorPunchSuccess: pendingSuccess,
+        });
+      }
       
       // 重複防止：同じプレイヤーの成功ポップアップが既に表示されている場合はスキップ
       const order = GameState.playerOrder || Object.keys(playersObj);
