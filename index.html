@@ -221,41 +221,39 @@
       <!-- 参加者画面（最小UI：役職ボタンのみ / 画面表示エリアなし） -->
       <section id="participant-screen" class="screen">
         <div class="participant-layout">
-          <div class="participant-content">
-            <!-- 左カラム -->
+          <!-- 操作パネル（GM画面と同じサイズ・位置、2カラム構造） -->
+          <aside class="panel participant-panel">
+            <!-- 一列目（左カラム）：役職名、コスト -->
             <div class="participant-column participant-column-left">
-              <h2 class="participant-column-title">操作</h2>
-              
-              <!-- 役職表示 -->
-              <div id="participant-role-display" class="participant-role-display" style="display: none;">
-                <span class="participant-role-label">役職:</span>
-                <span id="participant-role-text" class="participant-role-text">-</span>
-              </div>
+              <div class="control-group">
+                <!-- 役職表示 -->
+                <div id="participant-role-display" class="participant-role-display" style="display: none;">
+                  <span class="participant-role-label">役職:</span>
+                  <span id="participant-role-text" class="participant-role-text">-</span>
+                </div>
 
-              <!-- コスト表示（人狼のみ） -->
-              <div id="participant-cost-display" class="participant-cost-display" style="display: none;">
-                <span class="participant-cost-label">Cost:</span>
-                <span id="participant-cost-value" class="participant-cost-value">-</span>
+                <!-- コスト表示（人狼のみ） -->
+                <div id="participant-cost-display" class="participant-cost-display" style="display: none;">
+                  <span class="participant-cost-label">Cost:</span>
+                  <span id="participant-cost-value" class="participant-cost-value">-</span>
+                </div>
               </div>
+            </div>
 
-              <div class="participant-actions">
-                <!-- 役職ボタンは画面中央のポップアップとして表示（ui-render.module.jsで制御） -->
+            <!-- 二列目（右カラム）：ルールブック、ログを表示 -->
+            <div class="participant-column participant-column-right">
+              <div class="control-group">
                 <button id="open-rulebook-from-participant" class="btn ghost wide">
                   ルールブック
                 </button>
               </div>
-            </div>
-
-            <!-- 右カラム -->
-            <div class="participant-column participant-column-right">
-              <h2 class="participant-column-title">ログ</h2>
-              <div class="participant-actions">
+              <div class="control-group">
                 <button id="open-log-from-participant" class="btn ghost wide">
                   ログを表示
                 </button>
               </div>
             </div>
-          </div>
+          </aside>
         </div>
       </section>
 
