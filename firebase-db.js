@@ -808,6 +808,8 @@ async function applyDoctorPunch(roomId) {
   const userId = getCurrentUserId();
   if (!userId) throw new Error("User not authenticated");
 
+  console.log("[DoctorPunch][hotfix] applyDoctorPunch called", { roomId });
+
   const roomRef = doc(firestore, "rooms", roomId);
 
   await runTransaction(firestore, async (tx) => {
@@ -833,6 +835,7 @@ async function applyDoctorPunch(roomId) {
       ? data.gameState.playerOrder
       : Object.keys(playersObj);
     const idx = Number(data?.gameState?.currentPlayerIndex || 0);
+    const nextIndex = (idx + 1) % order.length;
 
     // 失敗保留は「現在プレイヤーの失敗」である必要がある（進行が止まっている前提）
     const currentPlayerId = order[idx];
