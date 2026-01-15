@@ -843,6 +843,7 @@ async function applyDoctorPunch(roomId) {
     // ドクターが失敗した場合、失敗履歴を記録（神拳で打ち消した場合は失敗として記録しない）
     const pendingPlayerId = pending?.playerId || currentPlayerId;
     const isPendingDoctor = pendingPlayerId === userId;
+    const pendingPlayerName = playersObj?.[pendingPlayerId]?.name || "プレイヤー";
 
     // 神拳使用＝成功扱いで次へ進む（ターン内は1回まで）
     // ドクター神拳発動後は、成功ポップアップを表示してから次のプレイヤーに進む
@@ -856,7 +857,7 @@ async function applyDoctorPunch(roomId) {
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
       // 最後のプレイヤーの場合は endTurnAfterLastPlayerResult を使うため proceed フラグは立てない
       "gameState.pendingDoctorPunchProceed": nextIndex === 0 ? null : true, // OK(自動)で進むフラグ
-      "gameState.pendingDoctorPunchSuccess": { playerId: pendingPlayerId }, // 成功ポップアップ表示用
+      "gameState.pendingDoctorPunchSuccess": { playerId: pendingPlayerId, playerName: pendingPlayerName }, // 成功ポップアップ表示用
       // 最後のプレイヤーの場合、成功ポップアップ後にターン終了処理へ進めるためのフラグ
       ...(nextIndex === 0 ? { "gameState.pendingLastPlayerResult": true } : {}),
     };

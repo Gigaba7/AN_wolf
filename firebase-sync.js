@@ -561,7 +561,7 @@ function syncGameStateFromFirebase(roomData) {
       const playersObj = roomData.players || {};
       const successPlayerId = pendingSuccess.playerId;
       const successPlayer = playersObj[successPlayerId];
-      const successPlayerName = successPlayer?.name || "プレイヤー";
+      const successPlayerName = successPlayer?.name || pendingSuccess?.playerName || "プレイヤー";
       
       // 重複防止：同じプレイヤーの成功ポップアップが既に表示されている場合はスキップ
       const order = GameState.playerOrder || Object.keys(playersObj);
@@ -608,6 +608,13 @@ function syncGameStateFromFirebase(roomData) {
       // 非最後プレイヤー：pendingDoctorPunchProceed が立っている場合に自動で次へ
       if (gameState.pendingDoctorPunchProceed === true) {
         lastDoctorPunchAutoProceedKey = key;
+        console.log("[DoctorPunch] schedule proceedToNextPlayerAfterDoctorPunch", {
+          roomId,
+          turn: gameState.turn,
+          currentPlayerId,
+          subphase: gameState.subphase,
+          pendingDoctorPunchProceed: gameState.pendingDoctorPunchProceed,
+        });
         setTimeout(async () => {
           try {
             await proceedToNextPlayerAfterDoctorPunchDB(roomId);
@@ -621,6 +628,13 @@ function syncGameStateFromFirebase(roomData) {
       // 最後プレイヤー：pendingLastPlayerResult が立っている場合に自動でターン終了
       if (gameState.pendingLastPlayerResult === true) {
         lastDoctorPunchAutoProceedKey = key;
+        console.log("[DoctorPunch] schedule endTurnAfterLastPlayerResult", {
+          roomId,
+          turn: gameState.turn,
+          currentPlayerId,
+          subphase: gameState.subphase,
+          pendingLastPlayerResult: gameState.pendingLastPlayerResult,
+        });
         setTimeout(async () => {
           try {
             await endTurnAfterLastPlayerResultDB(roomId);
@@ -1700,7 +1714,16 @@ async function handleDoctorPunchAction(data, roomId) {
   // DB側での処理（subphaseをawait_doctor_punch_resultに変更）のみ実行
   // ポップアップ表示はsyncGameStateFromFirebase側での検知に任せる
   try {
+    const gs = typeof window !== "undefined" ? window.GameState : null;
+    console.log("[DoctorPunch] click", {
+      roomId,
+      subphase: gs?.subphase,
+      pendingFailure: gs?.pendingFailure,
+      doctorPunchRemaining: gs?.doctorPunchRemaining,
+      doctorPunchAvailableThisTurn: gs?.doctorPunchAvailableThisTurn,
+    });
     await applyDoctorPunchDB(roomId);
+    console.log("[DoctorPunch] applyDoctorPunchDB success", { roomId });
   } catch (e) {
     console.error("Failed to apply doctor punch:", e);
   }
