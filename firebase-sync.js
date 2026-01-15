@@ -1609,6 +1609,7 @@ async function syncToFirebase(action, data) {
  */
 async function handleSuccessAction(data, roomId) {
   const userId = getCurrentUserId();
+  const name = data?.playerName || "プレイヤー";
   await applySuccessDB(roomId);
   
   // ルームの状態を確認して、最後のプレイヤーかどうかを判定
@@ -1625,8 +1626,8 @@ async function handleSuccessAction(data, roomId) {
   showAnnouncement(
     `${name}の挑戦は成功しました。`,
     null,
-        `${name}の挑戦：〇`,
-        2000,
+    `${name}の挑戦：〇`,
+    2000,
     false,
     false,
     true, // GM画面のみ
