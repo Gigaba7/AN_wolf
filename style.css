@@ -123,10 +123,168 @@ body {
 /* ホーム/待機（マッチング）画面は背景を不透明にする */
 body.opaque-bg {
   background: linear-gradient(135deg, #0a0d14 0%, #050712 50%, #0a0d14 100%);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
 }
 
 body.opaque-bg #app {
   background: linear-gradient(135deg, rgba(10, 13, 20, 0.95) 0%, rgba(5, 7, 18, 0.98) 50%, rgba(10, 13, 20, 0.95) 100%);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+/* ターン進行に応じたUI変化 */
+body.turn-1 {
+  background: linear-gradient(135deg, #0a0d14 0%, #050712 50%, #0a0d14 100%);
+}
+
+body.turn-2 {
+  background: linear-gradient(135deg, #0d1018 0%, #070912 50%, #0d1018 100%);
+  box-shadow: inset 0 0 50px rgba(139, 230, 195, 0.05);
+}
+
+body.turn-3 {
+  background: linear-gradient(135deg, #10121c 0%, #090b14 50%, #10121c 100%);
+  box-shadow: inset 0 0 80px rgba(139, 230, 195, 0.08);
+}
+
+body.turn-4 {
+  background: linear-gradient(135deg, #131420 0%, #0b0d16 50%, #131420 100%);
+  box-shadow: inset 0 0 100px rgba(255, 100, 100, 0.1);
+}
+
+body.turn-5 {
+  background: linear-gradient(135deg, #161622 0%, #0d0f18 50%, #161622 100%);
+  box-shadow: inset 0 0 120px rgba(255, 100, 100, 0.15);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: inset 0 0 120px rgba(255, 100, 100, 0.15);
+  }
+  50% {
+    box-shadow: inset 0 0 150px rgba(255, 100, 100, 0.25);
+  }
+}
+
+#app.turn-2 {
+  background: linear-gradient(135deg, rgba(13, 16, 24, 0.95) 0%, rgba(7, 9, 18, 0.98) 50%, rgba(13, 16, 24, 0.95) 100%);
+}
+
+#app.turn-3 {
+  background: linear-gradient(135deg, rgba(16, 18, 28, 0.95) 0%, rgba(9, 11, 20, 0.98) 50%, rgba(16, 18, 28, 0.95) 100%);
+}
+
+#app.turn-4 {
+  background: linear-gradient(135deg, rgba(19, 20, 32, 0.95) 0%, rgba(11, 13, 22, 0.98) 50%, rgba(19, 20, 32, 0.95) 100%);
+}
+
+#app.turn-5 {
+  background: linear-gradient(135deg, rgba(22, 22, 34, 0.95) 0%, rgba(13, 15, 24, 0.98) 50%, rgba(22, 22, 34, 0.95) 100%);
+}
+
+.screen.turn-2 .panel {
+  border-color: rgba(139, 230, 195, 0.1);
+}
+
+.screen.turn-3 .panel {
+  border-color: rgba(139, 230, 195, 0.15);
+}
+
+.screen.turn-4 .panel {
+  border-color: rgba(255, 100, 100, 0.15);
+}
+
+.screen.turn-5 .panel {
+  border-color: rgba(255, 100, 100, 0.2);
+  box-shadow: 0 0 20px rgba(255, 100, 100, 0.1);
+}
+
+/* 勝利画面 */
+#victory-screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px;
+  background: transparent;
+}
+
+#victory-screen.active {
+  display: flex;
+}
+
+.victory-layout {
+  width: 100%;
+  max-width: 800px;
+  text-align: center;
+}
+
+.victory-content {
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 16px;
+  padding: 40px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.victory-title {
+  font-size: 48px;
+  font-weight: 700;
+  margin-bottom: 30px;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+}
+
+.victory-citizen .victory-title {
+  color: #8be6c3;
+}
+
+.victory-wolf .victory-title {
+  color: #ff6464;
+}
+
+.victory-story {
+  font-size: 18px;
+  line-height: 2;
+  color: #f5f5f7;
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.victory-story p {
+  margin: 12px 0;
+}
+
+.victory-vote-results {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.victory-roles {
+  margin-top: 20px;
+}
+
+.victory-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+/* 勝利画面の背景色 */
+body.victory-citizen-bg {
+  background: linear-gradient(135deg, #0a1a2e 0%, #162447 50%, #0a1a2e 100%);
+}
+
+body.victory-wolf-bg {
+  background: linear-gradient(135deg, #2e0a0a 0%, #441616 50%, #2e0a0a 100%);
+}
+
+.victory-citizen {
+  background: linear-gradient(135deg, rgba(10, 26, 46, 0.95) 0%, rgba(22, 36, 71, 0.98) 50%, rgba(10, 26, 46, 0.95) 100%);
+}
+
+.victory-wolf {
+  background: linear-gradient(135deg, rgba(46, 10, 10, 0.95) 0%, rgba(68, 22, 22, 0.98) 50%, rgba(46, 10, 10, 0.95) 100%);
 }
 
 #app {

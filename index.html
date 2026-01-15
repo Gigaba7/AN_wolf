@@ -363,18 +363,17 @@
             <div id="rulebook-page-1" class="rulebook-page" style="display: none;">
               <h3>このゲームの目標と勝利条件</h3>
               <p style="color: #a0a4ba; line-height: 1.8;">
-                このゲームは、アークナイツのステージを攻略する協力型ゲームです。プレイヤーは役職に分かれ、協力してステージをクリアしていきます。
+                このゲームはロドス陣営(市民側)の妨害を行うレユニオン(人狼)を探しながら、協力して作戦に挑む「協力・推理型」人狼ゲームです。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>市民・ドクターの勝利条件：</strong><br />
-                ・ターン成功（○）が過半数以上になった場合（3ターンゲーム：2ターン成功、5ターンゲーム：3ターン成功）<br />
-                ・会議フェーズなしで即座に市民勝利
+                <strong>ロドス陣営の勝利条件：</strong><br />
+                ・過半数のターンで攻略に成功すること（3ターンゲーム：2ターン成功、5ターンゲーム：3ターン成功）<br />
+                ・過半数のターンで攻略に失敗したのち、最終フェーズ（逆転指名）でレユニオンを投票により指名すること
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>人狼の勝利条件：</strong><br />
-                ・ターン失敗（×）が過半数以上になった場合、最終フェーズ（逆転指名）で人狼への投票数が過半数を超えなかった場合<br />
-                ・ドクターが失敗し、ドクター神拳も使用できなかった場合（会議フェーズなしで即座に人狼勝利）<br />
-                ・最終フェーズ（逆転指名）で人狼への投票数が過半数を超えなかった場合
+                <strong>レユニオンの勝利条件：</strong><br />
+                ・ドクターの挑戦を失敗させること（ドクターが失敗し、ドクター神拳も使用できなかった場合、即座にレユニオン勝利）<br />
+                ・過半数のターンで攻略を失敗に導き、最終フェーズ（逆転指名）で投票により指名されないこと
               </p>
             </div>
             <div id="rulebook-page-2" class="rulebook-page" style="display: none;">
@@ -388,7 +387,7 @@
                 各ターンは以下の流れで進行します：<br />
                 ① ステージ選出（GMがルーレットで選出）<br />
                 ② 挑戦開始（「○○の挑戦です」）<br />
-                ③ 人狼妨害フェーズ（人狼が妨害を選択可能）<br />
+                ③ レユニオン妨害フェーズ（レユニオンが妨害を選択可能）<br />
                 ④ ステージ攻略（プレイヤーが実際にステージをプレイ）<br />
                 ⑤ 成功/失敗判定（GMが判定）<br />
                 ⑥ ドクター神拳フェーズ（失敗時のみ、ドクターが神拳を使用可能）<br />
@@ -396,7 +395,8 @@
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>3. ターン終了</strong><br />
-                全プレイヤーが挑戦を終えると、ターン結果が確定します。成功なら○、失敗なら×が記録されます。
+                一度でも挑戦失敗すると、そのターンは失敗（×）となります。次のターンへ進みます。<br />
+                ただし、1ターンに1度だけドクター神拳による失敗の打ち消しが可能です。ドクター神拳を使用した場合、その失敗はなかったことになり、ターンは成功（○）として記録されます。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>4. 会議フェーズ</strong><br />
@@ -404,7 +404,7 @@
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>5. 最終フェーズ（逆転指名）</strong><br />
-                ターン失敗（×）が過半数以上になった場合、10分の会議フェーズの後、最終フェーズ（逆転指名）が開始されます。全プレイヤー（市民・ドクター・人狼）が人狼を指名し、全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーが人狼かどうかで勝敗が決まります。
+                ターン失敗（×）が過半数以上になった場合、10分の会議フェーズの後、最終フェーズ（逆転指名）が開始されます。全プレイヤー（オペレーター・ドクター・レユニオン）がレユニオンを指名し、全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>6. ゲーム終了</strong><br />
@@ -437,7 +437,8 @@
                   <strong style="color: #f5f5f7;">成功/失敗判定</strong>
                 </div>
                 <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
-                  ステージをクリアできた場合は成功（○）、クリアできなかった場合は失敗（×）となります。判定はGMが行います。
+                  ステージをクリアできた場合は成功（○）、クリアできなかった場合は失敗（×）となります。判定はGMが行います。<br />
+                  <strong style="color: #ff6464;">重要：一度でも挑戦失敗すると、そのターンは失敗（×）となります。次のターンへ進みます。</strong>
                 </p>
               </div>
               <div style="margin-top: 16px; padding: 16px; background: rgba(139, 230, 195, 0.1); border-radius: 8px; border-left: 4px solid #8be6c3;">
@@ -447,7 +448,8 @@
                 </div>
                 <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
                   失敗した場合、ドクターが「ドクター神拳」を使用することで、失敗をなかったことにできます。<br />
-                  <span style="color: #8be6c3;">※ 1ゲーム中に5回まで使用可能</span>
+                  <span style="color: #8be6c3;">※ 1ゲーム中に5回まで使用可能</span><br />
+                  <span style="color: #8be6c3;">※ 1ターンに1度だけ使用可能（そのターンの最初の失敗のみ打ち消し可能）</span>
                 </p>
               </div>
             </div>
@@ -460,7 +462,7 @@
                 <div style="padding: 16px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
                   <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                     <span style="font-size: 24px;">👤</span>
-                    <strong style="color: #f5f5f7;">市民</strong>
+                    <strong style="color: #f5f5f7;">オペレーター</strong>
                   </div>
                   <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
                     通常のプレイヤーです。ステージを攻略することを目標とします。特別な能力はありませんが、協力してステージをクリアしていきます。
@@ -474,7 +476,8 @@
                   <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
                     失敗したステージを「ドクター神拳」で打ち消すことができます。<br />
                     <span style="color: #8be6c3;">※ 1ゲーム中に5回まで使用可能</span><br />
-                    市民陣営の勝利を目指します。
+                    <span style="color: #8be6c3;">※ 1ターンに1度だけ使用可能（そのターンの最初の失敗のみ打ち消し可能）</span><br />
+                    ロドス陣営の勝利を目指します。
                   </p>
                 </div>
                 <div style="padding: 16px; background: rgba(255, 100, 100, 0.1); border-radius: 8px; border: 1px solid rgba(255, 100, 100, 0.3);">
@@ -485,28 +488,29 @@
                   <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
                     ステージ攻略を妨害する役職です。各挑戦の開始時に妨害を選択できます。<br />
                     <span style="color: #ff6464;">※ 妨害コストの合計が初期コスト（デフォルト100）を超えない範囲で使用可能</span><br />
-                    人狼陣営の勝利を目指します。
+                    レユニオン陣営の勝利を目指します。
                   </p>
                 </div>
               </div>
             </div>
             <div id="rulebook-page-5" class="rulebook-page" style="display: none;">
-              <h3>役職ごとのルールと行動指針（市民）</h3>
+              <h3>役職ごとのルールと行動指針（オペレーター）</h3>
               <p style="color: #a0a4ba; line-height: 1.8;">
-                <strong>市民の役割</strong><br />
-                市民は、ステージを攻略して成功（○）を増やすことが主な役割です。人狼の妨害に注意しながら、協力してステージをクリアしていきます。
+                <strong>オペレーターの役割</strong><br />
+                オペレーターは、ステージを攻略して成功（○）を増やすことが主な役割です。レユニオンの妨害に注意しながら、協力してステージをクリアしていきます。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>行動指針</strong><br />
-                ・人狼の妨害内容を確認し、その制約に従ってステージをプレイする<br />
+                ・レユニオンの妨害内容を確認し、その制約に従ってステージをプレイする<br />
                 ・他のプレイヤーと協力し、情報を共有する<br />
-                ・会議フェーズでは、人狼の可能性を探るために議論に参加する<br />
+                ・会議フェーズでは、レユニオンの可能性を探るために議論に参加する<br />
                 ・ステージ攻略時は、妨害の制約を守りながら最善を尽くす
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>注意事項</strong><br />
-                ・人狼の妨害は必ず守る必要があります<br />
-                ・妨害の内容を無視したプレイは禁止です
+                ・レユニオンの妨害は必ず守る必要があります<br />
+                ・妨害の内容を無視したプレイは禁止です<br />
+                ・<strong style="color: #ff6464;">指示厨禁止！攻略に関する内容は聞かれたときだけ答えよう！</strong>
               </p>
             </div>
             <div id="rulebook-page-6" class="rulebook-page" style="display: none;">
@@ -520,6 +524,7 @@
                 ・失敗したステージに対して、ドクターが「ドクター神拳」を使用できます<br />
                 ・使用すると、その失敗はなかったことになり、成功（○）として記録されます<br />
                 ・1ゲーム中に5回まで使用可能です<br />
+                ・<strong style="color: #8be6c3;">1ターンに1度だけ使用可能（そのターンの最初の失敗のみ打ち消し可能）</strong><br />
                 ・「背水の陣」の妨害が適用されている場合は、そのターン中は使用できません
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
@@ -609,15 +614,15 @@
                 <strong>最終フェーズの流れ</strong><br />
                 1. 10分の会議フェーズ（最終フェーズ前の会議）<br />
                 2. 最終フェーズ（逆転指名）<br />
-                　・全プレイヤー（市民・ドクター・人狼）が人狼を指名します<br />
-                　・全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーが人狼かどうかで勝敗が決まります
+                　・全プレイヤー（オペレーター・ドクター・レユニオン）がレユニオンを指名します<br />
+                　・全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>最終フェーズの勝敗判定</strong><br />
                 ・最多得票者が1人だけの場合：<br />
-                　- 人狼が指名された場合：市民・ドクター勝利（逆転勝利）<br />
-                　- 人狼以外が指名された場合：人狼勝利<br />
-                ・同率1位の場合は人狼勝利
+                　- レユニオンが指名された場合：ロドス陣営勝利（逆転勝利）<br />
+                　- レユニオン以外が指名された場合：レユニオン勝利<br />
+                ・同率1位の場合はレユニオン勝利
               </p>
             </div>
             <div id="rulebook-page-9" class="rulebook-page" style="display: none;">
@@ -627,7 +632,7 @@
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>ゲーム進行に関する禁止行為</strong><br />
-                ・人狼の妨害内容を無視したプレイ<br />
+                ・レユニオンの妨害内容を無視したプレイ<br />
                 ・妨害の制約に違反したステージ攻略<br />
                 ・GMの判定に従わない行為<br />
                 ・ゲームの進行を故意に妨害する行為
@@ -636,7 +641,8 @@
                 <strong>コミュニケーションに関する禁止行為</strong><br />
                 ・役職を直接的に暴露する行為（ただし、推測や議論は可）<br />
                 ・ゲーム外の情報を使用する行為<br />
-                ・他のプレイヤーを脅迫・中傷する行為
+                ・他のプレイヤーを脅迫・中傷する行為<br />
+                ・<strong style="color: #ff6464;">指示厨禁止！攻略に関する内容は聞かれたときだけ答えよう！</strong>
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>その他の禁止行為</strong><br />
@@ -894,6 +900,22 @@
           </div>
         </div>
       </div>
+
+      <!-- 勝利画面（専用画面） -->
+      <section id="victory-screen" class="screen">
+        <div class="victory-layout">
+          <div class="victory-content">
+            <h1 id="victory-title" class="victory-title"></h1>
+            <div id="victory-story" class="victory-story"></div>
+            <div id="victory-vote-results" class="victory-vote-results"></div>
+            <div id="victory-roles" class="victory-roles"></div>
+            <div class="victory-actions">
+              <button id="victory-return-lobby" class="btn primary">ロビーに戻る</button>
+              <button id="victory-disband" class="btn ghost">解散してホームに戻る</button>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <!-- Firebase設定とモジュール（ES Modules） -->

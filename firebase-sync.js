@@ -726,6 +726,27 @@ function syncGameStateFromFirebase(roomData) {
       window.__previousSubphase = null;
     }
     
+    // ターンに応じたUI変化を適用
+    if (typeof document !== "undefined") {
+      const body = document.body;
+      const app = document.getElementById("app");
+      const mainScreen = document.getElementById("main-screen");
+      const participantScreen = document.getElementById("participant-screen");
+      
+      // ターンに応じたクラスを削除
+      body.classList.remove("turn-1", "turn-2", "turn-3", "turn-4", "turn-5");
+      if (app) app.classList.remove("turn-1", "turn-2", "turn-3", "turn-4", "turn-5");
+      if (mainScreen) mainScreen.classList.remove("turn-1", "turn-2", "turn-3", "turn-4", "turn-5");
+      if (participantScreen) participantScreen.classList.remove("turn-1", "turn-2", "turn-3", "turn-4", "turn-5");
+      
+      // 現在のターンに応じたクラスを追加
+      const turnClass = `turn-${currentTurn}`;
+      body.classList.add(turnClass);
+      if (app) app.classList.add(turnClass);
+      if (mainScreen) mainScreen.classList.add(turnClass);
+      if (participantScreen) participantScreen.classList.add(turnClass);
+    }
+    
     showAnnouncement(
       `${currentTurn}ターン目`,
       null,
@@ -898,7 +919,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
 
       if (roleText) {
         roleText.textContent =
-          myRole === "wolf" ? "人狼（レユニオン）" : myRole === "doctor" ? "ドクター" : "市民";
+          myRole === "wolf" ? "レユニオン" : myRole === "doctor" ? "ドクター" : "オペレーター";
       }
 
       // GMの場合は、self-role-okボタンを無効化（gm-roles-modalのOKボタンでゲーム開始）
@@ -1154,7 +1175,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
     if (isGM) {
       showAnnouncement(
         "最終フェーズ（逆転指名）",
-        "全プレイヤーが人狼を指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーが人狼かどうかで勝敗が決まります。",
+        "全プレイヤーがレユニオンを指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
         "最終フェーズ開始",
         0,
         true, // OKボタンを要求
@@ -1443,7 +1464,7 @@ function showGMRolesModal(roomData) {
     if (!role) return;
 
     const roleLabel =
-      role === "wolf" ? "人狼（レユニオン）" : role === "doctor" ? "ドクター" : "市民";
+        role === "wolf" ? "レユニオン" : role === "doctor" ? "ドクター" : "オペレーター";
     const roleClass =
       role === "doctor"
         ? "role-doctor"
@@ -1887,8 +1908,8 @@ function showFinalPhaseModal(roomData) {
   const myRole = playersObj[myId]?.role || null;
   const hasVoted = myId && votes[myId] !== undefined;
 
-  titleEl.textContent = "最終判定: 人狼投票フェーズ";
-  summaryEl.textContent = "全プレイヤーが人狼を指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーが人狼かどうかで勝敗が決まります。";
+  titleEl.textContent = "最終判定: レユニオン投票フェーズ";
+  summaryEl.textContent = "全プレイヤーがレユニオンを指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。";
 
   // プレイヤー一覧を表示
   if (rolesEl) {
@@ -1916,6 +1937,52 @@ function showFinalPhaseModal(roomData) {
   // 投票ボタンを表示
   extraEl.innerHTML = "";
   
+  // 10分タイマーを表示
+  const discussionEndTime = gameState.finalPhaseDiscussionEndTime || null;
+  if (discussionEndTime) {
+    const timerContainer = document.createElement("div");
+    timerContainer.style.textAlign = "center";
+    timerContainer.style.marginBottom = "20px";
+    timerContainer.style.padding = "16px";
+    timerContainer.style.background = "rgba(139, 230, 195, 0.1)";
+    timerContainer.style.borderRadius = "8px";
+    timerContainer.style.border = "1px solid rgba(139, 230, 195, 0.3)";
+    
+    const timerLabel = document.createElement("div");
+    timerLabel.textContent = "残り時間";
+    timerLabel.style.fontSize = "14px";
+    timerLabel.style.color = "#a0a4ba";
+    timerLabel.style.marginBottom = "8px";
+    timerContainer.appendChild(timerLabel);
+    
+    const timerEl = document.createElement("div");
+    timerEl.id = "final-phase-guest-timer";
+    timerEl.style.fontSize = "32px";
+    timerEl.style.fontWeight = "700";
+    timerEl.style.color = "#8be6c3";
+    timerEl.style.letterSpacing = "0.1em";
+    timerContainer.appendChild(timerEl);
+    
+    extraEl.appendChild(timerContainer);
+    
+    // タイマーを更新
+    updateFinalPhaseTimer(timerEl, discussionEndTime);
+    
+    // タイマーを定期的に更新
+    if (finalPhaseGuestTimerInterval) {
+      clearInterval(finalPhaseGuestTimerInterval);
+    }
+    finalPhaseGuestTimerInterval = setInterval(() => {
+      const currentTimerEl = document.getElementById("final-phase-guest-timer");
+      if (currentTimerEl) {
+        updateFinalPhaseTimer(currentTimerEl, discussionEndTime);
+      } else {
+        clearInterval(finalPhaseGuestTimerInterval);
+        finalPhaseGuestTimerInterval = null;
+      }
+    }, 1000);
+  }
+  
   // 投票状況を表示（全プレイヤーをカウント）
   const voteInfo = document.createElement("p");
   const voters = playersArr; // 全プレイヤー（人狼も含む）
@@ -1928,7 +1995,7 @@ function showFinalPhaseModal(roomData) {
 
   if (!hasVoted) {
     const info = document.createElement("p");
-    info.textContent = "人狼だと思うプレイヤーを1名選択してください。";
+    info.textContent = "レユニオンだと思うプレイヤーを1名選択してください。";
     info.style.marginBottom = "12px";
     extraEl.appendChild(info);
 
@@ -2010,6 +2077,7 @@ function updateFinalPhaseTimer(timerEl, discussionEndTime) {
  */
 let lastFinalPhaseGMModalTimestamp = null;
 let finalPhaseTimerInterval = null;
+let finalPhaseGuestTimerInterval = null;
 
 function showFinalPhaseGMModal(roomData) {
   console.log("[showFinalPhaseGMModal] Called", roomData);
@@ -2057,7 +2125,7 @@ function showFinalPhaseGMModal(roomData) {
   // タイトルと説明を設定
   titleEl.textContent = "最終フェーズ（逆転指名）";
   if (summaryEl) {
-    summaryEl.textContent = `全プレイヤーが人狼を指名します。投票状況: ${votedCount}/${voterCount}人`;
+    summaryEl.textContent = `全プレイヤーがレユニオンを指名します。投票状況: ${votedCount}/${voterCount}人`;
   }
 
   // タイマーを更新
@@ -2108,19 +2176,21 @@ function showFinalPhaseGMModal(roomData) {
         try {
           const roomRef = doc(firestore, "rooms", roomId);
           if (mostVotedPlayerId && !isTie) {
-            // 最多得票者が1人だけの場合、そのプレイヤーが人狼かどうかで勝敗が決まる
+            // 最多得票者が1人だけの場合、そのプレイヤーがレユニオンかどうかで勝敗が決まる
             const suspectedPlayer = playersArr.find(p => p.id === mostVotedPlayerId);
             const isWolf = suspectedPlayer?.role === "wolf";
             await updateDoc(roomRef, {
               "gameState.phase": "finished",
               "gameState.gameResult": isWolf ? "citizen_win_reverse" : "wolf_win",
+              "gameState.finalPhaseVoteCounts": voteCounts, // 投票数を保存
             });
             // 結果画面はshowGameResultで表示される（phaseがfinishedになった時に自動的に呼ばれる）
           } else {
-            // 同率1位の場合は人狼勝利
+            // 同率1位の場合はレユニオン勝利
             await updateDoc(roomRef, {
               "gameState.phase": "finished",
               "gameState.gameResult": "wolf_win",
+              "gameState.finalPhaseVoteCounts": voteCounts, // 投票数を保存
             });
             // 結果画面はshowGameResultで表示される（phaseがfinishedになった時に自動的に呼ばれる）
           }
@@ -2148,16 +2218,16 @@ function showFinalPhaseGMModal(roomData) {
 }
 
 /**
- * ゲーム結果を表示
+ * ゲーム結果を表示（専用画面に遷移）
  */
 function showGameResult(roomData, gameResult) {
-  const modal = document.getElementById("result-modal");
-  const titleEl = document.getElementById("result-title");
-  const summaryEl = document.getElementById("result-summary");
-  const extraEl = document.getElementById("result-extra");
-  const rolesEl = document.getElementById("result-roles");
+  const victoryScreen = document.getElementById("victory-screen");
+  const titleEl = document.getElementById("victory-title");
+  const storyEl = document.getElementById("victory-story");
+  const voteResultsEl = document.getElementById("victory-vote-results");
+  const rolesEl = document.getElementById("victory-roles");
   
-  if (!modal || !titleEl || !summaryEl || !rolesEl) return;
+  if (!victoryScreen || !titleEl || !storyEl || !rolesEl) return;
 
   const playersObj = roomData.players || {};
   const playersArr = Object.entries(playersObj).map(([id, data]) => ({
@@ -2166,35 +2236,123 @@ function showGameResult(roomData, gameResult) {
     role: data.role,
   }));
 
-  // ゲーム結果に応じてタイトルとメッセージを設定
-  if (gameResult === "citizen_win") {
-    titleEl.textContent = "市民の勝利";
-    summaryEl.textContent = "○が過半数を占めたため、市民の勝利です。";
-  } else if (gameResult === "citizen_win_reverse") {
-    titleEl.textContent = "市民の勝利（逆転）";
-    summaryEl.textContent = "人狼を正しく特定したため、市民の勝利です。";
+  const gameState = roomData.gameState || {};
+  
+  // 他の画面を非表示
+  const allScreens = document.querySelectorAll(".screen");
+  allScreens.forEach(screen => screen.classList.remove("active"));
+  
+  // 勝利画面を表示
+  victoryScreen.classList.add("active");
+  
+  // 背景色を設定
+  if (gameResult === "citizen_win" || gameResult === "citizen_win_reverse") {
+    // ロドス陣営の勝利：青系統
+    victoryScreen.classList.remove("victory-wolf");
+    victoryScreen.classList.add("victory-citizen");
+    document.body.classList.remove("victory-wolf-bg");
+    document.body.classList.add("victory-citizen-bg");
   } else if (gameResult === "wolf_win") {
-    titleEl.textContent = "人狼の勝利";
-    const gameState = roomData.gameState || {};
+    // レユニオンの勝利：赤系統
+    victoryScreen.classList.remove("victory-citizen");
+    victoryScreen.classList.add("victory-wolf");
+    document.body.classList.remove("victory-citizen-bg");
+    document.body.classList.add("victory-wolf-bg");
+  }
+
+  // ゲーム結果に応じてタイトルとストーリーを設定
+  if (gameResult === "citizen_win") {
+    titleEl.textContent = "ロドス陣営の勝利";
+    storyEl.innerHTML = `
+      <p>作戦は成功した。全ての任務を完遂し、ロドスは勝利を収めた。</p>
+      <p>隊員たちの結束と努力が、この結果をもたらしたのだ。</p>
+      <p>しかし、この勝利の裏には、多くの犠牲と困難があったことも忘れてはならない。</p>
+    `;
+  } else if (gameResult === "citizen_win_reverse") {
+    titleEl.textContent = "ロドス陣営の勝利（逆転）";
+    storyEl.innerHTML = `
+      <p>危機的状況の中、隊員たちは真実を見抜いた。</p>
+      <p>潜伏していた敵対勢力を特定し、逆転の勝利を手にした。</p>
+      <p>この勝利は、隊員たちの洞察力と結束の証である。</p>
+    `;
+  } else if (gameResult === "wolf_win") {
+    titleEl.textContent = "レユニオンの勝利";
     if (gameState.doctorHasFailed) {
-      summaryEl.textContent = "ドクターが失敗したため、人狼の勝利です。";
+      storyEl.innerHTML = `
+        <p>ドクターの失敗が、作戦の命運を決した。</p>
+        <p>レユニオンの策略により、ロドスは敗北を喫した。</p>
+        <p>この結果は、内部に潜む敵対勢力の勝利を意味する。</p>
+      `;
     } else {
-      summaryEl.textContent = "×が過半数を占めたため、人狼の勝利です。";
+      storyEl.innerHTML = `
+        <p>作戦は失敗に終わった。×が過半数を占め、ロドスは敗北した。</p>
+        <p>レユニオンの策略が功を奏し、隊員たちは力を失った。</p>
+        <p>この敗北は、今後の作戦に大きな影響を与えるだろう。</p>
+      `;
     }
+  }
+
+  // 最終フェーズの投票結果を表示
+  const voteCounts = gameState.finalPhaseVoteCounts || {};
+  if (Object.keys(voteCounts).length > 0) {
+    voteResultsEl.innerHTML = "";
+    const voteResultTitle = document.createElement("h3");
+    voteResultTitle.textContent = "投票結果";
+    voteResultTitle.style.marginTop = "20px";
+    voteResultTitle.style.marginBottom = "12px";
+    voteResultTitle.style.color = "#f5f5f7";
+    voteResultTitle.style.fontSize = "18px";
+    voteResultsEl.appendChild(voteResultTitle);
+    
+    // 投票数を降順でソート
+    const sortedVotes = Object.entries(voteCounts)
+      .map(([playerId, count]) => {
+        const player = playersArr.find(p => p.id === playerId);
+        return { playerId, playerName: player?.name || "不明", count };
+      })
+      .sort((a, b) => b.count - a.count);
+    
+    const voteList = document.createElement("div");
+    voteList.style.display = "flex";
+    voteList.style.flexDirection = "column";
+    voteList.style.gap = "8px";
+    
+    sortedVotes.forEach(({ playerName, count }) => {
+      const voteItem = document.createElement("div");
+      voteItem.style.display = "flex";
+      voteItem.style.alignItems = "center";
+      voteItem.style.justifyContent = "space-between";
+      voteItem.style.padding = "8px 12px";
+      voteItem.style.borderRadius = "6px";
+      voteItem.style.background = "rgba(255, 255, 255, 0.05)";
+      voteItem.innerHTML = `
+        <span style="font-weight: 500; color: #f5f5f7;">${playerName}</span>
+        <span style="font-size: 18px; font-weight: 700; color: #8be6c3;">${count}票</span>
+      `;
+      voteList.appendChild(voteItem);
+    });
+    
+    voteResultsEl.appendChild(voteList);
+  } else {
+    voteResultsEl.innerHTML = "";
   }
 
   // プレイヤー一覧を表示
   rolesEl.innerHTML = "";
   const rolesList = document.createElement("div");
   rolesList.className = "result-roles-list";
+  rolesList.style.display = "flex";
+  rolesList.style.flexDirection = "column";
+  rolesList.style.gap = "8px";
+  rolesList.style.marginTop = "20px";
 
   playersArr.forEach((p) => {
     const roleLabel =
       p.role === "doctor"
         ? "ドクター"
         : p.role === "wolf"
-        ? "人狼"
-        : "市民";
+        ? "レユニオン"
+        : "オペレーター";
     const roleClass =
       p.role === "doctor"
         ? "role-doctor"
@@ -2206,22 +2364,106 @@ function showGameResult(roomData, gameResult) {
     roleItem.style.display = "flex";
     roleItem.style.alignItems = "center";
     roleItem.style.gap = "8px";
-    roleItem.style.padding = "6px 8px";
+    roleItem.style.padding = "8px 12px";
     roleItem.style.borderRadius = "6px";
-    roleItem.style.background = "rgba(255, 255, 255, 0.03)";
+    roleItem.style.background = "rgba(255, 255, 255, 0.05)";
     roleItem.innerHTML = `
-      <span style="font-weight: 500;">${p.name}</span>
+      <span style="font-weight: 500; color: #f5f5f7;">${p.name}</span>
       <span class="player-role-tag ${roleClass}" style="margin-left: auto;">${roleLabel}</span>
     `;
     rolesList.appendChild(roleItem);
   });
 
   rolesEl.appendChild(rolesList);
-  extraEl.innerHTML = "";
-  modal.classList.remove("hidden");
   
   // ボタンのイベントリスナーを設定
-  setupResultModalButtons(roomData);
+  setupVictoryScreenButtons(roomData);
+}
+
+/**
+ * 勝利画面のボタンイベントリスナーを設定
+ */
+function setupVictoryScreenButtons(roomData) {
+  const returnLobbyBtn = document.getElementById("victory-return-lobby");
+  const disbandBtn = document.getElementById("victory-disband");
+  
+  if (returnLobbyBtn) {
+    // 既存のイベントリスナーを削除してから追加
+    const newBtn = returnLobbyBtn.cloneNode(true);
+    returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
+    
+    newBtn.addEventListener("click", async () => {
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (!roomId) return;
+      
+      try {
+        const userId = getCurrentUserId();
+        if (!userId) {
+          throw new Error("User not authenticated");
+        }
+        
+        // トランザクションで処理：既存のresultReturnLobbyAcksを保持しつつ、自分のIDだけをtrueに設定
+        const roomRef = doc(firestore, "rooms", roomId);
+        await runTransaction(firestore, async (tx) => {
+          const snap = await tx.get(roomRef);
+          if (!snap.exists()) throw new Error("Room not found");
+          const data = snap.data();
+          const currentAcks = data?.gameState?.resultReturnLobbyAcks || {};
+          const newAcks = { ...currentAcks, [userId]: true };
+          tx.update(roomRef, {
+            "gameState.resultReturnLobbyAcks": newAcks,
+          });
+        });
+      } catch (e) {
+        console.error("Failed to return to lobby:", e);
+        alert(e?.message || "ロビーに戻る処理に失敗しました。");
+      }
+    });
+  }
+  
+  if (disbandBtn) {
+    // 既存のイベントリスナーを削除してから追加
+    const newBtn = disbandBtn.cloneNode(true);
+    disbandBtn.parentNode.replaceChild(newBtn, disbandBtn);
+    
+    newBtn.addEventListener("click", async () => {
+      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      if (!roomId) return;
+      
+      try {
+        const userId = getCurrentUserId();
+        if (!userId) {
+          throw new Error("User not authenticated");
+        }
+        
+        const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+        const isGM = !!(createdBy && userId && createdBy === userId);
+        
+        if (!isGM) {
+          alert("GMのみがルームを解散できます。");
+          return;
+        }
+        
+        if (!confirm("ルームを解散してホームに戻りますか？")) {
+          return;
+        }
+        
+        // ルームを削除
+        const roomRef = doc(firestore, "rooms", roomId);
+        await updateDoc(roomRef, {
+          "gameState.phase": "waiting",
+        });
+        
+        // ホーム画面に戻る
+        if (typeof window !== "undefined" && window.returnToHome) {
+          window.returnToHome();
+        }
+      } catch (e) {
+        console.error("Failed to disband room:", e);
+        alert(e?.message || "ルームの解散に失敗しました。");
+      }
+    });
+  }
 }
 
 /**

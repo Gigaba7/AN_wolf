@@ -28,15 +28,15 @@ function checkGameEnd() {
   const doctor = GameState.players.find((p) => p.role === "doctor");
 
   if (GameState.doctorFailed) {
-    showResult("人狼の勝利", "ドクターが失敗したため、人狼の勝利です。");
+    showResult("レユニオンの勝利", "ドクターが失敗したため、レユニオンの勝利です。");
   } else if (blackCount > whiteCount) {
     if (doctor && !GameState.doctorFailed) {
       showGuessWolfModal();
       return;
     }
-    showResult("人狼の勝利", "黒星が過半数を占めたため、人狼の勝利です。");
+    showResult("レユニオンの勝利", "黒星が過半数を占めたため、レユニオンの勝利です。");
   } else {
-    showResult("市民の勝利", "白星が過半数を占めたため、市民の勝利です。");
+    showResult("ロドス陣営の勝利", "白星が過半数を占めたため、ロドス陣営の勝利です。");
   }
 }
 
@@ -58,8 +58,8 @@ function showResult(title, summary) {
         p.role === "doctor"
           ? "ドクター"
           : p.role === "wolf"
-          ? "人狼"
-          : "市民";
+          ? "レユニオン"
+          : "オペレーター";
       const roleClass =
         p.role === "doctor"
           ? "role-doctor"
@@ -97,7 +97,7 @@ function showGuessWolfModal() {
   extraEl.innerHTML = "";
   const info = document.createElement("p");
   info.textContent =
-    "GMは各プレイヤーからの投票結果に応じて、人狼だと思うプレイヤーを1名選択してください。";
+    "GMは各プレイヤーからの投票結果に応じて、レユニオンだと思うプレイヤーを1名選択してください。";
   extraEl.appendChild(info);
 
   const btnWrap = document.createElement("div");
@@ -113,9 +113,9 @@ function showGuessWolfModal() {
     b.addEventListener("click", () => {
       const isWolf = p.id === realWolf.id;
       if (isWolf) {
-        showResult("市民の勝利", "人狼を正しく特定したため、市民の勝利です。");
+        showResult("ロドス陣営の勝利", "レユニオンを正しく特定したため、ロドス陣営の勝利です。");
       } else {
-        showResult("人狼の勝利", "人狼を特定できなかったため、人狼の勝利です。");
+        showResult("レユニオンの勝利", "レユニオンを特定できなかったため、レユニオンの勝利です。");
       }
     });
     btnWrap.appendChild(b);
@@ -125,10 +125,10 @@ function showGuessWolfModal() {
 
   const titleEl = $("#result-title");
   const sumEl = $("#result-summary");
-  if (titleEl) titleEl.textContent = "最終判定: 人狼指名フェーズ";
+  if (titleEl) titleEl.textContent = "最終判定: レユニオン指名フェーズ";
   if (sumEl)
     sumEl.textContent =
-      "黒星が過半数ですが、ドクターは一度も失敗していません。プレイヤーからの話し合いをもとに、人狼を1名指名してください。";
+      "黒星が過半数ですが、ドクターは一度も失敗していません。プレイヤーからの話し合いをもとに、レユニオンを1名指名してください。";
 
   openModal("result-modal");
 }

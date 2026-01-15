@@ -514,7 +514,7 @@ function renderParticipantInfo() {
   const roleDisplay = $("#participant-role-display");
   const roleText = $("#participant-role-text");
   if (roleDisplay && roleText && myRole) {
-    const roleLabel = myRole === "wolf" ? "人狼（レユニオン）" : myRole === "doctor" ? "ドクター" : "市民";
+    const roleLabel = myRole === "wolf" ? "レユニオン" : myRole === "doctor" ? "ドクター" : "オペレーター";
     roleText.textContent = roleLabel;
     roleDisplay.style.display = "block";
   } else if (roleDisplay) {
