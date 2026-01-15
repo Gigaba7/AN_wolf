@@ -614,6 +614,9 @@ function syncGameStateFromFirebase(roomData) {
   // 根本理由：GM画面限定ポップアップのコールバックに進行が依存すると、キュー/表示タイミングで停止し得る
   if (GameState.phase === "playing" && GameState.subphase === "await_doctor_punch_result") {
     const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
     const playersObj = roomData.players || {};
     const order = GameState.playerOrder || Object.keys(playersObj);
     const idx = Number(gameState.currentPlayerIndex || 0);
@@ -623,6 +626,8 @@ function syncGameStateFromFirebase(roomData) {
     if (roomId && key !== lastDoctorPunchAutoProceedKey) {
       // 非最後プレイヤー：pendingDoctorPunchProceed が立っている場合に自動で次へ
       if (gameState.pendingDoctorPunchProceed === true) {
+        // 進行処理はGMのみが実行する（複数クライアントの競合でfailed-preconditionが出るのを防ぐ）
+        if (!isGM) return;
         lastDoctorPunchAutoProceedKey = key;
         console.log("[DoctorPunch] schedule proceedToNextPlayerAfterDoctorPunch", {
           roomId,
@@ -635,14 +640,19 @@ function syncGameStateFromFirebase(roomData) {
           try {
             await proceedToNextPlayerAfterDoctorPunchDB(roomId);
           } catch (e) {
-            // 他クライアントが先に進めた場合などは無視
-            console.warn("Auto proceed after doctor punch failed (may be already processed):", e);
+            // 競合/二重実行は起こり得るのでノイズを抑える
+            const msg = String(e?.message || e || "");
+            if (!msg.includes("Not waiting for doctor punch proceed")) {
+              console.warn("Auto proceed after doctor punch failed:", e);
+            }
           }
         }, 2100);
       }
 
       // 最後プレイヤー：pendingLastPlayerResult が立っている場合に自動でターン終了
       if (gameState.pendingLastPlayerResult === true) {
+        // ターン終了処理もGMのみ
+        if (!isGM) return;
         lastDoctorPunchAutoProceedKey = key;
         console.log("[DoctorPunch] schedule endTurnAfterLastPlayerResult", {
           roomId,
@@ -655,7 +665,10 @@ function syncGameStateFromFirebase(roomData) {
           try {
             await endTurnAfterLastPlayerResultDB(roomId);
           } catch (e) {
-            console.warn("Auto end turn after last player result failed (may be already processed):", e);
+            const msg = String(e?.message || e || "");
+            if (!msg.includes("Not waiting for last player result")) {
+              console.warn("Auto end turn after last player result failed:", e);
+            }
           }
         }, 2100);
       }
