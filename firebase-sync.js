@@ -591,12 +591,6 @@ function syncGameStateFromFirebase(roomData) {
             const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
             if (roomId) {
               try {
-                // pendingDoctorPunchSuccessフラグをクリア
-                const roomRef = doc(firestore, "rooms", roomId);
-                await updateDoc(roomRef, {
-                  "gameState.pendingDoctorPunchSuccess": null,
-                });
-                
                 if (isLastPlayer) {
                   await endTurnAfterLastPlayerResultDB(roomId);
                 } else {

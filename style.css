@@ -954,7 +954,7 @@ button {
 }
 
 .wide {
-  width: auto;
+  width: 100%;
 }
 
 .hint {

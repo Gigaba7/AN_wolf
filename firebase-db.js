@@ -1,5 +1,5 @@
 // Firestoreデータベース操作
-import { collection, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { collection, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { firestore } from "./firebase-config.js";
 import { getCurrentUserId } from "./firebase-auth.js";
 
@@ -47,7 +47,6 @@ async function createRoom(roomConfig) {
       lock: null, // 排他制御用
     },
     players: {},
-    logs: [],
     randomResults: {},
   };
   
@@ -855,8 +854,11 @@ async function applyDoctorPunch(roomId) {
       "gameState.subphase": "await_doctor_punch_result", // ドクター神拳発動後の成功ポップアップ表示フェーズ
       [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
       [`players.${userId}.resources.doctorPunchAvailableThisTurn`]: false,
-      "gameState.pendingDoctorPunchProceed": true, // OKボタンで進むフラグ
+      // 最後のプレイヤーの場合は endTurnAfterLastPlayerResult を使うため proceed フラグは立てない
+      "gameState.pendingDoctorPunchProceed": nextIndex === 0 ? null : true, // OK(自動)で進むフラグ
       "gameState.pendingDoctorPunchSuccess": { playerId: pendingPlayerId }, // 成功ポップアップ表示用
+      // 最後のプレイヤーの場合、成功ポップアップ後にターン終了処理へ進めるためのフラグ
+      ...(nextIndex === 0 ? { "gameState.pendingLastPlayerResult": true } : {}),
     };
     
     tx.update(roomRef, updates);
@@ -1084,7 +1086,7 @@ async function wolfDecision(roomId, decision) {
 }
 
 /**
- * GM：人狼妨害の選出結果を確定し、ログに記載する（旧実装、後方互換性のため保持）
+ * GM：人狼妨害の選出結果を確定する（旧実装、後方互換性のため保持）
  * @param {string} roomId
  * @param {string} actionText
  */
@@ -1123,30 +1125,21 @@ async function resolveWolfAction(roomId, actionText) {
     const currentPlayerId = order[idx];
     if (currentPlayerId !== wolfId) throw new Error("Obstruction requester is not current player");
 
-    const logData = {
-      type: "wolfAction",
-      message: `人狼妨害：${actionText}`,
-      timestamp: Date.now(),
-      userId,
-      playerId: wolfId,
-    };
-
     tx.update(roomRef, {
       [`players.${wolfId}.resources.wolfActionsRemaining`]: remain - 1,
       "gameState.subphase": "gm_stage",
       "gameState.wolfActionRequest": null,
-      logs: arrayUnion(logData),
     });
   });
 }
 
 /**
- * GM：職業ルーレットの結果を確定し、ログに記載する（ランダム職業使用禁止用）
+ * GM：職業ルーレットの結果を確定する（ランダム職業使用禁止用）
  * @param {string} roomId
  * @param {string} selectedJob
  * @param {string} announcementTitle - アナウンスタイトル
  * @param {string} announcementSubtitle - アナウンスサブタイトル（選択された職業を含む）
- * @param {string} logMessage - ログメッセージ
+ * @param {string} logMessage - 表示文（通知用）
  */
 async function resolveWolfActionRoulette(roomId, selectedJob, announcementTitle = null, announcementSubtitle = null, logMessage = null) {
   const userId = getCurrentUserId();
@@ -1173,14 +1166,6 @@ async function resolveWolfActionRoulette(roomId, selectedJob, announcementTitle 
     const wolf = playersObj?.[wolfId];
     if (!wolf || wolf.role !== "wolf") throw new Error("Requester is not wolf");
 
-    const logData = {
-      type: "wolfAction",
-      message: logMessage || `妨害『${actionText}』が発動されました（使用禁止職業: ${selectedJob}）`,
-      timestamp: Date.now(),
-      userId,
-      playerId: wolfId,
-    };
-
     // ルーレット確定後、subphaseをawait_resultに戻す（妨害フェーズ終了、ステージ選出済みなので結果待ち）
     const currentStage = data?.gameState?.currentStage || null;
     const nextSubphase = currentStage ? "await_result" : "gm_stage";
@@ -1195,7 +1180,6 @@ async function resolveWolfActionRoulette(roomId, selectedJob, announcementTitle 
       },
       "gameState.subphase": nextSubphase,
       "gameState.wolfActionRequest": null,
-      logs: arrayUnion(logData),
     };
     
     // 背水の陣が発動された場合、ドクター神拳使用不可フラグを設定
@@ -1249,7 +1233,7 @@ async function applyWolfAction(roomId) {
  * @param {string[]} rouletteOptions - ルーレットの選択肢（requiresRouletteがtrueの場合）
  * @param {string} announcementTitle - アナウンスタイトル
  * @param {string} announcementSubtitle - アナウンスサブタイトル
- * @param {string} logMessage - ログメッセージ
+ * @param {string} logMessage - 表示文（通知用）
  */
 async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null, announcementTitle = null, announcementSubtitle = null, logMessage = null) {
   const userId = getCurrentUserId();
@@ -1291,14 +1275,6 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
       return;
     }
 
-    const logData = {
-      type: "wolfAction",
-      message: logMessage || `妨害『${actionText}』が発動されました`,
-      timestamp: Date.now(),
-      userId,
-      playerId: userId,
-    };
-
     // 妨害発動後、subphaseをawait_resultに戻す（妨害フェーズ終了、ステージ選出済みなので結果待ち）
     const currentStage = data?.gameState?.currentStage || null;
     const nextSubphase = currentStage ? "await_result" : "gm_stage";
@@ -1316,7 +1292,6 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
       "gameState.subphase": nextSubphase,
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
-      logs: arrayUnion(logData),
     };
     
     // 背水の陣が発動された場合、ドクター神拳使用不可フラグを設定
@@ -1383,7 +1358,7 @@ async function proceedToNextPlayerChallenge(roomId) {
       "gameState.wolfActionRequest": null,
     });
   } catch (error) {
-    // エラーが発生した場合はログに記録するが、処理を続行
+    // エラーが発生した場合はコンソールに出して処理を続行
     console.warn("Failed to proceed to next player challenge (may be already processed):", error);
   }
 }
