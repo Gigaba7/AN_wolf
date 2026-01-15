@@ -222,29 +222,38 @@
       <section id="participant-screen" class="screen">
         <div class="participant-layout">
           <div class="participant-content">
-            <h1 class="participant-title">参加者用操作</h1>
-            <p class="participant-subtitle">GMの画面共有を見ながら進行してください</p>
+            <!-- 左カラム -->
+            <div class="participant-column participant-column-left">
+              <h2 class="participant-column-title">操作</h2>
+              
+              <!-- 役職表示 -->
+              <div id="participant-role-display" class="participant-role-display" style="display: none;">
+                <span class="participant-role-label">役職:</span>
+                <span id="participant-role-text" class="participant-role-text">-</span>
+              </div>
 
-            <!-- 役職表示 -->
-            <div id="participant-role-display" class="participant-role-display" style="display: none;">
-              <span class="participant-role-label">役職:</span>
-              <span id="participant-role-text" class="participant-role-text">-</span>
+              <!-- コスト表示（人狼のみ） -->
+              <div id="participant-cost-display" class="participant-cost-display" style="display: none;">
+                <span class="participant-cost-label">Cost:</span>
+                <span id="participant-cost-value" class="participant-cost-value">-</span>
+              </div>
+
+              <div class="participant-actions">
+                <!-- 役職ボタンは画面中央のポップアップとして表示（ui-render.module.jsで制御） -->
+                <button id="open-rulebook-from-participant" class="btn ghost wide">
+                  ルールブック
+                </button>
+              </div>
             </div>
 
-            <!-- コスト表示（人狼のみ） -->
-            <div id="participant-cost-display" class="participant-cost-display" style="display: none;">
-              <span class="participant-cost-label">Cost:</span>
-              <span id="participant-cost-value" class="participant-cost-value">-</span>
-            </div>
-
-            <div class="participant-actions">
-              <!-- 役職ボタンは画面中央のポップアップとして表示（ui-render.module.jsで制御） -->
-              <button id="open-rulebook-from-participant" class="btn ghost wide">
-                ルールブック
-              </button>
-              <button id="open-log-from-participant" class="btn ghost wide">
-                ログを表示
-              </button>
+            <!-- 右カラム -->
+            <div class="participant-column participant-column-right">
+              <h2 class="participant-column-title">ログ</h2>
+              <div class="participant-actions">
+                <button id="open-log-from-participant" class="btn ghost wide">
+                  ログを表示
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -334,7 +343,7 @@
       <!-- ゲーム開始時の極秘命令ポップアップ -->
       <div id="mission-brief-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
-        <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-content" style="max-width: 1200px;">
           <h2 style="text-align: center; margin-bottom: 24px; color: #f5f5f7;">極秘命令</h2>
           <div id="mission-brief-content" class="mission-brief-content" style="padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 8px; line-height: 1.8; color: #e0e0e0; font-size: 16px; white-space: pre-line;">
           </div>
@@ -347,12 +356,12 @@
       <!-- ルールブックモーダル -->
       <div id="rulebook-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
-        <div class="modal-content wide" style="max-width: 800px;">
+        <div class="modal-content wide" style="max-width: 1600px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2>ルールブック</h2>
             <button data-close-modal="rulebook-modal" class="btn ghost small">閉じる</button>
           </div>
-          <div class="rulebook-pages" style="min-height: 500px; padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 8px; overflow-y: auto;">
+          <div class="rulebook-pages" style="min-height: 500px; padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 8px; overflow-y: hidden;">
             <div id="rulebook-page-1" class="rulebook-page" style="display: none;">
               <h3>このゲームの目標と勝利条件</h3>
               <p style="color: #a0a4ba; line-height: 1.8;">

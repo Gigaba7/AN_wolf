@@ -1033,6 +1033,17 @@ function handlePhaseUI(roomData, previousPhase = null) {
       } else if (subphase === "await_doctor" && !hasChallengeAnnouncementInQueue) {
         // ドクターが操作中（継続表示）
         showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
+      } else if (subphase === "await_doctor_punch_result") {
+        // ドクター神拳発動後は「ドクターが操作中です。」を閉じる
+        const announcementModal = document.getElementById("announcement-modal");
+        if (announcementModal && !announcementModal.classList.contains("hidden")) {
+          const titleEl = document.getElementById("announcement-title");
+          if (titleEl && titleEl.textContent === "ドクターが操作中です。") {
+            announcementModal.classList.add("hidden");
+            // 継続表示が閉じられたので、キューがあれば処理を再開
+            processAnnouncementQueue();
+          }
+        }
       } else {
         // 他のフェーズではアナウンスを閉じる
         const announcementModal = document.getElementById("announcement-modal");
@@ -1670,6 +1681,18 @@ async function handleDoctorSkipAction(data, roomId) {
  */
 async function handleDoctorPunchAction(data, roomId) {
   const userId = getCurrentUserId();
+  
+  // 「ドクターが操作中です。」のポップアップを閉じる
+  const announcementModal = document.getElementById("announcement-modal");
+  if (announcementModal && !announcementModal.classList.contains("hidden")) {
+    const titleEl = document.getElementById("announcement-title");
+    if (titleEl && titleEl.textContent === "ドクターが操作中です。") {
+      announcementModal.classList.add("hidden");
+      // 継続表示が閉じられたので、キューがあれば処理を再開
+      processAnnouncementQueue();
+    }
+  }
+  
   await applyDoctorPunchDB(roomId);
   // 神拳発動アナウンス（全員に表示、画面中央に表示）
   // 注意：このポップアップのonOkでは何もしない

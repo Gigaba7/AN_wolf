@@ -69,22 +69,6 @@ body {
 }
 
 /* 妨害アニメーション */
-@keyframes wolfActionSlideIn {
-  0% {
-    transform: translateX(-100%) scale(0.8);
-    opacity: 0;
-    filter: blur(10px);
-  }
-  50% {
-    filter: blur(5px);
-  }
-  100% {
-    transform: translateX(0) scale(1);
-    opacity: 1;
-    filter: blur(0);
-  }
-}
-
 @keyframes wolfActionLightning {
   0%, 100% {
     box-shadow: 0 0 0 rgba(255, 0, 0, 0);
@@ -109,10 +93,6 @@ body {
     opacity: 0.7;
     box-shadow: 0 0 12px rgba(125, 211, 252, 1), 0 0 24px rgba(125, 211, 252, 0.6);
   }
-}
-
-#announcement-modal.wolf-action {
-  animation: wolfActionSlideIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 #announcement-modal.wolf-action .modal-content {
@@ -1426,48 +1406,61 @@ textarea {
 
 /* 参加者画面（最小UI） */
 .participant-layout {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  min-height: 100vh;
-  padding: 0;
-  position: relative;
+  display: grid;
+  grid-template-columns: 560px 1fr;
+  grid-template-rows: 1fr auto;
+  gap: 12px;
+  padding: 12px 16px;
+  height: calc(1080px - 24px);
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* 参加者画面のコンテンツを左下に配置（透過時にGM画面の操作エリアと重なるように） */
+/* 参加者画面のコンテンツをGM画面の操作エリアと同じ位置・サイズに配置 */
 .participant-content {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  max-width: 520px;
-  width: auto;
-  background: rgba(5, 7, 18, 0.95);
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  z-index: 100;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  grid-row: 2;
+  grid-column: 1;
+  width: 560px;
+  height: auto;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  border: none;
 }
 
-.participant-title {
-  font-size: 26px;
-  font-weight: 700;
-  text-align: center;
+.participant-column {
+  background: linear-gradient(145deg, #0f1219, #050712);
+  border-radius: 12px;
+  padding: 20px;
+  border: 2px solid rgba(200, 200, 220, 0.15);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(200, 200, 220, 0.05);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: auto;
+  gap: 8px;
+}
+
+.participant-column-title {
+  font-size: 16px;
   margin-bottom: 8px;
+  padding: 0 4px;
   color: #f5f5f7;
-}
-
-.participant-subtitle {
-  font-size: 13px;
-  text-align: center;
-  color: #a0a4ba;
-  margin-bottom: 18px;
 }
 
 .participant-actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  margin-top: auto;
 }
 
 .waiting-content {
@@ -1618,7 +1611,7 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
@@ -1642,7 +1635,7 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
