@@ -941,6 +941,7 @@ button {
   padding-bottom: 12px;
   grid-row: 2;
   grid-column: 1;
+  align-items: center;
 }
 
 .control-group {
@@ -948,6 +949,8 @@ button {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 6px;
+  align-items: center;
+  width: 100%;
 }
 
 .wide {

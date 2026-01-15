@@ -368,18 +368,23 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
   if (requireOk && actionsEl && okBtn) {
     actionsEl.style.display = "flex";
     // OKボタンのイベントリスナーを設定
-    const handleOk = () => {
+    const handleOk = async () => {
       modal.classList.add("hidden");
       actionsEl.style.display = "none";
       lastAnnouncementTitle = null; // リセット
-      // コールバックを実行
-      if (onOk && typeof onOk === "function") {
-        onOk();
-      }
-      okBtn.removeEventListener("click", handleOk);
-      // キュー処理を続行
-      if (isProcessingQueue) {
-        _processNextAnnouncement();
+
+      try {
+        // コールバックを実行
+        if (onOk && typeof onOk === "function") {
+          await onOk();
+        }
+      } catch (e) {
+        console.error("Announcement onOk failed:", e);
+      } finally {
+        // キュー処理を続行（例外があっても止めない）
+        if (isProcessingQueue) {
+          _processNextAnnouncement();
+        }
       }
     };
     // 既存のイベントリスナーを削除してから追加
@@ -394,19 +399,24 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
   
   // 自動で閉じる（autoCloseDelayが0の場合は閉じない、requireOkがtrueの場合は閉じない）
   if (autoCloseDelay > 0 && !requireOk) {
-    announcementTimeout = setTimeout(() => {
+    announcementTimeout = setTimeout(async () => {
       if (modal && !modal.classList.contains("hidden")) {
         modal.classList.add("hidden");
         lastAnnouncementTitle = null; // リセット
       }
       announcementTimeout = null;
-      // コールバックを実行（onOkが指定されている場合）
-      if (onOk && typeof onOk === "function") {
-        onOk();
-      }
-      // キュー処理を続行
-      if (isProcessingQueue) {
-        _processNextAnnouncement();
+      try {
+        // コールバックを実行（onOkが指定されている場合）
+        if (onOk && typeof onOk === "function") {
+          await onOk();
+        }
+      } catch (e) {
+        console.error("Announcement onOk failed:", e);
+      } finally {
+        // キュー処理を続行（例外があっても止めない）
+        if (isProcessingQueue) {
+          _processNextAnnouncement();
+        }
       }
     }, autoCloseDelay);
   }
@@ -525,6 +535,17 @@ function syncGameStateFromFirebase(roomData) {
     if (typeof window !== "undefined") {
       window.__previousSubphase = GameState.subphase;
     }
+
+    // フェーズが変わった場合、継続表示（「○○が操作中です」等）を確実に閉じる
+    const announcementModal = document.getElementById("announcement-modal");
+    if (announcementModal && !announcementModal.classList.contains("hidden")) {
+      const titleEl = document.getElementById("announcement-title");
+      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+        announcementModal.classList.add("hidden");
+        lastAnnouncementTitle = null;
+        processAnnouncementQueue();
+      }
+    }
   }
   
   // await_doctor_punch_resultフェーズ：ドクター神拳発動後の成功ポップアップを表示（ターン結果ポップアップより先に表示）
@@ -545,10 +566,10 @@ function syncGameStateFromFirebase(roomData) {
       const order = GameState.playerOrder || Object.keys(playersObj);
       const successPlayerIndex = order.indexOf(successPlayerId);
       const previousSubphase = typeof window !== "undefined" ? window.__previousSubphase : null;
-      if (lastSuccessAnnouncementPlayerIndex === successPlayerIndex && previousSubphase === "await_doctor_punch_result" && GameState.subphase === "await_doctor_punch_result") {
-        // 既に表示済みの場合はスキップ（同じプレイヤー、同じsubphaseの場合のみ）
-        // ターン結果ポップアップの処理に進む
+      if (lastSuccessAnnouncementPlayerIndex === successPlayerIndex && previousSubphase === "await_doctor_punch_result") {
+        // 既に表示済みの場合はスキップ
       } else {
+        // 表示前に即座にフラグをセット（二重表示防止）
         lastSuccessAnnouncementPlayerIndex = successPlayerIndex;
         if (typeof window !== "undefined") {
           window.__previousSubphase = GameState.subphase;
@@ -567,7 +588,6 @@ function syncGameStateFromFirebase(roomData) {
           false,
           true, // GM画面のみ
           async () => {
-            // ポップアップが閉じた後、次の処理に進む
             const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
             if (roomId) {
               try {
@@ -578,10 +598,8 @@ function syncGameStateFromFirebase(roomData) {
                 });
                 
                 if (isLastPlayer) {
-                  // 最後のプレイヤーの場合、ターン終了処理を実行
                   await endTurnAfterLastPlayerResultDB(roomId);
                 } else {
-                  // 最後のプレイヤーでない場合、次のプレイヤーの挑戦開始フェーズに進む
                   await proceedToNextPlayerAfterDoctorPunchDB(roomId);
                 }
               } catch (e) {
@@ -590,7 +608,6 @@ function syncGameStateFromFirebase(roomData) {
             }
           }
         );
-        // 成功ポップアップを表示したので、ターン結果ポップアップの処理はスキップ（次回のsyncGameStateFromFirebaseで処理される）
         return;
       }
     }
@@ -1017,27 +1034,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
       
       if (subphase === "challenge_start") {
         // challenge_startフェーズでは継続表示を開始しない（「○○の挑戦です」が表示される）
-        // 継続表示があれば閉じる
-        const announcementModal = document.getElementById("announcement-modal");
-        if (announcementModal && !announcementModal.classList.contains("hidden")) {
-          const titleEl = document.getElementById("announcement-title");
-          if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
-            announcementModal.classList.add("hidden");
-            // 継続表示が閉じられたので、キューがあれば処理を再開
-            processAnnouncementQueue();
-          }
-        }
       } else if (subphase === "await_doctor_punch_result") {
-        // ドクター神拳発動後は「ドクターが操作中です。」を閉じる（優先的にチェック）
-        const announcementModal = document.getElementById("announcement-modal");
-        if (announcementModal && !announcementModal.classList.contains("hidden")) {
-          const titleEl = document.getElementById("announcement-title");
-          if (titleEl && titleEl.textContent === "ドクターが操作中です。") {
-            announcementModal.classList.add("hidden");
-            // 継続表示が閉じられたので、キューがあれば処理を再開
-            processAnnouncementQueue();
-          }
-        }
+        // 何もしない（冒頭のクリーンアップで対応済み）
       } else if ((subphase === "wolf_decision" || subphase === "wolf_resolving") && !hasChallengeAnnouncementInQueue) {
         // 人狼が操作中（継続表示）
         showAnnouncement("人狼が操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
@@ -1045,13 +1043,13 @@ function handlePhaseUI(roomData, previousPhase = null) {
         // ドクターが操作中（継続表示）
         showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
       } else {
-        // 他のフェーズではアナウンスを閉じる
+        // 他のフェーズではアナウンスを閉じる（冒頭のクリーンアップで漏れた場合のみ）
         const announcementModal = document.getElementById("announcement-modal");
         if (announcementModal && !announcementModal.classList.contains("hidden")) {
           const titleEl = document.getElementById("announcement-title");
           if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
             announcementModal.classList.add("hidden");
-            // 継続表示が閉じられたので、キューがあれば処理を再開
+            lastAnnouncementTitle = null;
             processAnnouncementQueue();
           }
         }
@@ -1680,34 +1678,13 @@ async function handleDoctorSkipAction(data, roomId) {
  * ドクター神拳アクションの処理
  */
 async function handleDoctorPunchAction(data, roomId) {
-  const userId = getCurrentUserId();
-  
-  // 「ドクターが操作中です。」のポップアップを閉じる
-  const announcementModal = document.getElementById("announcement-modal");
-  if (announcementModal && !announcementModal.classList.contains("hidden")) {
-    const titleEl = document.getElementById("announcement-title");
-    if (titleEl && titleEl.textContent === "ドクターが操作中です。") {
-      announcementModal.classList.add("hidden");
-      // 継続表示が閉じられたので、キューがあれば処理を再開
-      processAnnouncementQueue();
-    }
+  // DB側での処理（subphaseをawait_doctor_punch_resultに変更）のみ実行
+  // ポップアップ表示はsyncGameStateFromFirebase側での検知に任せる
+  try {
+    await applyDoctorPunchDB(roomId);
+  } catch (e) {
+    console.error("Failed to apply doctor punch:", e);
   }
-  
-  await applyDoctorPunchDB(roomId);
-  // 神拳発動アナウンス（全員に表示、画面中央に表示）
-  // 注意：このポップアップのonOkでは何もしない
-  // 成功ポップアップはsyncGameStateFromFirebaseでawait_doctor_punch_resultを検出して表示される
-  // 成功ポップアップのonOkでproceedToNextPlayerAfterDoctorPunchDBが呼ばれる
-  showAnnouncement(
-    "ドクター神拳が発動されました。",
-    "失敗が帳消しにされ、成功判定とします。",
-    "ドクター神拳発動",
-    2000,
-    false, // OKボタンは不要（自動で閉じる）
-    false,
-    true, // GM画面のみに表示
-    null // onOkは不要（成功ポップアップのonOkで処理される）
-  );
 }
 
 /**
