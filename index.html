@@ -170,13 +170,6 @@
                   <span class="status-main-label">神拳発動</span>
                   <span id="status-doctor-punch" class="status-main-value">-</span>
                 </div>
-                <div class="status-main-item">
-                  <span class="status-main-label">フェーズ</span>
-                  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
-                    <span id="status-current-phase" class="status-main-value">-</span>
-                    <span id="status-next-phase" class="status-phase-next">-</span>
-                  </div>
-                </div>
               </div>
               <button id="main-options-btn" class="icon-button" title="オプション">
                 ⚙
@@ -191,10 +184,7 @@
 
             <!-- UI要素（前面レイヤー） -->
             <div class="center-ui-content">
-              <!-- ③ ログエリア -->
-              <div class="log-panel">
-                <div id="log-list" class="log-list"></div>
-              </div>
+              <!-- ログエリアは削除（レイアウトは維持） -->
             </div>
           </section>
 
@@ -251,6 +241,9 @@
               <!-- 役職ボタンは画面中央のポップアップとして表示（ui-render.module.jsで制御） -->
               <button id="open-rulebook-from-participant" class="btn ghost wide">
                 ルールブック
+              </button>
+              <button id="open-log-from-participant" class="btn ghost wide">
+                ログを表示
               </button>
             </div>
           </div>

@@ -207,22 +207,6 @@ async function updatePlayerState(roomId, userId, updates) {
   await updateDoc(doc(firestore, 'rooms', roomId), updateData);
 }
 
-/**
- * ログを追加
- */
-async function addLog(roomId, logEntry) {
-  // NOTE: arrayUnion の要素に serverTimestamp() を含めると Firestore が拒否するため、
-  // timestamp は数値（ms）で保存する。将来は rooms/{roomId}/logs サブコレクション化が推奨。
-  const logData = {
-    ...logEntry,
-    timestamp: Date.now(),
-    userId: getCurrentUserId(),
-  };
-
-  await updateDoc(doc(firestore, 'rooms', roomId), {
-    logs: arrayUnion(logData),
-  });
-}
 
 /**
  * 乱数結果を保存
@@ -275,7 +259,6 @@ export {
   subscribeToRoom,
   updateGameState,
   updatePlayerState,
-  addLog,
   saveRandomResult,
   acquireLock,
   releaseLock,

@@ -2,7 +2,6 @@
 
 import { GameState, $ } from "./game-state.js";
 import { openModal, switchScreen, closeModal } from "./ui-modals.js";
-import { logSystem, logTurn } from "./game-logging.js";
 import { createRoomAndStartGame, joinRoomAndSync, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, syncToFirebase, endDiscussionPhase, extendDiscussionPhase, wolfDecision } from "./firebase-sync.js";
 import { signInAnonymously, getCurrentUser } from "./firebase-auth.js";
 import { assignRoles, saveRolesToFirebase, updateGameStateFromWaiting } from "./game-roles.js";
@@ -368,7 +367,6 @@ function setupHomeScreen() {
 
     try {
       await startGameAsHost(roomId);
-      logSystem("ホストがゲーム開始（役職配布）を実行しました。");
     } catch (e) {
       alert(e?.message || "ゲーム開始に失敗しました。");
     }
@@ -634,7 +632,6 @@ function setupModals() {
     }
 
     closeModal("options-modal");
-    logSystem("オプションを保存しました。");
   });
 
   $("#opt-back-home")?.addEventListener("click", () => {
@@ -726,7 +723,6 @@ function setupModals() {
     }
 
     closeModal("rules-settings-modal");
-    logSystem("ルール設定を保存しました。");
   });
 
   // 会議フェーズ：終了ボタン
@@ -747,7 +743,6 @@ function setupModals() {
 
     try {
       await endDiscussionPhase(roomId);
-      logSystem("会議フェーズを終了しました。");
     } catch (e) {
       console.error("Failed to end discussion phase:", e);
       alert(`会議フェーズの終了に失敗しました: ${e.message}`);
@@ -772,7 +767,6 @@ function setupModals() {
 
     try {
       await extendDiscussionPhase(roomId);
-      logSystem("会議フェーズを2分延長しました。");
     } catch (e) {
       console.error("Failed to extend discussion phase:", e);
       alert(`会議フェーズの延長に失敗しました: ${e.message}`);

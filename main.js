@@ -1,13 +1,11 @@
 // アークナイツ人狼 ツール エントリーポイント
 
 // バージョン情報
-const APP_VERSION = "1.0.62";
+const APP_VERSION = "1.0.64";
 
 import { GameState } from "./game-state.js";
 import { onAuthStateChanged, signInAnonymously } from "./firebase-auth.js";
 import { setupHomeScreen, setupMainScreen, setupParticipantScreen, setupModals } from "./ui-handlers.js";
-import { logSystem } from "./game-logging.js";
-
 document.addEventListener("DOMContentLoaded", async () => {
   // バージョン情報をコンソールに表示
   console.log(
@@ -40,5 +38,4 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupMainScreen();
   setupParticipantScreen();
   setupModals();
-  logSystem("ツールが起動しました。ホーム画面からルーム作成または参加を選択してください。");
 });

@@ -1,5 +1,5 @@
 // Firebase同期処理
-import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, addLog, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, proceedToNextPlayerAfterDoctorPunch as proceedToNextPlayerAfterDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearDoctorSkipNotification as clearDoctorSkipNotificationDB, clearTurnResult as clearTurnResultDB, proceedToNextPlayerChallenge as proceedToNextPlayerChallengeDB, computeStartSubphase, identifyWolf as identifyWolfDB, startDiscussionPhase as startDiscussionPhaseDB, endDiscussionPhase as endDiscussionPhaseDB, extendDiscussionPhase as extendDiscussionPhaseDB, endTurnAfterLastPlayerResult as endTurnAfterLastPlayerResultDB } from "./firebase-db.js";
+import { createRoom, joinRoom, subscribeToRoom, updateGameState, updatePlayerState, saveRandomResult, startGameAsHost as startGameAsHostDB, acknowledgeRoleReveal as acknowledgeRoleRevealDB, advanceToPlayingIfAllAcked as advanceToPlayingIfAllAckedDB, applySuccess as applySuccessDB, applyFail as applyFailDB, applyDoctorPunch as applyDoctorPunchDB, applyDoctorSkip as applyDoctorSkipDB, proceedToNextPlayerAfterDoctorPunch as proceedToNextPlayerAfterDoctorPunchDB, applyWolfAction as applyWolfActionDB, activateWolfAction as activateWolfActionDB, wolfDecision as wolfDecisionDB, resolveWolfAction as resolveWolfActionDB, resolveWolfActionRoulette as resolveWolfActionRouletteDB, clearWolfActionNotification as clearWolfActionNotificationDB, clearDoctorSkipNotification as clearDoctorSkipNotificationDB, clearTurnResult as clearTurnResultDB, proceedToNextPlayerChallenge as proceedToNextPlayerChallengeDB, computeStartSubphase, identifyWolf as identifyWolfDB, startDiscussionPhase as startDiscussionPhaseDB, endDiscussionPhase as endDiscussionPhaseDB, extendDiscussionPhase as extendDiscussionPhaseDB, endTurnAfterLastPlayerResult as endTurnAfterLastPlayerResultDB } from "./firebase-db.js";
 import { signInAnonymously, getCurrentUserId, getCurrentUser } from "./firebase-auth.js";
 import { firestore } from "./firebase-config.js";
 import { doc, getDoc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -17,7 +17,6 @@ let discussionTimerInterval = null;
 let lastDiscussionEndTime = null;
 let previousDiscussionPhase = false;
 let missionBriefShown = false;
-let lastLogMessage = null; // 重複ログ防止用
 let lastAnnouncementTitle = null; // 重複アナウンス防止用
 let lastTurnResult = null; // ターン結果の重複防止用
 let previousTurn = null; // 前回のターン番号（ターン切り替え検出用）
@@ -59,12 +58,6 @@ const roomClient = createRoomClient({
     },
     clearTurnResult: async (roomId, payload) => {
       await clearTurnResultDB(roomId);
-    },
-    log: async (roomId, payload) => {
-      const type = payload?.logType || "system";
-      const message = payload?.logMessage || "";
-      if (!message) return;
-      await addLog(roomId, { type, message });
     },
   },
 });
@@ -340,8 +333,8 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
   // 既に表示されている場合でも、同じタイトルの場合は更新する（継続表示用）
   const isSameTitle = titleEl.textContent === title;
   
-  // 重複チェック：同じタイトルとログメッセージの場合はスキップ（継続表示のみ）
-  if (isSameTitle && title === lastAnnouncementTitle && logMessage === lastLogMessage && autoCloseDelay === 0) {
+  // 重複チェック：同じタイトルの場合はスキップ（継続表示のみ）
+  if (isSameTitle && title === lastAnnouncementTitle && autoCloseDelay === 0) {
     return; // 継続表示の場合は何もしない
   }
   
@@ -379,7 +372,6 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
       modal.classList.add("hidden");
       actionsEl.style.display = "none";
       lastAnnouncementTitle = null; // リセット
-      lastLogMessage = null; // リセット
       // コールバックを実行
       if (onOk && typeof onOk === "function") {
         onOk();
@@ -400,28 +392,12 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
   
   modal.classList.remove("hidden");
   
-  // ログを追加（初回表示時のみ、重複チェック）
-  if (logMessage && logMessage !== lastLogMessage) {
-    lastLogMessage = logMessage;
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    if (roomId) {
-      syncToFirebase("log", {
-        logType: "system",
-        logMessage: logMessage,
-        roomId,
-      }).catch((e) => {
-        console.error("Failed to add log:", e);
-      });
-    }
-  }
-  
   // 自動で閉じる（autoCloseDelayが0の場合は閉じない、requireOkがtrueの場合は閉じない）
   if (autoCloseDelay > 0 && !requireOk) {
     announcementTimeout = setTimeout(() => {
       if (modal && !modal.classList.contains("hidden")) {
         modal.classList.add("hidden");
         lastAnnouncementTitle = null; // リセット
-        lastLogMessage = null; // リセット
       }
       announcementTimeout = null;
       // コールバックを実行（onOkが指定されている場合）
@@ -889,10 +865,6 @@ function syncGameStateFromFirebase(roomData) {
   // フェーズに応じたUI制御（モーダル表示/画面遷移）
   handlePhaseUI(roomData, previousPhase);
   
-  // ログを同期
-  if (roomData.logs && roomData.logs.length > 0) {
-    syncLogs(roomData.logs);
-  }
 }
 
 function handlePhaseUI(roomData, previousPhase = null) {
@@ -1486,23 +1458,6 @@ function showGMRolesModal(roomData) {
   modal.classList.remove("hidden");
 }
 
-function setStageRoulettePendingLog(visible) {
-  const logListEl = $("#log-list");
-  if (!logListEl) return;
-
-  const existing = logListEl.querySelector('[data-transient="stage-roulette"]');
-  if (visible) {
-    if (existing) return;
-    const item = document.createElement("div");
-    item.className = "log-item log-system";
-    item.dataset.transient = "stage-roulette";
-    item.textContent = `[${new Date().toLocaleTimeString()}] ステージ抽選中……`;
-    logListEl.appendChild(item);
-    logListEl.scrollTop = logListEl.scrollHeight;
-  } else {
-    existing?.remove();
-  }
-}
 
 function maybeAutoStageRoulette(roomData) {
   const gameState = roomData.gameState || {};
@@ -1529,7 +1484,6 @@ function maybeAutoStageRoulette(roomData) {
     subtitle && (subtitle.textContent = "ステージ抽選中……");
     if (items) items.innerHTML = "";
     modal?.classList.remove("hidden");
-    setStageRoulettePendingLog(true);
 
     // GMだけが1回だけ抽選を実行（自動）
     if (isGM && lastStageRequestedTurn !== turn) {
@@ -1548,7 +1502,6 @@ function maybeAutoStageRoulette(roomData) {
   // そのターンの抽選が完了したら「抽選中……」表示は消す（結果は上部ステータスに反映）
   const resolvedThisTurn = stageTurn === turn && !!currentStage;
   if (resolvedThisTurn) {
-    setStageRoulettePendingLog(false);
 
     // ステージ決定：結果を表示して自動で閉じる
     if (lastStageModalTurn === turn && modal && !modal.classList.contains("hidden")) {
@@ -1599,8 +1552,6 @@ async function syncToFirebase(action, data) {
 async function handleSuccessAction(data, roomId) {
   const userId = getCurrentUserId();
   await applySuccessDB(roomId);
-  const name = data?.playerName || "プレイヤー";
-  await addLog(roomId, { type: "success", message: `${name} がステージ攻略に成功しました。`, playerId: userId });
   
   // ルームの状態を確認して、最後のプレイヤーかどうかを判定
   const roomRef = doc(firestore, "rooms", roomId);
@@ -1657,8 +1608,6 @@ async function handleFailAction(data, roomId) {
   const name = data?.playerName || "プレイヤー";
   const isConfirm = data?.isConfirm === true;
 
-  // ログ: 「○ がステージ攻略に失敗しました。」
-  await addLog(roomId, { type: "fail", message: `${name} がステージ攻略に失敗しました。`, playerId: userId });
   
   // applyFailの結果を確認（ルームの状態を取得）
   const roomRef = doc(firestore, "rooms", roomId);
@@ -1722,9 +1671,6 @@ async function handleDoctorSkipAction(data, roomId) {
 async function handleDoctorPunchAction(data, roomId) {
   const userId = getCurrentUserId();
   await applyDoctorPunchDB(roomId);
-  const target = data?.targetPlayerName || data?.playerName || "プレイヤー";
-  await addLog(roomId, { type: "doctorPunch", message: `ドクター神拳発動！ ${target} の失敗はなかったことになりました。`, playerId: userId });
-  
   // 神拳発動アナウンス（全員に表示、画面中央に表示）
   // 注意：このポップアップのonOkでは何もしない
   // 成功ポップアップはsyncGameStateFromFirebaseでawait_doctor_punch_resultを検出して表示される
@@ -1749,7 +1695,6 @@ async function handleWolfActionAction(data, roomId) {
   await applyWolfActionDB(roomId);
   // 乱数結果を保存（既にクライアント側で選択済み）
   await saveRandomResult(roomId, `wolfAction_${Date.now()}`, { action: data.action, timestamp: Date.now() });
-  await addLog(roomId, { type: "wolfAction", message: `人狼妨害: ${data.action} が発動されました。`, playerId: userId });
 }
 
 /**
@@ -1791,7 +1736,7 @@ async function handleStageRouletteAction(data, roomId) {
     });
   });
   
-  // ステージ結果アナウンス（GM画面のみ、ログメッセージでログにも記録）
+  // ステージ結果アナウンス（GM画面のみ）
   showAnnouncement(
     `作戦エリアは${stage}です`,
     null,
@@ -1834,44 +1779,8 @@ async function handleUpdateConfigAction(data, roomId) {
   if (!Object.keys(updates).length) return;
 
   await updateDoc(doc(firestore, "rooms", roomId), updates);
-  await addLog(roomId, { type: "system", message: "オプション（ステージ範囲/妨害内容）を更新しました。", playerId: userId });
 }
 
-/**
- * ログを同期
- */
-function syncLogs(logs) {
-  const logListEl = $("#log-list");
-  if (!logListEl) return;
-  
-  // 最新のログのみ表示（既存のログは保持）
-  // transient（ローカル一時表示）を除外して差分同期する
-  const existingLogs = Array.from(logListEl.children).filter((el) => !el.dataset?.transient).length;
-  const newLogs = logs.slice(existingLogs);
-
-  newLogs.forEach((log) => {
-    appendLogToUI(log);
-  });
-}
-
-function appendLogToUI(log) {
-  const logListEl = $("#log-list");
-  if (!logListEl) return;
-  const item = document.createElement("div");
-  item.className = `log-item log-${log.type || "system"}`;
-
-  const ts = log.timestamp;
-  const time =
-    typeof ts === "number"
-      ? new Date(ts).toLocaleTimeString()
-      : ts?.toDate
-      ? new Date(ts.toDate()).toLocaleTimeString()
-      : new Date().toLocaleTimeString();
-
-  item.textContent = `[${time}] ${log.message || ""}`;
-  logListEl.appendChild(item);
-  logListEl.scrollTop = logListEl.scrollHeight;
-}
 
 /**
  * 最終フェーズ：人狼指名モーダルを表示（GMのみ）
@@ -2312,27 +2221,108 @@ function showGameResult(roomData, gameResult) {
       })
       .sort((a, b) => b.count - a.count);
     
-    const voteList = document.createElement("div");
-    voteList.style.display = "flex";
-    voteList.style.flexDirection = "column";
-    voteList.style.gap = "8px";
+    const totalVotes = Object.values(voteCounts).reduce((sum, count) => sum + count, 0);
     
-    sortedVotes.forEach(({ playerName, count }) => {
-      const voteItem = document.createElement("div");
-      voteItem.style.display = "flex";
-      voteItem.style.alignItems = "center";
-      voteItem.style.justifyContent = "space-between";
-      voteItem.style.padding = "8px 12px";
-      voteItem.style.borderRadius = "6px";
-      voteItem.style.background = "rgba(255, 255, 255, 0.05)";
-      voteItem.innerHTML = `
-        <span style="font-weight: 500; color: #f5f5f7;">${playerName}</span>
-        <span style="font-size: 18px; font-weight: 700; color: #8be6c3;">${count}票</span>
-      `;
-      voteList.appendChild(voteItem);
+    // 円グラフコンテナ
+    const chartContainer = document.createElement("div");
+    chartContainer.style.display = "flex";
+    chartContainer.style.flexDirection = "column";
+    chartContainer.style.alignItems = "center";
+    chartContainer.style.gap = "20px";
+    chartContainer.style.marginTop = "20px";
+    
+    // 円グラフSVG
+    const svgSize = 200;
+    const radius = svgSize / 2 - 10;
+    const centerX = svgSize / 2;
+    const centerY = svgSize / 2;
+    
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", svgSize);
+    svg.setAttribute("height", svgSize);
+    svg.style.transform = "rotate(-90deg)";
+    svg.style.borderRadius = "50%";
+    
+    // 色のパレット
+    const colors = [
+      "#8be6c3",
+      "#7dd3fc",
+      "#a78bfa",
+      "#f472b6",
+      "#fb923c",
+      "#fbbf24",
+      "#34d399",
+      "#60a5fa"
+    ];
+    
+    let currentAngle = 0;
+    sortedVotes.forEach(({ playerName, count }, index) => {
+      const percentage = (count / totalVotes) * 100;
+      const angle = (percentage / 100) * 360;
+      const largeArcFlag = angle > 180 ? 1 : 0;
+      
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + angle;
+      
+      const startX = centerX + radius * Math.cos((startAngle * Math.PI) / 180);
+      const startY = centerY + radius * Math.sin((startAngle * Math.PI) / 180);
+      const endX = centerX + radius * Math.cos((endAngle * Math.PI) / 180);
+      const endY = centerY + radius * Math.sin((endAngle * Math.PI) / 180);
+      
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const pathData = `M ${centerX} ${centerY} L ${startX} ${startY} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY} Z`;
+      path.setAttribute("d", pathData);
+      path.setAttribute("fill", colors[index % colors.length]);
+      path.setAttribute("opacity", "0.8");
+      path.style.transition = "opacity 0.2s ease";
+      path.style.cursor = "pointer";
+      
+      path.addEventListener("mouseenter", () => {
+        path.setAttribute("opacity", "1");
+      });
+      path.addEventListener("mouseleave", () => {
+        path.setAttribute("opacity", "0.8");
+      });
+      
+      svg.appendChild(path);
+      currentAngle += angle;
     });
     
-    voteResultsEl.appendChild(voteList);
+    chartContainer.appendChild(svg);
+    
+    // 凡例
+    const legend = document.createElement("div");
+    legend.style.display = "flex";
+    legend.style.flexDirection = "column";
+    legend.style.gap = "8px";
+    legend.style.width = "100%";
+    legend.style.marginTop = "10px";
+    
+    sortedVotes.forEach(({ playerName, count }, index) => {
+      const percentage = (count / totalVotes) * 100;
+      const legendItem = document.createElement("div");
+      legendItem.style.display = "flex";
+      legendItem.style.alignItems = "center";
+      legendItem.style.justifyContent = "space-between";
+      legendItem.style.padding = "8px 12px";
+      legendItem.style.borderRadius = "6px";
+      legendItem.style.background = "rgba(255, 255, 255, 0.05)";
+      legendItem.style.border = `2px solid ${colors[index % colors.length]}`;
+      legendItem.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 16px; height: 16px; border-radius: 4px; background: ${colors[index % colors.length]};"></div>
+          <span style="font-weight: 500; color: #f5f5f7;">${playerName}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; color: #a0a4ba;">${percentage.toFixed(1)}%</span>
+          <span style="font-size: 18px; font-weight: 700; color: ${colors[index % colors.length]};">${count}票</span>
+        </div>
+      `;
+      legend.appendChild(legendItem);
+    });
+    
+    chartContainer.appendChild(legend);
+    voteResultsEl.appendChild(chartContainer);
   } else {
     voteResultsEl.innerHTML = "";
   }
@@ -2410,10 +2400,76 @@ function setupVictoryScreenButtons(roomData) {
           const data = snap.data();
           const currentAcks = data?.gameState?.resultReturnLobbyAcks || {};
           const newAcks = { ...currentAcks, [userId]: true };
-          tx.update(roomRef, {
+          
+          // 既存のresultReturnLobbyAcksを取得（なければ空オブジェクト）
+          const existingAcks = data?.gameState?.resultReturnLobbyAcks || {};
+          
+          // 最初のプレイヤーが「ロビーに戻る」を押した場合は、ゲーム状態をリセット
+          const shouldResetGameState = Object.keys(existingAcks).length === 0;
+          
+          const updates = {
             "gameState.resultReturnLobbyAcks": newAcks,
-          });
+          };
+          
+          if (shouldResetGameState) {
+            // ゲーム状態をwaitingフェーズにリセット
+            updates["gameState.phase"] = "waiting";
+            updates["gameState.turn"] = 1;
+            updates["gameState.whiteStars"] = 0;
+            updates["gameState.blackStars"] = 0;
+            updates["gameState.currentPlayerIndex"] = 0;
+            updates["gameState.currentStage"] = null;
+            updates["gameState.stageTurn"] = null;
+            updates["gameState.subphase"] = null;
+            updates["gameState.pendingFailure"] = null;
+            updates["gameState.playerOrder"] = null;
+            updates["gameState.wolfDecisionPlayerId"] = null;
+            updates["gameState.wolfActionRequest"] = null;
+            updates["gameState.gameResult"] = null;
+            updates["gameState.discussionPhase"] = false;
+            updates["gameState.discussionEndTime"] = null;
+            updates["gameState.finalPhaseVotes"] = {};
+            updates["gameState.finalPhaseVoteCounts"] = null;
+            updates["gameState.finalPhaseDiscussionEndTime"] = null;
+            updates["gameState.pendingFinalPhaseExplanation"] = null;
+            updates["gameState.turnResult"] = null;
+            updates["gameState.turnResultTurn"] = null;
+            updates["gameState.doctorHasFailed"] = false;
+            
+            // resourcesもリセット
+            const playersObj = data?.players || {};
+            const playerIds = Object.keys(playersObj);
+            playerIds.forEach((pid) => {
+              const player = playersObj[pid];
+              const role = player?.role;
+              if (role === "wolf") {
+                updates[`players.${pid}.resources.wolfActionsRemaining`] = 100;
+              }
+              if (role === "doctor") {
+                updates[`players.${pid}.resources.doctorPunchRemaining`] = 5;
+                updates[`players.${pid}.resources.doctorPunchAvailableThisTurn`] = true;
+              }
+            });
+          }
+          
+          tx.update(roomRef, updates);
         });
+        
+        // 画面をロビー（waiting-screen）に戻す
+        const victoryScreen = document.getElementById("victory-screen");
+        const waiting = document.getElementById("waiting-screen");
+        const main = document.getElementById("main-screen");
+        const participant = document.getElementById("participant-screen");
+        
+        if (victoryScreen && victoryScreen.classList.contains("active")) {
+          switchScreen("victory-screen", "waiting-screen");
+        } else if (main && main.classList.contains("active")) {
+          switchScreen("main-screen", "waiting-screen");
+        } else if (participant && participant.classList.contains("active")) {
+          switchScreen("participant-screen", "waiting-screen");
+        } else {
+          switchScreen("home-screen", "waiting-screen");
+        }
       } catch (e) {
         console.error("Failed to return to lobby:", e);
         alert(e?.message || "ロビーに戻る処理に失敗しました。");

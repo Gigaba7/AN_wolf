@@ -4,6 +4,11 @@ function openModal(id) {
   const el = document.getElementById(id);
   if (!el) return;
   el.classList.remove("hidden");
+  // フェードインアニメーションを再適用
+  el.style.animation = "none";
+  setTimeout(() => {
+    el.style.animation = "";
+  }, 10);
 }
 
 function closeModal(id) {

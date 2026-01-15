@@ -47,9 +47,6 @@ function renderStatus() {
   const wolfCostItem = $("#status-wolf-cost-item");
   const doctorPunchEl = $("#status-doctor-punch");
   const doctorPunchItem = $("#status-doctor-punch-item");
-  const currentPhaseEl = $("#status-current-phase");
-  const nextPhaseEl = $("#status-next-phase");
-
   if (turnEl) {
     turnEl.textContent = `${GameState.turn} / ${GameState.maxTurns}`;
   }
@@ -106,33 +103,6 @@ function renderStatus() {
       if (doctorPunchItem) {
         doctorPunchItem.style.display = "none";
       }
-    }
-
-    // フェーズ表示
-    const subphase = typeof window !== "undefined" ? window.RoomInfo?.gameState?.subphase : null;
-    const phaseMap = {
-      "wolf_decision": "妨害",
-      "wolf_resolving": "妨害",
-      "gm_stage": "ステージ選出",
-      "await_result": "挑戦",
-      "await_doctor": "神拳",
-    };
-    const nextPhaseMap = {
-      "wolf_decision": "挑戦",
-      "wolf_resolving": "挑戦",
-      "gm_stage": "妨害",
-      "await_result": "挑戦",
-      "await_doctor": "挑戦",
-    };
-    
-    const currentPhase = subphase ? (phaseMap[subphase] || "-") : "-";
-    const nextPhase = subphase ? (nextPhaseMap[subphase] || "-") : "-";
-    
-    if (currentPhaseEl) {
-      currentPhaseEl.textContent = currentPhase;
-    }
-    if (nextPhaseEl) {
-      nextPhaseEl.textContent = nextPhase !== currentPhase ? `→ ${nextPhase}` : "";
     }
   }
 }

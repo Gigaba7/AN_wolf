@@ -317,19 +317,36 @@ button {
 .screen {
   display: none;
   flex: 1;
+  opacity: 0;
+  animation: screenFadeIn 0.3s ease-out forwards;
 }
 
 .screen.active {
   display: flex;
   flex-direction: column;
+  opacity: 1;
+}
+
+@keyframes screenFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ホーム画面 */
 .app-header {
   padding: 24px 28px 12px;
-  border-bottom: 2px solid rgba(125, 211, 252, 0.2);
+  border-bottom: 2px solid rgba(200, 200, 220, 0.2);
   background: linear-gradient(180deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
 }
 
 .app-header h1 {
@@ -354,8 +371,22 @@ button {
   background: linear-gradient(145deg, #0f1219, #050712);
   border-radius: 12px;
   padding: 20px 20px 22px;
-  border: 2px solid rgba(125, 211, 252, 0.15);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(200, 200, 220, 0.15);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(200, 200, 220, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.home-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(200, 200, 220, 0.1);
 }
 
 .home-card h2 {
@@ -480,7 +511,7 @@ button {
   justify-content: center;
   padding: 16px 24px;
   background: linear-gradient(145deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
-  border: 2px solid rgba(125, 211, 252, 0.15);
+  border: 2px solid rgba(200, 200, 220, 0.15);
   border-bottom: none;
   height: auto;
   flex: 0 0 auto;
@@ -488,7 +519,11 @@ button {
   position: relative;
   z-index: 10;
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(200, 200, 220, 0.05);
 }
 
 .status-main {
@@ -613,12 +648,25 @@ button {
   background: linear-gradient(145deg, #0f1219, #050712);
   border-radius: 12px;
   padding: 20px;
-  border: 2px solid rgba(125, 211, 252, 0.15);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(200, 200, 220, 0.15);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(200, 200, 220, 0.05);
   display: flex;
   flex-direction: column;
   min-height: 0;
   height: 100%;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.panel:hover {
+  box-shadow: 
+    0 10px 36px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(200, 200, 220, 0.1);
 }
 
 .panel h2 {
@@ -659,16 +707,42 @@ button {
   background: linear-gradient(145deg, rgba(15, 18, 25, 0.8), rgba(5, 7, 18, 0.9));
   align-items: center;
   transition: all 0.2s ease;
-  border: 2px solid rgba(125, 211, 252, 0.1);
+  border: 2px solid rgba(200, 200, 220, 0.1);
   min-height: 60px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(200, 200, 220, 0.05);
 }
 
 .player-card.current {
   background: linear-gradient(145deg, rgba(125, 211, 252, 0.15), rgba(76, 123, 255, 0.15));
-  border-color: rgba(125, 211, 252, 0.4);
+  border-color: rgba(200, 200, 220, 0.4);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(125, 211, 252, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 6px 20px rgba(125, 211, 252, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(200, 200, 220, 0.1);
+  animation: cardPulse 2s ease-in-out infinite;
+}
+
+@keyframes cardPulse {
+  0%, 100% {
+    box-shadow: 
+      0 6px 20px rgba(125, 211, 252, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+      0 0 0 1px rgba(200, 200, 220, 0.1);
+  }
+  50% {
+    box-shadow: 
+      0 8px 24px rgba(125, 211, 252, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+      0 0 0 1px rgba(200, 200, 220, 0.15);
+  }
 }
 
 .player-avatar {
@@ -682,10 +756,14 @@ button {
   color: #f5f5f7;
   font-size: 18px;
   font-weight: 600;
-  border: 2px solid rgba(125, 211, 252, 0.3);
+  border: 2px solid rgba(200, 200, 220, 0.3);
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(200, 200, 220, 0.1);
 }
 
 .player-avatar-img {
@@ -748,8 +826,12 @@ button {
   gap: 0;
   background: linear-gradient(145deg, #0f1219, #050712) !important;
   background-color: linear-gradient(145deg, #0f1219, #050712) !important;
-  border: 2px solid rgba(125, 211, 252, 0.15) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  border: 2px solid rgba(200, 200, 220, 0.15) !important;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(200, 200, 220, 0.05) !important;
   border-radius: 12px !important;
   position: relative;
   padding: 0;
@@ -913,7 +995,7 @@ button {
 /* ボタンスタイル */
 .btn {
   border-radius: 8px;
-  border: 2px solid rgba(125, 211, 252, 0.2);
+  border: 2px solid rgba(200, 200, 220, 0.2);
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 600;
@@ -925,19 +1007,62 @@ button {
   transition: all 0.2s ease;
   background: linear-gradient(145deg, rgba(15, 18, 25, 0.9), rgba(5, 7, 18, 0.95));
   color: #f5f5f7;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(200, 200, 220, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 
+    0 6px 16px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(200, 200, 220, 0.1);
+}
+
+.btn:active {
+  transform: translateY(0);
 }
 
 .btn.primary {
   background: linear-gradient(135deg, rgba(125, 211, 252, 0.2), rgba(76, 123, 255, 0.2));
-  border-color: rgba(125, 211, 252, 0.4);
-  box-shadow: 0 4px 16px rgba(125, 211, 252, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border-color: rgba(200, 200, 220, 0.4);
+  box-shadow: 
+    0 4px 16px rgba(125, 211, 252, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(200, 200, 220, 0.1);
   color: #7dd3fc;
 }
 
 .btn.secondary {
   background: linear-gradient(145deg, rgba(15, 18, 25, 0.9), rgba(5, 7, 18, 0.95));
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(200, 200, 220, 0.15);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(200, 200, 220, 0.05);
 }
 
 .btn.tertiary {
@@ -972,7 +1097,20 @@ button {
 
 .btn.ghost {
   background: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(200, 200, 220, 0.15);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(200, 200, 220, 0.03);
+}
+
+.btn.ghost:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(200, 200, 220, 0.2);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(200, 200, 220, 0.05);
 }
 
 .btn:disabled {
@@ -1006,10 +1144,13 @@ button {
   align-items: center;
   justify-content: center;
   z-index: 40;
+  opacity: 0;
+  animation: modalFadeIn 0.2s ease-out forwards;
 }
 
 .modal.hidden {
   display: none;
+  opacity: 0;
 }
 
 .modal-backdrop {
@@ -1017,6 +1158,26 @@ button {
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
+  opacity: 0;
+  animation: backdropFadeIn 0.2s ease-out forwards;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* 妨害選択モーダルはバックドロップクリックで閉じない */
@@ -1035,6 +1196,27 @@ button {
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
+  /* メタリックな質感 */
+  background: linear-gradient(145deg, #0f1219 0%, #050712 50%, #0f1219 100%);
+  border: 2px solid rgba(200, 200, 220, 0.15);
+  box-shadow: 
+    0 12px 48px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(200, 200, 220, 0.05);
+  animation: modalContentSlideIn 0.2s ease-out;
+}
+
+@keyframes modalContentSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
   box-shadow: 0 26px 46px rgba(0, 0, 0, 0.6);
 }
 
