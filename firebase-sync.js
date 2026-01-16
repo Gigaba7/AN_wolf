@@ -28,6 +28,7 @@ let lastSuccessAnnouncementPlayerIndex = null; // 成功アナウンスの重複
 let lastFailAnnouncementPlayerIndex = null; // 失敗アナウンスの重複防止用
 let lastDoctorPunchAnnouncement = null; // ドクター神拳アナウンスの重複防止用
 // let lastChallengeStartAutoAdvanceKey = null; // challenge_start の自動進行（二重実行防止） ※1.0.80以降の挙動（巻き戻し）
+let lastFinalPhaseExplanationKey = null; // 最終フェーズ説明ポップアップ（二重表示防止）
 
 // グローバル変数として公開（main.jsからアクセス可能にする）
 if (typeof window !== 'undefined') {
@@ -274,9 +275,14 @@ function processAnnouncementQueue() {
     return;
   }
   
-  // 継続表示が表示中の場合は、キュー処理をブロック（継続表示は表示し続ける）
+  // 継続表示（操作中表示など）が出ていても、キューに通常ポップアップが溜まった場合は割り込ませる
+  // （継続表示で重要ポップアップが出なくなるのを防ぐ）
   if (_isContinuousAnnouncementShowing()) {
-    return;
+    const modal = document.getElementById("announcement-modal");
+    if (modal && !modal.classList.contains("hidden")) {
+      modal.classList.add("hidden");
+      lastAnnouncementTitle = null;
+    }
   }
   
   isProcessingQueue = true;
@@ -293,10 +299,13 @@ function _processNextAnnouncement() {
     return;
   }
   
-  // 継続表示が表示中の場合は、キュー処理をブロック（継続表示は表示し続ける）
+  // 継続表示が出ている場合でも、キュー表示を優先するため割り込ませる
   if (_isContinuousAnnouncementShowing()) {
-    isProcessingQueue = false;
-    return;
+    const modal = document.getElementById("announcement-modal");
+    if (modal && !modal.classList.contains("hidden")) {
+      modal.classList.add("hidden");
+      lastAnnouncementTitle = null;
+    }
   }
   
   // キューから最初のアナウンスを取得
@@ -596,9 +605,9 @@ function syncGameStateFromFirebase(roomData) {
         // 成功ポップアップを表示（GM画面のみ）
         // 人狼妨害と同様に「GMのOK操作」で進行する（自動タイマー進行はしない）
         showAnnouncement(
-          `${successPlayerName}の挑戦は成功しました。`,
+          `${successPlayerName}の失敗はドクター神拳により打ち消されました。`,
           null,
-          `${successPlayerName}の挑戦：〇`,
+          `${successPlayerName}の挑戦：× → 神拳で打ち消し`,
           0,
           true,
           false,
@@ -707,6 +716,40 @@ function syncGameStateFromFirebase(roomData) {
     }
   } else if (!gameState.turnResult) {
     lastTurnResult = null; // ターン結果がクリアされたらリセット
+  }
+
+  // 最終フェーズ説明ポップアップ（pendingFinalPhaseExplanation -> final_phase への遷移）
+  // DB側では pendingFinalPhaseExplanation を立てるだけなので、ここでGMがOKしたら final_phase を開始する
+  if (GameState.phase === "playing" && gameState.pendingFinalPhaseExplanation === true && !gameState.turnResult) {
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    const key = `${roomId || "no-room"}:${gameState.turn || ""}:final_explain`;
+    if (isGM && roomId && key !== lastFinalPhaseExplanationKey && isAnnouncementQueueEmpty()) {
+      lastFinalPhaseExplanationKey = key;
+      showAnnouncement(
+        "最終フェーズに突入します",
+        "逆転指名（10分）を開始します。",
+        null,
+        0,
+        true,
+        false,
+        true, // GM画面のみ
+        async () => {
+          const roomRef = doc(firestore, "rooms", roomId);
+          const endTime = Date.now() + 10 * 60 * 1000;
+          await updateDoc(roomRef, {
+            "gameState.phase": "final_phase",
+            "gameState.pendingFinalPhaseExplanation": null,
+            "gameState.finalPhaseDiscussionEndTime": endTime,
+            "gameState.finalPhaseVotes": {},
+            "gameState.finalPhaseVoteCounts": null,
+            "gameState.subphase": null,
+          });
+        }
+      );
+    }
   }
   
   // 前回の会議フェーズ状態を更新（ターン結果表示後に会議フェーズを処理するため）
@@ -1024,6 +1067,12 @@ function handlePhaseUI(roomData, previousPhase = null) {
     if (isGM) {
       checkWolfActionRequest(roomData);
       checkDoctorSkipNotification(roomData);
+
+      // ドクター操作中（妨害と同様の「継続表示」）
+      // ただし、他のポップアップを邪魔しないように「キューが空」の時だけ表示する
+      if (gameState.subphase === "await_doctor" && isAnnouncementQueueEmpty()) {
+        showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true);
+      }
     } else {
       // 参加者：人狼妨害の手番開始フェーズをチェック
       checkWolfDecisionPhase(roomData);
