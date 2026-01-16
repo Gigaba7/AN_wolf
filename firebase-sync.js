@@ -702,9 +702,10 @@ function syncGameStateFromFirebase(roomData) {
     }
     
     // ターン結果をクリア（最終フェーズに突入する場合は後でクリア）
-    if (!pendingFinalPhase) {
-      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-      if (roomId) {
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    if (roomId) {
+      // 通常ターン：2秒後にクリア
+      if (!pendingFinalPhase) {
         setTimeout(async () => {
           try {
             await syncToFirebase("clearTurnResult", { roomId });
@@ -712,44 +713,21 @@ function syncGameStateFromFirebase(roomData) {
             console.error("Failed to clear turn result:", e);
           }
         }, 2000);
+      } else {
+        // 最終フェーズ突入時：onOk内のupdateDocが失敗すると turnResult が残り続けてデッドロックするため、
+        // フォールバックでもクリアしておく（同一更新が重複しても問題なし）
+        setTimeout(async () => {
+          try {
+            const roomRef = doc(firestore, "rooms", roomId);
+            await updateDoc(roomRef, { "gameState.turnResult": null });
+          } catch (e) {
+            console.error("Failed to clear turn result (final phase fallback):", e);
+          }
+        }, 2500);
       }
     }
   } else if (!gameState.turnResult) {
     lastTurnResult = null; // ターン結果がクリアされたらリセット
-  }
-
-  // 最終フェーズ説明ポップアップ（pendingFinalPhaseExplanation -> final_phase への遷移）
-  // DB側では pendingFinalPhaseExplanation を立てるだけなので、ここでGMがOKしたら final_phase を開始する
-  if (GameState.phase === "playing" && gameState.pendingFinalPhaseExplanation === true && !gameState.turnResult) {
-    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-    const myId = typeof window !== "undefined" ? window.__uid : null;
-    const isGM = !!(createdBy && myId && createdBy === myId);
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    const key = `${roomId || "no-room"}:${gameState.turn || ""}:final_explain`;
-    if (isGM && roomId && key !== lastFinalPhaseExplanationKey && isAnnouncementQueueEmpty()) {
-      lastFinalPhaseExplanationKey = key;
-      showAnnouncement(
-        "最終フェーズに突入します",
-        "逆転指名（10分）を開始します。",
-        null,
-        0,
-        true,
-        false,
-        true, // GM画面のみ
-        async () => {
-          const roomRef = doc(firestore, "rooms", roomId);
-          const endTime = Date.now() + 10 * 60 * 1000;
-          await updateDoc(roomRef, {
-            "gameState.phase": "final_phase",
-            "gameState.pendingFinalPhaseExplanation": null,
-            "gameState.finalPhaseDiscussionEndTime": endTime,
-            "gameState.finalPhaseVotes": {},
-            "gameState.finalPhaseVoteCounts": null,
-            "gameState.subphase": null,
-          });
-        }
-      );
-    }
   }
   
   // 前回の会議フェーズ状態を更新（ターン結果表示後に会議フェーズを処理するため）
@@ -1164,15 +1142,19 @@ function handlePhaseUI(roomData, previousPhase = null) {
     handleDiscussionPhase(roomData);
   }
   
-  // 最終フェーズ説明ポップアップの表示（ターン結果ポップアップの後に表示）
-  // ターン結果ポップアップが表示されていない場合のみ表示（キューが空の場合）
-  if (gameState.pendingFinalPhaseExplanation && phase === "playing" && !gameState.turnResult && isAnnouncementQueueEmpty()) {
+  // 最終フェーズ説明ポップアップの表示
+  // - turnResult のクリアが失敗するとデッドロックするため、turnResult の有無ではブロックしない
+  // - キューが空の時のみ表示
+  if (gameState.pendingFinalPhaseExplanation && phase === "playing" && isAnnouncementQueueEmpty()) {
     const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
     const myId = typeof window !== "undefined" ? window.__uid : null;
     const isGM = !!(createdBy && myId && createdBy === myId);
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    const key = `${roomId || "no-room"}:${gameState.turn || ""}:final_explain`;
     
     // GM画面のみ表示
-    if (isGM) {
+    if (isGM && roomId && key !== lastFinalPhaseExplanationKey) {
+      lastFinalPhaseExplanationKey = key;
       showAnnouncement(
         "最終フェーズ（逆転指名）",
         "全プレイヤーがレユニオンを指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
@@ -1183,22 +1165,21 @@ function handlePhaseUI(roomData, previousPhase = null) {
         true, // GM画面のみ
         async () => {
           // OKボタンを押した後に最終フェーズに進む
-          const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-          if (roomId) {
-            try {
-              const roomRef = doc(firestore, "rooms", roomId);
-              // 10分のタイマーを開始
-              const endTime = Date.now() + 10 * 60 * 1000;
-              await updateDoc(roomRef, {
-                "gameState.phase": "final_phase",
-                "gameState.finalPhaseVotes": {},
-                "gameState.pendingFinalPhaseExplanation": null,
-                "gameState.turnResult": null, // ターン結果をクリア（最終フェーズに進むため）
-                "gameState.finalPhaseDiscussionEndTime": endTime, // 10分タイマーの終了時刻
-              });
-            } catch (e) {
-              console.error("Failed to proceed to final phase:", e);
-            }
+          try {
+            const roomRef = doc(firestore, "rooms", roomId);
+            // 10分のタイマーを開始
+            const endTime = Date.now() + 10 * 60 * 1000;
+            await updateDoc(roomRef, {
+              "gameState.phase": "final_phase",
+              "gameState.finalPhaseVotes": {},
+              "gameState.finalPhaseVoteCounts": null,
+              "gameState.pendingFinalPhaseExplanation": null,
+              "gameState.turnResult": null, // ターン結果をクリア（最終フェーズに進むため）
+              "gameState.finalPhaseDiscussionEndTime": endTime, // 10分タイマーの終了時刻
+              "gameState.subphase": null,
+            });
+          } catch (e) {
+            console.error("Failed to proceed to final phase:", e);
           }
         }
       );
