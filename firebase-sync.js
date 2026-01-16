@@ -27,6 +27,7 @@ let lastChallengeAnnouncementPlayerIndex = null; // 挑戦アナウンスの重�
 let lastSuccessAnnouncementPlayerIndex = null; // 成功アナウンスの重複防止用
 let lastFailAnnouncementPlayerIndex = null; // 失敗アナウンスの重複防止用
 let lastDoctorPunchAnnouncement = null; // ドクター神拳アナウンスの重複防止用
+let lastChallengeStartAutoAdvanceKey = null; // challenge_start の自動進行（二重実行防止）
 
 // グローバル変数として公開（main.jsからアクセス可能にする）
 if (typeof window !== 'undefined') {
@@ -884,6 +885,51 @@ function syncGameStateFromFirebase(roomData) {
           });
         }
       );
+    }
+
+    // フォールバック：アナウンスのコールバックに依存せず、一定時間 challenge_start が続いたら自動で次へ（GMのみ）
+    // 目的：アナウンスキュー/表示タイミングの不具合で challenge_start に張り付くと、成功/失敗も人狼操作も出ず停止するため
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    const key = `${roomId || "no-room"}:${GameState.turn || ""}:${GameState.currentPlayerIndex || ""}:challenge_start`;
+    if (isGM && roomId && key !== lastChallengeStartAutoAdvanceKey) {
+      lastChallengeStartAutoAdvanceKey = key;
+      setTimeout(async () => {
+        try {
+          const roomRef = doc(firestore, "rooms", roomId);
+          await runTransaction(firestore, async (tx) => {
+            const snap = await tx.get(roomRef);
+            if (!snap.exists()) return;
+            const data = snap.data();
+            if (data?.gameState?.phase !== "playing") return;
+            if (data?.gameState?.subphase !== "challenge_start") return; // 既に進んでいる
+
+            const playersObj = data?.players || {};
+            const wolfPlayerId = Object.keys(playersObj).find(pid => playersObj[pid]?.role === "wolf");
+            const wolfPlayer = wolfPlayerId ? playersObj[wolfPlayerId] : null;
+            const wolfRes = wolfPlayer?.resources || {};
+            const wolfRemain = Number(wolfRes.wolfActionsRemaining || 0);
+
+            if (wolfRemain > 0 && wolfPlayerId) {
+              tx.update(roomRef, {
+                'gameState.subphase': 'wolf_decision',
+                'gameState.wolfDecisionPlayerId': wolfPlayerId,
+                'gameState.wolfActionRequest': null,
+              });
+            } else {
+              tx.update(roomRef, {
+                'gameState.subphase': 'await_result',
+                'gameState.wolfDecisionPlayerId': null,
+                'gameState.wolfActionRequest': null,
+              });
+            }
+          });
+        } catch (e) {
+          console.warn("challenge_start auto-advance failed (may be already processed):", e);
+        }
+      }, 2300);
     }
   }
   
