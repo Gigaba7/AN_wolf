@@ -884,6 +884,8 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
     const data = snap.data();
 
     if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+    const createdBy = data?.config?.createdBy;
+    if (createdBy !== userId) throw new Error("Only GM can proceed after doctor punch");
 
     // pendingDoctorPunchProceedフラグが立っている場合のみ実行
     if (!data?.gameState?.pendingDoctorPunchProceed) {

@@ -27,7 +27,7 @@ let lastChallengeAnnouncementPlayerIndex = null; // 挑戦アナウンスの重�
 let lastSuccessAnnouncementPlayerIndex = null; // 成功アナウンスの重複防止用
 let lastFailAnnouncementPlayerIndex = null; // 失敗アナウンスの重複防止用
 let lastDoctorPunchAnnouncement = null; // ドクター神拳アナウンスの重複防止用
-let lastChallengeStartAutoAdvanceKey = null; // challenge_start の自動進行（二重実行防止）
+// let lastChallengeStartAutoAdvanceKey = null; // challenge_start の自動進行（二重実行防止） ※1.0.80以降の挙動（巻き戻し）
 
 // グローバル変数として公開（main.jsからアクセス可能にする）
 if (typeof window !== 'undefined') {
@@ -593,85 +593,25 @@ function syncGameStateFromFirebase(roomData) {
           window.__previousSubphase = GameState.subphase;
         }
         
-        // 最後のプレイヤーかどうかを確認
-        const isLastPlayer = successPlayerIndex === order.length - 1;
-        
         // 成功ポップアップを表示（GM画面のみ）
+        // 人狼妨害と同様に「GMのOK操作」で進行する（自動タイマー進行はしない）
         showAnnouncement(
           `${successPlayerName}の挑戦は成功しました。`,
           null,
           `${successPlayerName}の挑戦：〇`,
-          2000,
-          false,
+          0,
+          true,
           false,
           true, // GM画面のみ
-          null
+          async () => {
+            if (!roomId) return;
+            if (gameState.pendingLastPlayerResult === true) {
+              await endTurnAfterLastPlayerResultDB(roomId);
+            } else {
+              await proceedToNextPlayerAfterDoctorPunchDB(roomId);
+            }
+          }
         );
-      }
-    }
-  }
-
-  // ドクター神拳の「進行」自体は、ポップアップ表示に依存させずDBフラグで自動実行する
-  // 根本理由：GM画面限定ポップアップのコールバックに進行が依存すると、キュー/表示タイミングで停止し得る
-  if (GameState.phase === "playing" && GameState.subphase === "await_doctor_punch_result") {
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-    const myId = typeof window !== "undefined" ? window.__uid : null;
-    const isGM = !!(createdBy && myId && createdBy === myId);
-    const playersObj = roomData.players || {};
-    const order = GameState.playerOrder || Object.keys(playersObj);
-    const idx = Number(gameState.currentPlayerIndex || 0);
-    const currentPlayerId = order[idx] || null;
-    const key = `${roomId || "no-room"}:${gameState.turn || ""}:${currentPlayerId || ""}:${gameState.pendingDoctorPunchProceed ? "proceed" : ""}:${gameState.pendingLastPlayerResult ? "last" : ""}`;
-
-    if (roomId && key !== lastDoctorPunchAutoProceedKey) {
-      // 非最後プレイヤー：pendingDoctorPunchProceed が立っている場合に自動で次へ
-      if (gameState.pendingDoctorPunchProceed === true) {
-        // 進行処理はGMのみが実行する（複数クライアントの競合でfailed-preconditionが出るのを防ぐ）
-        if (!isGM) return;
-        lastDoctorPunchAutoProceedKey = key;
-        console.log("[DoctorPunch] schedule proceedToNextPlayerAfterDoctorPunch", {
-          roomId,
-          turn: gameState.turn,
-          currentPlayerId,
-          subphase: gameState.subphase,
-          pendingDoctorPunchProceed: gameState.pendingDoctorPunchProceed,
-        });
-        setTimeout(async () => {
-          try {
-            await proceedToNextPlayerAfterDoctorPunchDB(roomId);
-          } catch (e) {
-            // 競合/二重実行は起こり得るのでノイズを抑える
-            const msg = String(e?.message || e || "");
-            if (!msg.includes("Not waiting for doctor punch proceed")) {
-              console.warn("Auto proceed after doctor punch failed:", e);
-            }
-          }
-        }, 2100);
-      }
-
-      // 最後プレイヤー：pendingLastPlayerResult が立っている場合に自動でターン終了
-      if (gameState.pendingLastPlayerResult === true) {
-        // ターン終了処理もGMのみ
-        if (!isGM) return;
-        lastDoctorPunchAutoProceedKey = key;
-        console.log("[DoctorPunch] schedule endTurnAfterLastPlayerResult", {
-          roomId,
-          turn: gameState.turn,
-          currentPlayerId,
-          subphase: gameState.subphase,
-          pendingLastPlayerResult: gameState.pendingLastPlayerResult,
-        });
-        setTimeout(async () => {
-          try {
-            await endTurnAfterLastPlayerResultDB(roomId);
-          } catch (e) {
-            const msg = String(e?.message || e || "");
-            if (!msg.includes("Not waiting for last player result")) {
-              console.warn("Auto end turn after last player result failed:", e);
-            }
-          }
-        }, 2100);
       }
     }
   }
@@ -886,51 +826,6 @@ function syncGameStateFromFirebase(roomData) {
         }
       );
     }
-
-    // フォールバック：アナウンスのコールバックに依存せず、一定時間 challenge_start が続いたら自動で次へ（GMのみ）
-    // 目的：アナウンスキュー/表示タイミングの不具合で challenge_start に張り付くと、成功/失敗も人狼操作も出ず停止するため
-    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-    const myId = typeof window !== "undefined" ? window.__uid : null;
-    const isGM = !!(createdBy && myId && createdBy === myId);
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    const key = `${roomId || "no-room"}:${GameState.turn || ""}:${GameState.currentPlayerIndex || ""}:challenge_start`;
-    if (isGM && roomId && key !== lastChallengeStartAutoAdvanceKey) {
-      lastChallengeStartAutoAdvanceKey = key;
-      setTimeout(async () => {
-        try {
-          const roomRef = doc(firestore, "rooms", roomId);
-          await runTransaction(firestore, async (tx) => {
-            const snap = await tx.get(roomRef);
-            if (!snap.exists()) return;
-            const data = snap.data();
-            if (data?.gameState?.phase !== "playing") return;
-            if (data?.gameState?.subphase !== "challenge_start") return; // 既に進んでいる
-
-            const playersObj = data?.players || {};
-            const wolfPlayerId = Object.keys(playersObj).find(pid => playersObj[pid]?.role === "wolf");
-            const wolfPlayer = wolfPlayerId ? playersObj[wolfPlayerId] : null;
-            const wolfRes = wolfPlayer?.resources || {};
-            const wolfRemain = Number(wolfRes.wolfActionsRemaining || 0);
-
-            if (wolfRemain > 0 && wolfPlayerId) {
-              tx.update(roomRef, {
-                'gameState.subphase': 'wolf_decision',
-                'gameState.wolfDecisionPlayerId': wolfPlayerId,
-                'gameState.wolfActionRequest': null,
-              });
-            } else {
-              tx.update(roomRef, {
-                'gameState.subphase': 'await_result',
-                'gameState.wolfDecisionPlayerId': null,
-                'gameState.wolfActionRequest': null,
-              });
-            }
-          });
-        } catch (e) {
-          console.warn("challenge_start auto-advance failed (may be already processed):", e);
-        }
-      }, 2300);
-    }
   }
   
   // await_doctorフェーズになった時は「ドクターが操作中です。」が表示される（handlePhaseUIで処理）
@@ -1129,39 +1024,6 @@ function handlePhaseUI(roomData, previousPhase = null) {
     if (isGM) {
       checkWolfActionRequest(roomData);
       checkDoctorSkipNotification(roomData);
-      
-      // GM画面：サブフェーズに応じた操作中ポップアップを表示（継続表示）
-      const subphase = gameState.subphase;
-      const playersObj = roomData.players || {};
-      
-      // 「○○の挑戦です。」がキューに残っている場合は、継続表示を開始しない
-      // （「○○の挑戦です。」が表示されてから妨害フェーズに移行するため）
-      const hasChallengeAnnouncementInQueue = announcementQueue.some(item => 
-        item.title && item.title.endsWith("の挑戦です。")
-      );
-      
-      if (subphase === "challenge_start") {
-        // challenge_startフェーズでは継続表示を開始しない（「○○の挑戦です」が表示される）
-      } else if (subphase === "await_doctor_punch_result") {
-        // 何もしない（冒頭のクリーンアップで対応済み）
-      } else if ((subphase === "wolf_decision" || subphase === "wolf_resolving") && !hasChallengeAnnouncementInQueue) {
-        // 人狼が操作中（継続表示）
-        showAnnouncement("人狼が操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
-      } else if (subphase === "await_doctor" && !hasChallengeAnnouncementInQueue) {
-        // ドクターが操作中（継続表示）
-        showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true); // GM画面のみ、継続表示
-      } else {
-        // 他のフェーズではアナウンスを閉じる（冒頭のクリーンアップで漏れた場合のみ）
-        const announcementModal = document.getElementById("announcement-modal");
-        if (announcementModal && !announcementModal.classList.contains("hidden")) {
-          const titleEl = document.getElementById("announcement-title");
-          if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
-            announcementModal.classList.add("hidden");
-            lastAnnouncementTitle = null;
-            processAnnouncementQueue();
-          }
-        }
-      }
     } else {
       // 参加者：人狼妨害の手番開始フェーズをチェック
       checkWolfDecisionPhase(roomData);
