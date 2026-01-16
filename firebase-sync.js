@@ -30,6 +30,18 @@ let lastDoctorPunchAnnouncement = null; // ドクター神拳アナウンスの�
 // let lastChallengeStartAutoAdvanceKey = null; // challenge_start の自動進行（二重実行防止） ※1.0.80以降の挙動（巻き戻し）
 let lastFinalPhaseExplanationKey = null; // 最終フェーズ説明ポップアップ（二重表示防止）
 
+function _getAnnouncementQueueDebugState() {
+  const modal = document.getElementById("announcement-modal");
+  const titleEl = document.getElementById("announcement-title");
+  return {
+    queueLength: Array.isArray(announcementQueue) ? announcementQueue.length : -1,
+    isProcessingQueue: !!isProcessingQueue,
+    isContinuous: _isContinuousAnnouncementShowing(),
+    modalVisible: !!(modal && !modal.classList.contains("hidden")),
+    modalTitle: titleEl?.textContent || null,
+  };
+}
+
 // グローバル変数として公開（main.jsからアクセス可能にする）
 if (typeof window !== 'undefined') {
   window.getCurrentRoomId = () => currentRoomId;
@@ -578,15 +590,7 @@ function syncGameStateFromFirebase(roomData) {
       const stateKey = `${roomId || "no-room"}:${gameState.turn || ""}:${gameState.currentPlayerIndex || ""}:${gameState.pendingDoctorPunchProceed ? "proceed" : ""}:${gameState.pendingLastPlayerResult ? "last" : ""}:${successPlayerId}`;
       if (stateKey !== lastDoctorPunchStateLogKey) {
         lastDoctorPunchStateLogKey = stateKey;
-        console.log("[DoctorPunch] state", {
-          roomId,
-          turn: gameState.turn,
-          subphase: gameState.subphase,
-          currentPlayerIndex: gameState.currentPlayerIndex,
-          pendingDoctorPunchProceed: gameState.pendingDoctorPunchProceed,
-          pendingLastPlayerResult: gameState.pendingLastPlayerResult,
-          pendingDoctorPunchSuccess: pendingSuccess,
-        });
+        // DoctorPunch debug logs removed (issue resolved)
       }
       
       // 重複防止：同じプレイヤーの成功ポップアップが既に表示されている場合はスキップ
@@ -1155,6 +1159,15 @@ function handlePhaseUI(roomData, previousPhase = null) {
     // GM画面のみ表示
     if (isGM && roomId && key !== lastFinalPhaseExplanationKey) {
       lastFinalPhaseExplanationKey = key;
+      console.log("[FinalPhase] show explanation popup", {
+        roomId,
+        turn: gameState.turn,
+        phase,
+        subphase: gameState.subphase ?? null,
+        pendingFinalPhaseExplanation: gameState.pendingFinalPhaseExplanation,
+        turnResult: gameState.turnResult ?? null,
+        announcement: _getAnnouncementQueueDebugState(),
+      });
       showAnnouncement(
         "最終フェーズ（逆転指名）",
         "全プレイヤーがレユニオンを指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
@@ -1169,6 +1182,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
             const roomRef = doc(firestore, "rooms", roomId);
             // 10分のタイマーを開始
             const endTime = Date.now() + 10 * 60 * 1000;
+            console.log("[FinalPhase] proceed to final_phase (onOk)", { roomId, endTime });
             await updateDoc(roomRef, {
               "gameState.phase": "final_phase",
               "gameState.finalPhaseVotes": {},
@@ -1184,6 +1198,24 @@ function handlePhaseUI(roomData, previousPhase = null) {
         }
       );
     }
+  } else if (gameState.pendingFinalPhaseExplanation && phase === "playing") {
+    // ここに来る = 「最終フェーズ説明の条件は立っているが、ポップアップを出せていない」
+    // 何がブロックしているかをログに出す
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isGM = !!(createdBy && myId && createdBy === myId);
+    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+    console.log("[FinalPhase] pendingFinalPhaseExplanation but popup not shown", {
+      roomId,
+      turn: gameState.turn,
+      phase,
+      subphase: gameState.subphase ?? null,
+      isGM,
+      isAnnouncementQueueEmpty: isAnnouncementQueueEmpty(),
+      turnResult: gameState.turnResult ?? null,
+      announcement: _getAnnouncementQueueDebugState(),
+      lastFinalPhaseExplanationKey,
+    });
   }
 }
 
@@ -1682,16 +1714,7 @@ async function handleDoctorPunchAction(data, roomId) {
   // DB側での処理（subphaseをawait_doctor_punch_resultに変更）のみ実行
   // ポップアップ表示はsyncGameStateFromFirebase側での検知に任せる
   try {
-    const gs = typeof window !== "undefined" ? window.GameState : null;
-    console.log("[DoctorPunch] click", {
-      roomId,
-      subphase: gs?.subphase,
-      pendingFailure: gs?.pendingFailure,
-      doctorPunchRemaining: gs?.doctorPunchRemaining,
-      doctorPunchAvailableThisTurn: gs?.doctorPunchAvailableThisTurn,
-    });
     await applyDoctorPunchDB(roomId);
-    console.log("[DoctorPunch] applyDoctorPunchDB success", { roomId });
   } catch (e) {
     console.error("Failed to apply doctor punch:", e);
   }

@@ -808,8 +808,6 @@ async function applyDoctorPunch(roomId) {
   const userId = getCurrentUserId();
   if (!userId) throw new Error("User not authenticated");
 
-  console.log("[DoctorPunch][hotfix] applyDoctorPunch called", { roomId });
-
   const roomRef = doc(firestore, "rooms", roomId);
 
   await runTransaction(firestore, async (tx) => {
