@@ -278,6 +278,8 @@ function renderWaitingScreen(roomId) {
     const config = typeof window !== "undefined" ? window.RoomInfo?.config : null;
     const gmName = config?.gmName || config?.hostName || "GM";
     waitingTitle.textContent = `${gmName}のルーム`;
+  } else {
+    console.warn("[renderWaitingScreen] waiting-title element not found");
   }
 
   // ルームIDは画面に表示しない（視聴者乱入防止）。コピー用にdata属性へ保持。

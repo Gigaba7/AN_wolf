@@ -239,7 +239,7 @@ function maybeShowDeferredGMAnnouncements() {
       lastFinalPhaseExplanationKey = key;
       showAnnouncement(
         "最終フェーズ（逆転指名）",
-        "怪しいと思うプレイヤーに投票を行ってください。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけの場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
+        "怪しいと思うプレイヤーに投票を行ってください。\n全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけの場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
         "最終フェーズ開始",
         0,
         true, // OKボタンを要求
@@ -488,6 +488,11 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
   
   titleEl.textContent = title;
   lastAnnouncementTitle = title;
+  
+  // 最終フェーズ説明ポップアップのサブタイトルにクラスを追加（4行表示用）
+  if (subtitleEl) {
+    subtitleEl.classList.toggle("final-phase-subtitle", title === "最終フェーズ（逆転指名）");
+  }
   
   if (subtitle && subtitleEl) {
     subtitleEl.textContent = subtitle;
@@ -2275,7 +2280,7 @@ function showFinalPhaseModal(roomData) {
 
     playersArr.forEach((p) => {
       const b = document.createElement("button");
-      b.className = "btn ghost small";
+      b.className = "btn ghost final-phase-vote-btn";
       b.textContent = p.name;
       b.addEventListener("click", async () => {
         const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;

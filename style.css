@@ -1356,6 +1356,19 @@ button {
   max-height: calc(1.5em * 2); /* line-height * 2行 */
 }
 
+/* 最終フェーズ説明ポップアップのサブタイトルは4行以内で表示 */
+.announcement-subtitle.final-phase-subtitle {
+  -webkit-line-clamp: 4;
+  max-height: calc(1.5em * 4); /* line-height * 4行 */
+}
+
+/* 最終フェーズの投票ボタンを大きくする */
+#result-modal .final-phase-vote-btn {
+  font-size: 1.2em;
+  padding: 12px 24px;
+  min-width: 120px;
+}
+
 .modal-actions {
   margin-top: 12px;
   display: flex;
