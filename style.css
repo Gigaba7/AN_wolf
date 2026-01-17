@@ -831,8 +831,9 @@ button {
 
 .panel.center-panel {
   gap: 0;
-  background: linear-gradient(145deg, #0f1219, #050712) !important;
-  background-color: linear-gradient(145deg, #0f1219, #050712) !important;
+  /* プレイ映像表示用に、パネル本体は透過（下の映像を見せる） */
+  background: transparent !important;
+  background-color: transparent !important;
   border: 2px solid rgba(200, 200, 220, 0.15) !important;
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.6),
@@ -886,10 +887,25 @@ button {
   /* 16:9 アスペクト比を維持 */
   padding-bottom: 56.25%;
   border-radius: 12px;
-  border: none;
+  /* 16:9 フレーム（縁だけ不透明） */
+  border: 2px solid rgba(245, 245, 247, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 0 24px rgba(0, 0, 0, 0.25),
+    0 0 18px rgba(125, 211, 252, 0.10);
   background: transparent;
-  opacity: 0;
   overflow: hidden;
+}
+
+/* プレイ映像エリア以外を不透明に塗りつぶす（16:9の“穴”を開ける） */
+.play-video-area::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /* 外側だけ塗る：巨大box-shadowを panel.center-panel の overflow:hidden でクリップする */
+  box-shadow: 0 0 0 9999px rgba(5, 7, 18, 0.94);
 }
 
 .play-video-hint {
