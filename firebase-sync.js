@@ -204,10 +204,77 @@ let announcementTimeout = null;
 let announcementQueue = []; // アナウンスキュー
 let isProcessingQueue = false; // キュー処理中フラグ
 
-function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 2000, requireOk = false, isWolfAction = false, gmOnly = false, onOk = null) {
+function _isGMClient() {
   const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
   const myId = typeof window !== "undefined" ? window.__uid : null;
-  const isGM = !!(createdBy && myId && createdBy === myId);
+  return !!(createdBy && myId && createdBy === myId);
+}
+
+/**
+ * GM向けの「継続表示」や、キューに乗せるべきGMポップアップを
+ * 「キューが空になったタイミング」でも表示できるようにする。
+ * Firestoreの更新が止まっている待機状態でも、UIだけで詰まらないようにする。
+ */
+function maybeShowDeferredGMAnnouncements() {
+  if (typeof window === "undefined") return;
+  if (!_isGMClient()) return;
+
+  const roomId = window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+  const gs = window.RoomInfo?.gameState || window.GameState || null;
+  if (!gs) return;
+
+  // 1) 最終フェーズ説明：キューに積める（他のポップアップ表示中でもOK）
+  if (gs.pendingFinalPhaseExplanation && gs.phase === "playing" && roomId) {
+    const key = `${roomId || "no-room"}:${gs.turn || ""}:final_explain`;
+    if (key !== lastFinalPhaseExplanationKey) {
+      lastFinalPhaseExplanationKey = key;
+      console.log("[FinalPhase] queue explanation popup (deferred)", {
+        roomId,
+        turn: gs.turn,
+        phase: gs.phase,
+        subphase: gs.subphase ?? null,
+        pendingFinalPhaseExplanation: gs.pendingFinalPhaseExplanation,
+        turnResult: gs.turnResult ?? null,
+        announcement: _getAnnouncementQueueDebugState(),
+      });
+      showAnnouncement(
+        "最終フェーズ（逆転指名）",
+        "全プレイヤーがレユニオンを指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
+        "最終フェーズ開始",
+        0,
+        true, // OKボタンを要求
+        false,
+        true, // GM画面のみ
+        async () => {
+          try {
+            const roomRef = doc(firestore, "rooms", roomId);
+            const endTime = Date.now() + 10 * 60 * 1000;
+            console.log("[FinalPhase] proceed to final_phase (onOk)", { roomId, endTime });
+            await updateDoc(roomRef, {
+              "gameState.phase": "final_phase",
+              "gameState.finalPhaseVotes": {},
+              "gameState.finalPhaseVoteCounts": null,
+              "gameState.pendingFinalPhaseExplanation": null,
+              "gameState.turnResult": null,
+              "gameState.finalPhaseDiscussionEndTime": endTime,
+              "gameState.subphase": null,
+            });
+          } catch (e) {
+            console.error("Failed to proceed to final phase:", e);
+          }
+        }
+      );
+    }
+  }
+
+  // 2) ドクター操作中：継続表示は“今表示できる”タイミング（キューが空）でのみ出す
+  if (gs.phase === "playing" && gs.subphase === "await_doctor" && isAnnouncementQueueEmpty()) {
+    showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true);
+  }
+}
+
+function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 2000, requireOk = false, isWolfAction = false, gmOnly = false, onOk = null) {
+  const isGM = _isGMClient();
   
   // GM画面のみの場合はGM以外は表示しない
   if (gmOnly && !isGM) {
@@ -308,6 +375,8 @@ function _processNextAnnouncement() {
   // キューが空の場合は処理終了
   if (announcementQueue.length === 0) {
     isProcessingQueue = false;
+    // キューが空になった瞬間に、待機系のGMポップアップ/継続表示を再評価
+    maybeShowDeferredGMAnnouncements();
     return;
   }
   
@@ -409,6 +478,8 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
         if (isProcessingQueue) {
           _processNextAnnouncement();
         }
+        // OKで閉じた後にも、待機系のGMポップアップ/継続表示を再評価
+        maybeShowDeferredGMAnnouncements();
       }
     };
     // 既存のイベントリスナーを削除してから追加
@@ -441,6 +512,8 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
         if (isProcessingQueue) {
           _processNextAnnouncement();
         }
+        // 自動で閉じた後にも、待機系のGMポップアップ/継続表示を再評価
+        maybeShowDeferredGMAnnouncements();
       }
     }, autoCloseDelay);
   }
@@ -1021,9 +1094,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
     const main = document.getElementById("main-screen");
     const participant = document.getElementById("participant-screen");
     
-    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-    const myId = typeof window !== "undefined" ? window.__uid : null;
-    const isGM = !!(createdBy && myId && createdBy === myId);
+    const isGM = _isGMClient();
 
     if (waiting?.classList.contains("active")) {
       waiting.classList.remove("active");
@@ -1049,12 +1120,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
     if (isGM) {
       checkWolfActionRequest(roomData);
       checkDoctorSkipNotification(roomData);
-
-      // ドクター操作中（妨害と同様の「継続表示」）
-      // ただし、他のポップアップを邪魔しないように「キューが空」の時だけ表示する
-      if (gameState.subphase === "await_doctor" && isAnnouncementQueueEmpty()) {
-        showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true);
-      }
+      // 「キューが空になった後」にも表示できるように共通関数に寄せる
+      maybeShowDeferredGMAnnouncements();
     } else {
       // 参加者：人狼妨害の手番開始フェーズをチェック
       checkWolfDecisionPhase(roomData);
@@ -1146,76 +1213,9 @@ function handlePhaseUI(roomData, previousPhase = null) {
     handleDiscussionPhase(roomData);
   }
   
-  // 最終フェーズ説明ポップアップの表示
-  // - turnResult のクリアが失敗するとデッドロックするため、turnResult の有無ではブロックしない
-  // - キューが空の時のみ表示
-  if (gameState.pendingFinalPhaseExplanation && phase === "playing" && isAnnouncementQueueEmpty()) {
-    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-    const myId = typeof window !== "undefined" ? window.__uid : null;
-    const isGM = !!(createdBy && myId && createdBy === myId);
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    const key = `${roomId || "no-room"}:${gameState.turn || ""}:final_explain`;
-    
-    // GM画面のみ表示
-    if (isGM && roomId && key !== lastFinalPhaseExplanationKey) {
-      lastFinalPhaseExplanationKey = key;
-      console.log("[FinalPhase] show explanation popup", {
-        roomId,
-        turn: gameState.turn,
-        phase,
-        subphase: gameState.subphase ?? null,
-        pendingFinalPhaseExplanation: gameState.pendingFinalPhaseExplanation,
-        turnResult: gameState.turnResult ?? null,
-        announcement: _getAnnouncementQueueDebugState(),
-      });
-      showAnnouncement(
-        "最終フェーズ（逆転指名）",
-        "全プレイヤーがレユニオンを指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
-        "最終フェーズ開始",
-        0,
-        true, // OKボタンを要求
-        false,
-        true, // GM画面のみ
-        async () => {
-          // OKボタンを押した後に最終フェーズに進む
-          try {
-            const roomRef = doc(firestore, "rooms", roomId);
-            // 10分のタイマーを開始
-            const endTime = Date.now() + 10 * 60 * 1000;
-            console.log("[FinalPhase] proceed to final_phase (onOk)", { roomId, endTime });
-            await updateDoc(roomRef, {
-              "gameState.phase": "final_phase",
-              "gameState.finalPhaseVotes": {},
-              "gameState.finalPhaseVoteCounts": null,
-              "gameState.pendingFinalPhaseExplanation": null,
-              "gameState.turnResult": null, // ターン結果をクリア（最終フェーズに進むため）
-              "gameState.finalPhaseDiscussionEndTime": endTime, // 10分タイマーの終了時刻
-              "gameState.subphase": null,
-            });
-          } catch (e) {
-            console.error("Failed to proceed to final phase:", e);
-          }
-        }
-      );
-    }
-  } else if (gameState.pendingFinalPhaseExplanation && phase === "playing") {
-    // ここに来る = 「最終フェーズ説明の条件は立っているが、ポップアップを出せていない」
-    // 何がブロックしているかをログに出す
-    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-    const myId = typeof window !== "undefined" ? window.__uid : null;
-    const isGM = !!(createdBy && myId && createdBy === myId);
-    const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-    console.log("[FinalPhase] pendingFinalPhaseExplanation but popup not shown", {
-      roomId,
-      turn: gameState.turn,
-      phase,
-      subphase: gameState.subphase ?? null,
-      isGM,
-      isAnnouncementQueueEmpty: isAnnouncementQueueEmpty(),
-      turnResult: gameState.turnResult ?? null,
-      announcement: _getAnnouncementQueueDebugState(),
-      lastFinalPhaseExplanationKey,
-    });
+  // 最終フェーズ説明ポップアップは「キューに積む」方式にする（待機中にFirestore更新が止まっても詰まらない）
+  if (phase === "playing") {
+    maybeShowDeferredGMAnnouncements();
   }
 }
 
