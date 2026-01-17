@@ -182,11 +182,8 @@
               </div>
             </div>
 
-            <!-- UI要素（前面レイヤー） -->
-            <div class="center-ui-content">
-              <!-- ログエリアは削除（レイアウトは維持） -->
-              <div class="play-video-under-space"></div>
-            </div>
+            <!-- プレイ映像エリアの下：操作エリアと同じ高さの新規エリア（後で機能追加用） -->
+            <div class="play-video-under-space"></div>
           </section>
 
           <!-- ② 操作パネル -->
@@ -796,6 +793,21 @@
                   <div id="rules-wolf-actions-editor" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
                     <!-- JSで妨害エディタを描画 -->
                   </div>
+              </label>
+            </div>
+
+            <div class="options-row">
+              <label>
+                ルールテキスト（配信オーバーレイ表示用）
+                <textarea
+                  id="rules-rule-text"
+                  rows="6"
+                  placeholder="例）&#10;・この回は○○禁止&#10;・妨害は必ず守る&#10;・会議フェーズは5分"
+                  style="width: 100%; padding: 10px; margin-top: 6px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px; resize: vertical;"
+                ></textarea>
+                <p style="font-size: 11px; color: #a0a4ba; margin-top: 6px;">
+                  ここに入力した内容は、GM画面の「映像下エリア」に表示されます（全員共通）。
+                </p>
               </label>
             </div>
           </section>

@@ -414,6 +414,7 @@ function refreshRulesSettingsModalControls() {
   const stageRangesEl = $("#rules-stage-ranges");
   const wolfActionsEditorEl = $("#rules-wolf-actions-editor");
   const wolfCostEl = $("#rules-wolf-initial-cost");
+  const ruleTextEl = $("#rules-rule-text");
 
   // ターンごとの章レンジを描画
   if (stageRangesEl instanceof HTMLElement) {
@@ -637,6 +638,14 @@ function refreshRulesSettingsModalControls() {
     const roomInfo = typeof window !== "undefined" ? window.RoomInfo : null;
     const wolfInitialCost = roomInfo?.config?.wolfInitialCost || 100;
     wolfCostEl.value = String(wolfInitialCost);
+  }
+
+  // ルールテキスト
+  if (ruleTextEl instanceof HTMLTextAreaElement) {
+    // ルーム設定を優先（参加者側も同じ値を見る）
+    const fromRoom = typeof window !== "undefined" ? window.RoomInfo?.config?.ruleText : null;
+    const v = typeof fromRoom === "string" ? fromRoom : (GameState.options.ruleText || "");
+    ruleTextEl.value = v;
   }
 }
 
@@ -880,6 +889,7 @@ function setupModals() {
     const stageRangesEl = $("#rules-stage-ranges");
     const wolfActionsEditorEl = $("#rules-wolf-actions-editor");
     const wolfCostEl = $("#rules-wolf-initial-cost");
+    const ruleTextEl = $("#rules-rule-text");
 
     // ターンごとの章レンジを収集
     /** @type {{min:number,max:number}[]} */
@@ -974,6 +984,13 @@ function setupModals() {
       }
     }
 
+    // ルールテキストを保存（空でもOK）
+    let ruleText = "";
+    if (ruleTextEl instanceof HTMLTextAreaElement) {
+      ruleText = (ruleTextEl.value || "").trim();
+      GameState.options.ruleText = ruleText;
+    }
+
     // ルームに同期（ホストのみ）
     const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
     const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
@@ -986,6 +1003,7 @@ function setupModals() {
         stageRangesByTurn: GameState.options.stageRangesByTurn,
         wolfActions: GameState.options.wolfActions,
         wolfInitialCost: wolfInitialCost,
+        ruleText: ruleText,
         roomId,
       }).catch((e) => {
         console.error("Failed to update config:", e);

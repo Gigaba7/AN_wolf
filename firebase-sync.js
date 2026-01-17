@@ -104,6 +104,7 @@ async function createRoomAndStartGame(players, config) {
       stageMaxChapter: config.stageMaxChapter,
       stageRangesByTurn: config.stageRangesByTurn,
       wolfActions: config.wolfActions,
+      ruleText: config.ruleText,
       // 旧互換（将来削除可）
       wolfActionTexts: config.wolfActionTexts,
     };
@@ -1050,8 +1051,119 @@ function syncGameStateFromFirebase(roomData) {
   if (Array.isArray(config.stageRangesByTurn) && config.stageRangesByTurn.length) {
     GameState.options.stageRangesByTurn = config.stageRangesByTurn;
   }
+  if (typeof config.ruleText === "string") {
+    GameState.options.ruleText = config.ruleText;
+  }
   if (Array.isArray(config.wolfActions) && config.wolfActions.length) {
-    GameState.options.wolfActions = config.wolfActions;
+    // ルーム設定が古い場合でも、最新の妨害一覧に追従できるように不足分をマージする
+    const defaults = typeof window !== "undefined" ? window.__DEFAULT_WOLF_ACTIONS : null;
+    const mergeWolfActions = (current, defaultList) => {
+      const cur = Array.isArray(current) ? current : [];
+      const def = Array.isArray(defaultList) ? defaultList : [];
+      const byKey = new Map();
+      cur.forEach((a) => {
+        const key = a?.text || null;
+        if (!key) return;
+        byKey.set(key, a);
+      });
+      def.forEach((d) => {
+        const key = d?.text || null;
+        if (!key) return;
+        if (!byKey.has(key)) {
+          byKey.set(key, d);
+          return;
+        }
+        const curA = byKey.get(key);
+        // 既存（GMが編集した可能性がある）を優先し、欠けている項目だけ埋める
+        const merged = {
+          ...d,
+          ...curA,
+          // requiresRoulette は default が true で current が未定義なら引き継ぐ
+          requiresRoulette: curA?.requiresRoulette === undefined ? d?.requiresRoulette : curA.requiresRoulette,
+        };
+        if (merged?.requiresRoulette === true) {
+          const ro = Array.isArray(curA?.rouletteOptions) && curA.rouletteOptions.length ? curA.rouletteOptions : null;
+          if (!ro && Array.isArray(d?.rouletteOptions) && d.rouletteOptions.length) {
+            merged.rouletteOptions = d.rouletteOptions;
+          }
+        }
+        // oldName/announcement* は空文字なら default で補う（既存があれば維持）
+        ["oldName", "announcementTitle", "announcementSubtitle", "logMessage", "displayName"].forEach((k) => {
+          const v = merged?.[k];
+          if (!v && d?.[k]) merged[k] = d[k];
+        });
+        byKey.set(key, merged);
+      });
+      // 元の順序（current）を基本にしつつ、末尾に default 追加分を付与
+      const ordered = [];
+      const seen = new Set();
+      cur.forEach((a) => {
+        const key = a?.text || null;
+        if (!key || !byKey.has(key) || seen.has(key)) return;
+        ordered.push(byKey.get(key));
+        seen.add(key);
+      });
+      def.forEach((d) => {
+        const key = d?.text || null;
+        if (!key || !byKey.has(key) || seen.has(key)) return;
+        ordered.push(byKey.get(key));
+        seen.add(key);
+      });
+      return ordered.length ? ordered : cur;
+    };
+
+    const mergedActions = mergeWolfActions(config.wolfActions, defaults);
+
+    // 既知の不整合を正規化（過去のデフォルト値ミスなど）
+    const normalizedActions = (Array.isArray(mergedActions) ? mergedActions : []).map((a) => {
+      if (!a || typeof a !== "object") return a;
+
+      // ターゲットバンのタイトルが誤って「工作」になっていた場合は補正
+      if (a.text === "ターゲットバン" && a.announcementTitle === "妨害：工作(-15)") {
+        return { ...a, announcementTitle: "妨害：ターゲットバン(-15)" };
+      }
+
+      // 背水の陣：効果説明が旧仕様のままの場合は補正
+      if (a.text === "背水の陣") {
+        const next = { ...a };
+        if (next.oldName === "ドクター神拳使用不可") {
+          next.oldName = "次のラウンドまでドクター神拳使用不可";
+        }
+        if (typeof next.announcementSubtitle === "string") {
+          next.announcementSubtitle = next.announcementSubtitle.replace(
+            "(ドクター神拳使用不可)",
+            "(次のラウンドまでドクター神拳使用不可)"
+          );
+        }
+        return next;
+      }
+
+      return a;
+    });
+
+    GameState.options.wolfActions = normalizedActions;
+
+    // ホスト（GM）の場合は、古い config を最新に寄せて部屋設定も更新（全員に反映）
+    try {
+      const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+      const myId = typeof window !== "undefined" ? window.__uid : null;
+      const isHost = !!(createdBy && myId && createdBy === myId);
+      if (isHost) {
+        const before = JSON.stringify(config.wolfActions || []);
+        const after = JSON.stringify(normalizedActions || []);
+        if (before !== after) {
+          const rid =
+            (typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null) ||
+            roomIdForLog ||
+            null;
+          if (rid) {
+            syncToFirebase("updateConfig", { wolfActions: normalizedActions, roomId: rid });
+          } else {
+            console.warn("[Config Migration] roomId is not available; skip updateConfig for wolfActions.");
+          }
+        }
+      }
+    } catch {}
   } else if (Array.isArray(config.wolfActionTexts) && config.wolfActionTexts.length) {
     // 旧テキスト互換
     GameState.options.wolfActionTexts = config.wolfActionTexts;
@@ -1932,7 +2044,7 @@ async function handleStageRouletteAction(data, roomId) {
   showAnnouncement(
     `作戦エリアは${stage}です`,
     null,
-    `ターン${GameState.turn}のステージ: ${stage}`,
+    `ラウンド${GameState.turn}のステージ: ${stage}`,
     2000,
     false,
     false,
@@ -1960,6 +2072,7 @@ async function handleUpdateConfigAction(data, roomId) {
   const wolfActions = Array.isArray(data?.wolfActions) ? data.wolfActions : null;
   const wolfActionTexts = Array.isArray(data?.wolfActionTexts) ? data.wolfActionTexts : null; // 旧互換
   const wolfInitialCost = Number(data?.wolfInitialCost);
+  const ruleText = typeof data?.ruleText === "string" ? data.ruleText : null;
 
   /** @type {Record<string, any>} */
   const updates = {};
@@ -1971,6 +2084,7 @@ async function handleUpdateConfigAction(data, roomId) {
   if (Number.isFinite(wolfInitialCost) && wolfInitialCost >= 1 && wolfInitialCost <= 200) {
     updates["config.wolfInitialCost"] = wolfInitialCost;
   }
+  if (ruleText !== null) updates["config.ruleText"] = ruleText;
 
   if (!Object.keys(updates).length) return;
 

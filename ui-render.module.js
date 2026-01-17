@@ -30,6 +30,7 @@ function renderAll() {
   renderStatus();
   renderPlayers();
   updateControlPermissions();
+  renderUnderVideoInfo();
 }
 
 // firebase-sync.js が最初の onSnapshot で UI 更新を呼ぶ前に参照できるように、
@@ -624,5 +625,39 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
-export { renderAll, renderStatus, renderPlayers, renderWaitingScreen, renderWolfActionList, renderParticipantInfo, renderRulebookWolfActions };
+// GM画面：映像下エリアに「このターンの妨害内容」と「ルールテキスト」を表示
+function renderUnderVideoInfo() {
+  const el = document.querySelector(".play-video-under-space");
+  if (!(el instanceof HTMLElement)) return;
+
+  const roomInfo = typeof window !== "undefined" ? window.RoomInfo : null;
+  const gs = roomInfo?.gameState || {};
+  const cfg = roomInfo?.config || {};
+
+  const currentWolf = gs?.currentWolfAction || null;
+  const wolfText = typeof currentWolf?.text === "string" ? currentWolf.text : "";
+  const wolfSub = typeof currentWolf?.announcementSubtitle === "string" ? currentWolf.announcementSubtitle : "";
+
+  const ruleText = typeof cfg?.ruleText === "string" ? cfg.ruleText : (GameState.options.ruleText || "");
+
+  el.innerHTML = `
+    <div style="display:flex; gap:16px; height:100%; padding:14px 16px; box-sizing:border-box;">
+      <div style="flex: 0 0 42%; min-width: 320px;">
+        <div style="font-weight:700; font-size:16px; color:#f5f5f7; margin-bottom:8px;">このターンの妨害</div>
+        <div style="font-size:14px; color:#d4d6e3; line-height:1.5; white-space:pre-wrap;">
+          ${escapeHtml(wolfText || "（妨害なし）")}
+        </div>
+        ${wolfSub ? `<div style="margin-top:8px; font-size:12px; color:#a0a4ba; line-height:1.5; white-space:pre-wrap;">${escapeHtml(wolfSub)}</div>` : ""}
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-weight:700; font-size:16px; color:#f5f5f7; margin-bottom:8px;">ルール</div>
+        <div style="font-size:14px; color:#d4d6e3; line-height:1.6; white-space:pre-wrap; overflow:auto; max-height:100%;">
+          ${escapeHtml(ruleText || "（ルールテキスト未設定：ルール設定で入力してください）")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export { renderAll, renderStatus, renderPlayers, renderWaitingScreen, renderWolfActionList, renderParticipantInfo, renderRulebookWolfActions, renderUnderVideoInfo };
 
