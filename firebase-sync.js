@@ -1081,6 +1081,8 @@ function syncGameStateFromFirebase(roomData) {
           ...curA,
           // requiresRoulette は default が true で current が未定義なら引き継ぐ
           requiresRoulette: curA?.requiresRoulette === undefined ? d?.requiresRoulette : curA.requiresRoulette,
+          // enabled は未設定なら ON
+          enabled: curA?.enabled === undefined ? (d?.enabled === undefined ? true : d.enabled) : curA.enabled,
         };
         if (merged?.requiresRoulette === true) {
           const ro = Array.isArray(curA?.rouletteOptions) && curA.rouletteOptions.length ? curA.rouletteOptions : null;
@@ -1089,7 +1091,7 @@ function syncGameStateFromFirebase(roomData) {
           }
         }
         // oldName/announcement* は空文字なら default で補う（既存があれば維持）
-        ["oldName", "announcementTitle", "announcementSubtitle", "logMessage", "displayName"].forEach((k) => {
+        ["oldName", "announcementSubtitle", "logMessage", "displayName"].forEach((k) => {
           const v = merged?.[k];
           if (!v && d?.[k]) merged[k] = d[k];
         });
@@ -1118,15 +1120,15 @@ function syncGameStateFromFirebase(roomData) {
     // 既知の不整合を正規化（過去のデフォルト値ミスなど）
     const normalizedActions = (Array.isArray(mergedActions) ? mergedActions : []).map((a) => {
       if (!a || typeof a !== "object") return a;
+      const next = { ...a };
 
-      // ターゲットバンのタイトルが誤って「工作」になっていた場合は補正
-      if (a.text === "ターゲットバン" && a.announcementTitle === "妨害：工作(-15)") {
-        return { ...a, announcementTitle: "妨害：ターゲットバン(-15)" };
+      // enabled は未設定なら ON 扱い
+      if (next.enabled === undefined) {
+        next.enabled = true;
       }
 
       // 背水の陣：効果説明が旧仕様のままの場合は補正
-      if (a.text === "背水の陣") {
-        const next = { ...a };
+      if (next.text === "背水の陣") {
         if (next.oldName === "ドクター神拳使用不可") {
           next.oldName = "次のラウンドまでドクター神拳使用不可";
         }
@@ -1136,10 +1138,9 @@ function syncGameStateFromFirebase(roomData) {
             "(次のラウンドまでドクター神拳使用不可)"
           );
         }
-        return next;
       }
 
-      return a;
+      return next;
     });
 
     GameState.options.wolfActions = normalizedActions;
@@ -3125,7 +3126,6 @@ async function resolveWolfActionRoulette(roomId, selectedJob) {
   // wolfActionRequestからactionTextを取得して、対応する妨害情報を取得
   const GameState = typeof window !== 'undefined' ? window.GameState : null;
   const RoomInfo = typeof window !== 'undefined' ? window.RoomInfo : null;
-  let announcementTitle = null;
   let announcementSubtitle = null;
   let logMessage = null;
   
@@ -3137,32 +3137,29 @@ async function resolveWolfActionRoulette(roomId, selectedJob) {
     if (action) {
       // サブタイトルに選択された職業を含める
       const baseSubtitle = action.announcementSubtitle || null;
-      announcementTitle = action.announcementTitle || null;
       announcementSubtitle = baseSubtitle ? `${baseSubtitle}（使用禁止職業: ${selectedJob}）` : `使用禁止職業: ${selectedJob}`;
       logMessage = action.logMessage || null;
     }
   }
   
-  return await resolveWolfActionRouletteDB(roomId, selectedJob, announcementTitle, announcementSubtitle, logMessage);
+  return await resolveWolfActionRouletteDB(roomId, selectedJob, null, announcementSubtitle, logMessage);
 }
 
 async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null, customText = null) {
   // actionTextから対応する妨害情報を取得
   const GameState = typeof window !== 'undefined' ? window.GameState : null;
-  let announcementTitle = null;
   let announcementSubtitle = null;
   let logMessage = null;
   
   if (GameState && Array.isArray(GameState.options.wolfActions)) {
     const action = GameState.options.wolfActions.find(a => a.text === actionText);
     if (action) {
-      announcementTitle = action.announcementTitle || null;
       announcementSubtitle = action.announcementSubtitle || null;
       logMessage = action.logMessage || null;
     }
   }
   
-  return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions, announcementTitle, announcementSubtitle, logMessage, customText);
+  return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions, null, announcementSubtitle, logMessage, customText);
 }
 
 // identifyWolfDBは既にインポートされているので、そのままエクスポート

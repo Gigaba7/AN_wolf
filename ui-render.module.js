@@ -400,28 +400,30 @@ function renderWolfActionList() {
     const displayName = typeof action === "object" && action.displayName ? action.displayName : actionText;
     const oldName = typeof action === "object" && action.oldName ? action.oldName : null;
     const requiresRoulette = typeof action === "object" && action.requiresRoulette === true;
+    const enabled = typeof action === "object" ? action.enabled !== false : true;
     const canAfford = currentCost >= actionCost;
+    const canUse = enabled && canAfford;
 
     const item = document.createElement("div");
     item.className = "wolf-action-item";
-    if (!canAfford) {
+    if (!canUse) {
       item.classList.add("disabled");
     }
     item.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span class="wolf-action-text">${displayName}</span>
+          <span class="wolf-action-text">${displayName}${!enabled ? ' <span style="opacity:0.75; font-size:11px; color:#a0a4ba;">(OFF)</span>' : ""}</span>
           <span class="wolf-action-cost">Cost-${actionCost}</span>
         </div>
         ${oldName ? `<span style="opacity: 0.7; font-size: 12px; color: #a0a4ba;">${oldName}</span>` : ''}
       </div>
-      <button class="btn primary small" ${!canAfford ? "disabled" : ""} data-action-index="${index}">
+      <button class="btn primary small" ${!canUse ? "disabled" : ""} data-action-index="${index}">
         発動
       </button>
     `;
 
     const btn = item.querySelector("button");
-    if (btn && canAfford) {
+    if (btn && canUse) {
       // 人狼のみが発動できる（このUIは人狼のみに表示される）
       btn.addEventListener("click", async () => {
         const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
@@ -596,7 +598,9 @@ function renderRulebookWolfActions() {
   }
 
   actions.forEach((a, idx) => {
-    const name = (a?.displayName || a?.text || `妨害${idx + 1}`).toString();
+    const enabled = a?.enabled !== false;
+    const baseName = (a?.displayName || a?.text || `妨害${idx + 1}`).toString();
+    const name = enabled ? baseName : `${baseName}（OFF）`;
     const cost = Number.isFinite(Number(a?.cost)) ? String(Math.floor(Number(a.cost))) : "-";
     // ルールブックの「効果」欄は旧仕様メモ（oldName）を優先し、無ければサブタイトルを短く表示
     const effect =
@@ -607,7 +611,7 @@ function renderRulebookWolfActions() {
     const tr = document.createElement("tr");
     const border = idx === actions.length - 1 ? "" : 'border-bottom: 1px solid rgba(255,255,255,0.05);';
     tr.innerHTML = `
-      <td style="padding: 8px; color: #a0a4ba; ${border}">${escapeHtml(name)}</td>
+      <td style="padding: 8px; color: ${enabled ? "#a0a4ba" : "rgba(160,164,186,0.55)"}; ${border}">${escapeHtml(name)}</td>
       <td style="padding: 8px; color: #ff6464; text-align: right; ${border}">${escapeHtml(cost)}</td>
       <td style="padding: 8px; color: #a0a4ba; ${border}">${escapeHtml(effect)}</td>
     `;

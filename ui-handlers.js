@@ -435,9 +435,8 @@ function refreshRulesSettingsModalControls() {
       const wrap = document.createElement("div");
       wrap.style.display = "flex";
       wrap.style.alignItems = "center";
-      wrap.style.gap = "6px";
-      wrap.style.flex = "1";
-      wrap.style.minWidth = "0";
+      wrap.style.gap = "4px";
+      wrap.style.flex = "0 0 auto";
 
       const btnStyle = (btn) => {
         btn.type = "button";
@@ -462,7 +461,7 @@ function refreshRulesSettingsModalControls() {
       input.step = "1";
       input.value = String(clampChapter(value));
       input.inputMode = "numeric";
-      input.style.width = "64px";
+      input.style.width = "56px";
       input.style.padding = "6px 8px";
       input.style.borderRadius = "8px";
       input.style.border = "1px solid rgba(255,255,255,0.18)";
@@ -501,7 +500,7 @@ function refreshRulesSettingsModalControls() {
       const row = document.createElement("div");
       row.style.display = "flex";
       row.style.alignItems = "center";
-      row.style.gap = "8px";
+      row.style.gap = "6px";
 
       const label = document.createElement("div");
       label.textContent = `${t}ラウンド目`;
@@ -535,6 +534,7 @@ function refreshRulesSettingsModalControls() {
       const sep = document.createElement("span");
       sep.textContent = "〜";
       sep.style.opacity = "0.7";
+      sep.style.margin = "0 2px";
 
       row.appendChild(label);
       row.appendChild(minStep.wrap);
@@ -544,7 +544,7 @@ function refreshRulesSettingsModalControls() {
     }
   }
 
-  // 妨害エディタを描画（編集可能: タイトル / 表示文言 / コスト）
+  // 妨害エディタを描画（表示/編集: キー / 表示文言 / コスト / ON-OFF）
   if (wolfActionsEditorEl instanceof HTMLElement) {
     const actions = Array.isArray(GameState.options.wolfActions) && GameState.options.wolfActions.length
       ? GameState.options.wolfActions
@@ -584,22 +584,8 @@ function refreshRulesSettingsModalControls() {
 
       const grid = document.createElement("div");
       grid.style.display = "grid";
-      grid.style.gridTemplateColumns = "1fr 1fr 120px";
+      grid.style.gridTemplateColumns = "1fr 140px 120px";
       grid.style.gap = "8px";
-
-      const titleInput = document.createElement("input");
-      titleInput.type = "text";
-      titleInput.placeholder = "タイトル（ポップアップの見出し）";
-      titleInput.value = a.announcementTitle || "";
-      titleInput.dataset.actionKey = key;
-      titleInput.dataset.field = "announcementTitle";
-
-      const subtitleInput = document.createElement("input");
-      subtitleInput.type = "text";
-      subtitleInput.placeholder = "サブタイトル（ポップアップの補足文）";
-      subtitleInput.value = a.announcementSubtitle || "";
-      subtitleInput.dataset.actionKey = key;
-      subtitleInput.dataset.field = "announcementSubtitle";
 
       const displayInput = document.createElement("input");
       displayInput.type = "text";
@@ -617,7 +603,32 @@ function refreshRulesSettingsModalControls() {
       costInput.dataset.actionKey = key;
       costInput.dataset.field = "cost";
 
-      [titleInput, subtitleInput, displayInput, costInput].forEach((el) => {
+      // ON/OFF
+      const enabledWrap = document.createElement("label");
+      enabledWrap.style.display = "flex";
+      enabledWrap.style.alignItems = "center";
+      enabledWrap.style.gap = "8px";
+      enabledWrap.style.padding = "8px 10px";
+      enabledWrap.style.borderRadius = "10px";
+      enabledWrap.style.border = "1px solid rgba(255,255,255,0.2)";
+      enabledWrap.style.background = "rgba(5,7,18,0.65)";
+      enabledWrap.style.color = "#f5f5f7";
+      enabledWrap.style.fontSize = "13px";
+
+      const enabledInput = document.createElement("input");
+      enabledInput.type = "checkbox";
+      enabledInput.checked = a?.enabled !== false; // デフォルトON
+      enabledInput.dataset.actionKey = key;
+      enabledInput.dataset.field = "enabled";
+
+      const enabledText = document.createElement("span");
+      enabledText.textContent = "ON";
+      enabledText.style.opacity = "0.9";
+
+      enabledWrap.appendChild(enabledInput);
+      enabledWrap.appendChild(enabledText);
+
+      [displayInput, costInput].forEach((el) => {
         el.style.width = "100%";
         el.style.padding = "8px";
         el.style.borderRadius = "8px";
@@ -627,30 +638,25 @@ function refreshRulesSettingsModalControls() {
         el.style.fontSize = "13px";
       });
 
-      // 1段目: タイトル / コスト
-      const row1 = document.createElement("div");
-      row1.style.display = "grid";
-      row1.style.gridTemplateColumns = "1fr 120px";
-      row1.style.gap = "8px";
-      row1.appendChild(titleInput);
-      row1.appendChild(costInput);
+      // 背水の陣は特殊仕様：キー/表示文言を編集できない
+      if (key === "背水の陣") {
+        displayInput.disabled = true;
+        displayInput.style.opacity = "0.7";
+      }
 
-      // 2段目: サブタイトル
-      const row2 = document.createElement("div");
-      row2.style.display = "grid";
-      row2.style.gridTemplateColumns = "1fr";
-      row2.appendChild(subtitleInput);
-
-      // 3段目: 表示文言
-      const row3 = document.createElement("div");
-      row3.style.display = "grid";
-      row3.style.gridTemplateColumns = "1fr";
-      row3.appendChild(displayInput);
-
-      grid.appendChild(row1);
-      grid.appendChild(row2);
-      grid.appendChild(row3);
+      grid.appendChild(displayInput);
+      grid.appendChild(enabledWrap);
+      grid.appendChild(costInput);
       wrap.appendChild(grid);
+
+      if (key === "背水の陣") {
+        const note = document.createElement("div");
+        note.textContent = "※背水の陣は特殊な仕様のため編集することができません";
+        note.style.fontSize = "12px";
+        note.style.color = "#a0a4ba";
+        note.style.opacity = "0.95";
+        wrap.appendChild(note);
+      }
 
       // ルーレット妨害の場合：候補を編集できる（デフォルトはアコーディオンで非表示）
       if (a?.requiresRoulette === true) {
@@ -1006,14 +1012,18 @@ function setupModals() {
             inputs.find((el) => el.dataset?.actionKey === key && el.dataset?.field === field) ||
             textareas.find((el) => el.dataset?.actionKey === key && el.dataset?.field === field);
 
-          const announcementTitle = (get("announcementTitle")?.value || "").trim();
-          const announcementSubtitle = (get("announcementSubtitle")?.value || "").trim();
           const displayName = (get("displayName")?.value || "").trim();
           const costRaw = get("cost")?.value;
           const cost = Number(costRaw);
           if (!Number.isFinite(cost) || cost < 0 || cost > 999) {
             throw new Error(`妨害「${key}」のコストが不正です。`);
           }
+
+          const enabledEl = get("enabled");
+          const enabled =
+            enabledEl instanceof HTMLInputElement && enabledEl.type === "checkbox"
+              ? enabledEl.checked
+              : (a?.enabled !== false);
 
           // ルーレット候補（requiresRoulette の場合のみ）
           let rouletteOptions = Array.isArray(a.rouletteOptions) ? a.rouletteOptions : null;
@@ -1031,9 +1041,9 @@ function setupModals() {
 
           return {
             ...a,
-            announcementTitle: announcementTitle || a.announcementTitle || "",
-            announcementSubtitle: announcementSubtitle || a.announcementSubtitle || "",
-            displayName: displayName || a.displayName || a.text,
+            enabled: enabled,
+            // 背水の陣はキー/表示文言を編集不可（特殊仕様）
+            displayName: key === "背水の陣" ? (a.displayName || a.text) : (displayName || a.displayName || a.text),
             cost: Math.floor(cost),
             ...(rouletteOptions ? { rouletteOptions } : {}),
           };

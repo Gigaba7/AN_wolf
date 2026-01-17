@@ -1225,11 +1225,15 @@ async function resolveWolfActionRoulette(roomId, selectedJob, announcementTitle 
     const req = data?.gameState?.wolfActionRequest || null;
     const wolfId = req?.playerId || null;
     const actionText = req?.actionText || "ランダム職業使用禁止";
+    const actionCost = Number(req?.actionCost || 0);
     if (!wolfId) throw new Error("No obstruction request");
 
     const playersObj = data?.players || {};
     const wolf = playersObj?.[wolfId];
     if (!wolf || wolf.role !== "wolf") throw new Error("Requester is not wolf");
+
+    // 妨害タイトルは「キー(text)」と「コスト(cost)」から自動生成する（ルール設定でタイトル編集しない）
+    const computedTitle = `妨害：${actionText}(-${Math.floor(Math.max(0, actionCost))})`;
 
     // ルーレット確定後、subphaseをawait_resultに戻す（妨害フェーズ終了、ステージ選出済みなので結果待ち）
     const currentStage = data?.gameState?.currentStage || null;
@@ -1239,16 +1243,18 @@ async function resolveWolfActionRoulette(roomId, selectedJob, announcementTitle 
     const updates = {
       "gameState.wolfActionNotification": { 
         text: `${actionText}（使用禁止職業: ${selectedJob}）`, 
-        announcementTitle: announcementTitle || `妨害『${actionText}』が発動されました`,
+        announcementTitle: computedTitle,
         announcementSubtitle: announcementSubtitle || null,
         logMessage: logMessage || `妨害『${actionText}』が発動されました（使用禁止職業: ${selectedJob}）`,
+        cost: Math.floor(Math.max(0, actionCost)),
         timestamp: nowTs
       },
       // 映像下エリア表示用（妨害内容を保持）
       "gameState.currentWolfAction": {
         text: `${actionText}（使用禁止職業: ${selectedJob}）`,
-        announcementTitle: announcementTitle || `妨害『${actionText}』が発動されました`,
+        announcementTitle: computedTitle,
         announcementSubtitle: announcementSubtitle || null,
+        cost: Math.floor(Math.max(0, actionCost)),
         timestamp: nowTs,
       },
       "gameState.subphase": nextSubphase,
@@ -1325,11 +1331,26 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
     const me = playersObj?.[userId];
     if (!me || me.role !== "wolf") throw new Error("Only werewolf can activate obstruction");
 
+    // config 側で OFF にされている妨害は発動できない
+    try {
+      const cfgActions = Array.isArray(data?.config?.wolfActions) ? data.config.wolfActions : null;
+      const cfg = cfgActions ? cfgActions.find((a) => a?.text === actionText) : null;
+      if (cfg && cfg.enabled === false) {
+        throw new Error("This obstruction is disabled (OFF)");
+      }
+    } catch (e) {
+      // e が Error の場合はそのまま投げ直す
+      if (e instanceof Error) throw e;
+    }
+
     const res = me.resources || {};
     const currentCost = Number(res.wolfActionsRemaining || 0);
     if (currentCost < actionCost) {
       throw new Error(`Insufficient cost: need ${actionCost}, have ${currentCost}`);
     }
+
+    // 妨害タイトルは「キー(text)」と「コスト(cost)」から自動生成する（ルール設定でタイトル編集しない）
+    const computedTitle = `妨害：${actionText}(-${Math.floor(Math.max(0, actionCost))})`;
 
     // ルーレットが必要な場合は、GM画面でルーレットを実行する必要がある
     if (requiresRoulette && Array.isArray(rouletteOptions) && rouletteOptions.length > 0) {
@@ -1340,14 +1361,16 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
         "gameState.wolfActionRequest": {
           playerId: userId,
           actionText: actionText,
+          actionCost: Math.floor(Math.max(0, actionCost)),
           rouletteOptions: rouletteOptions,
           timestamp: nowTs,
         },
         // 映像下エリア表示用（確定待ち）
         "gameState.currentWolfAction": {
           text: `${actionText}（確定待ち）`,
-          announcementTitle: announcementTitle || `妨害『${actionText}』が発動されました`,
+          announcementTitle: computedTitle,
           announcementSubtitle: announcementSubtitle || null,
+          cost: Math.floor(Math.max(0, actionCost)),
           timestamp: nowTs,
         },
         "gameState.subphase": "wolf_resolving",
@@ -1373,16 +1396,18 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
       [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
       "gameState.wolfActionNotification": { 
         text: `${actionText}${targetBanSuffix}`, 
-        announcementTitle: announcementTitle || `妨害『${actionText}』が発動されました`,
+        announcementTitle: computedTitle,
         announcementSubtitle: (announcementSubtitle ? `${announcementSubtitle}${targetBanSuffix}` : (targetBanSuffix ? targetBanSuffix.replace(/^\（/, "（").replace(/\）$/, "）") : null)),
         logMessage: logMessage ? `${logMessage}${targetBanSuffix}` : `妨害『${actionText}』が発動されました${targetBanSuffix}`,
+        cost: Math.floor(Math.max(0, actionCost)),
         timestamp: nowTs
       },
       // 映像下エリア表示用（妨害内容を保持）
       "gameState.currentWolfAction": {
         text: `${actionText}${targetBanSuffix}`,
-        announcementTitle: announcementTitle || `妨害『${actionText}』が発動されました`,
+        announcementTitle: computedTitle,
         announcementSubtitle: (announcementSubtitle ? `${announcementSubtitle}${targetBanSuffix}` : (targetBanSuffix ? targetBanSuffix.replace(/^\（/, "（").replace(/\）$/, "）") : null)),
+        cost: Math.floor(Math.max(0, actionCost)),
         timestamp: nowTs,
       },
       "gameState.subphase": nextSubphase,
