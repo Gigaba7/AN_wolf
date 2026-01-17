@@ -710,6 +710,10 @@ async function applySuccess(roomId) {
       // ここではpendingLastPlayerResultフラグを設定して、成功ポップアップのonOkでendTurnAndPrepareNextを呼ぶ
       const updates = {
         "gameState.pendingLastPlayerResult": true, // 最後のプレイヤーの挑戦結果表示待ちフラグ
+        // 結果ポップアップ表示中にGMが誤って追加で成功/失敗を押してしまうと、
+        // 進行が二重に走り、await_doctor などの別フローに入ることがある。
+        // そのため、ここでは判定入力を受け付けない専用サブフェーズに切り替える。
+        "gameState.subphase": "await_turn_end",
         "gameState.wolfDecisionPlayerId": null,
         "gameState.wolfActionRequest": null,
       };

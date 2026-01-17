@@ -207,6 +207,9 @@ let announcementTimeout = null;
 let announcementQueue = []; // アナウンスキュー
 let isProcessingQueue = false; // キュー処理中フラグ
 
+// 状態ログ（ターン状況の把握用 / 変化したときだけ出す）
+let lastTurnStateLogKey = null;
+
 function _isGMClient() {
   const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
   const myId = typeof window !== "undefined" ? window.__uid : null;
@@ -231,15 +234,6 @@ function maybeShowDeferredGMAnnouncements() {
     const key = `${roomId || "no-room"}:${gs.turn || ""}:final_explain`;
     if (key !== lastFinalPhaseExplanationKey) {
       lastFinalPhaseExplanationKey = key;
-      console.log("[FinalPhase] queue explanation popup (deferred)", {
-        roomId,
-        turn: gs.turn,
-        phase: gs.phase,
-        subphase: gs.subphase ?? null,
-        pendingFinalPhaseExplanation: gs.pendingFinalPhaseExplanation,
-        turnResult: gs.turnResult ?? null,
-        announcement: _getAnnouncementQueueDebugState(),
-      });
       showAnnouncement(
         "最終フェーズ（逆転指名）",
         "怪しいと思うプレイヤーに投票を行ってください。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけの場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
@@ -252,7 +246,6 @@ function maybeShowDeferredGMAnnouncements() {
           try {
             const roomRef = doc(firestore, "rooms", roomId);
             const endTime = Date.now() + 10 * 60 * 1000;
-            console.log("[FinalPhase] proceed to final_phase (onOk)", { roomId, endTime });
             await updateDoc(roomRef, {
               "gameState.phase": "final_phase",
               "gameState.finalPhaseVotes": {},
@@ -605,6 +598,7 @@ function syncGameStateFromFirebase(roomData) {
   const players = roomData.players;
   const userId = getCurrentUserId();
   const config = roomData.config || {};
+  const roomIdForLog = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
 
   // ルーム情報をグローバルに保持（UI側のhost判定などに利用）
   if (typeof window !== 'undefined') {
@@ -636,6 +630,65 @@ function syncGameStateFromFirebase(roomData) {
   GameState.discussionPhase = gameState.discussionPhase === true;
   GameState.discussionEndTime = gameState.discussionEndTime || null;
   
+  // 現在のターン状況ログ（変化したときだけ）
+  // ※最終フェーズ関連は除外（要望によりログ削除）
+  try {
+    const orderForLog = GameState.playerOrder || Object.keys(players || {});
+    const currentPlayerIdForLog =
+      orderForLog[Math.max(0, Math.min(GameState.currentPlayerIndex || 0, orderForLog.length - 1))] || null;
+    const currentPlayerNameForLog = currentPlayerIdForLog ? players?.[currentPlayerIdForLog]?.name : null;
+
+    const key = JSON.stringify({
+      roomId: roomIdForLog,
+      phase: GameState.phase,
+      turn: GameState.turn,
+      subphase: GameState.subphase ?? null,
+      currentPlayerIndex: GameState.currentPlayerIndex,
+      currentPlayerId: currentPlayerIdForLog,
+      currentPlayerName: currentPlayerNameForLog,
+      currentStage: GameState.currentStage ?? null,
+      stageTurn: gameState.stageTurn ?? null,
+      // 進行に影響する待機フラグ類
+      pendingNextPlayerChallenge: gameState.pendingNextPlayerChallenge ?? null,
+      pendingLastPlayerResult: gameState.pendingLastPlayerResult ?? null,
+      pendingFailurePlayerId: gameState.pendingFailure?.playerId ?? null,
+      pendingDoctorPunchProceed: gameState.pendingDoctorPunchProceed ?? null,
+      pendingDoctorPunchSuccess: gameState.pendingDoctorPunchSuccess ? true : null,
+      pendingDoctorSkipTurnEnd: gameState.pendingDoctorSkipTurnEnd ?? null,
+      doctorSkipNotification: gameState.doctorSkipNotification ? true : null,
+      wolfDecisionPlayerId: gameState.wolfDecisionPlayerId ?? null,
+      wolfActionRequest: gameState.wolfActionRequest ? true : null,
+      turnResult: gameState.turnResult ?? null,
+      discussionPhase: gameState.discussionPhase ?? null,
+    });
+    if (key !== lastTurnStateLogKey) {
+      lastTurnStateLogKey = key;
+      console.log("[TurnState]", {
+        roomId: roomIdForLog,
+        phase: GameState.phase,
+        turn: GameState.turn,
+        subphase: GameState.subphase ?? null,
+        currentPlayerIndex: GameState.currentPlayerIndex,
+        currentPlayer: currentPlayerNameForLog ? `${currentPlayerNameForLog} (${currentPlayerIdForLog})` : null,
+        currentStage: GameState.currentStage ?? null,
+        stageTurn: gameState.stageTurn ?? null,
+        pendingNextPlayerChallenge: gameState.pendingNextPlayerChallenge ?? null,
+        pendingLastPlayerResult: gameState.pendingLastPlayerResult ?? null,
+        pendingFailure: gameState.pendingFailure ?? null,
+        pendingDoctorPunchProceed: gameState.pendingDoctorPunchProceed ?? null,
+        pendingDoctorPunchSuccess: gameState.pendingDoctorPunchSuccess ?? null,
+        pendingDoctorSkipTurnEnd: gameState.pendingDoctorSkipTurnEnd ?? null,
+        doctorSkipNotification: gameState.doctorSkipNotification ?? null,
+        wolfDecisionPlayerId: gameState.wolfDecisionPlayerId ?? null,
+        wolfActionRequest: gameState.wolfActionRequest ?? null,
+        turnResult: gameState.turnResult ?? null,
+        discussionPhase: gameState.discussionPhase ?? null,
+      });
+    }
+  } catch (e) {
+    // ログ用なので握りつぶす
+  }
+
   // プレイヤー、ターン、サブフェーズが変わった時に重複防止フラグをリセット
   if (previousPlayerIndex !== GameState.currentPlayerIndex || previousTurn !== currentTurn || previousSubphase !== GameState.subphase) {
     lastSuccessAnnouncementPlayerIndex = null;
@@ -838,12 +891,17 @@ function syncGameStateFromFirebase(roomData) {
       const app = document.getElementById("app");
       const mainScreen = document.getElementById("main-screen");
       const participantScreen = document.getElementById("participant-screen");
+      const isGM = _isGMClient();
       
       // ターンに応じたクラスを削除
       body.classList.remove("turn-1", "turn-2", "turn-3", "turn-4", "turn-5");
       if (app) app.classList.remove("turn-1", "turn-2", "turn-3", "turn-4", "turn-5");
       if (mainScreen) mainScreen.classList.remove("turn-1", "turn-2", "turn-3", "turn-4", "turn-5");
       if (participantScreen) participantScreen.classList.remove("turn-1", "turn-2", "turn-3", "turn-4", "turn-5");
+
+      // ゲストUIの背景は透明にするためのクラス（パネルは元々背景を持つ）
+      body.classList.toggle("guest-ui", !isGM);
+      if (app) app.classList.toggle("guest-ui", !isGM);
       
       // 現在のターンに応じたクラスを追加
       const turnClass = `turn-${currentTurn}`;
@@ -2055,14 +2113,12 @@ let finalPhaseTimerInterval = null;
 let finalPhaseGuestTimerInterval = null;
 
 function showFinalPhaseGMModal(roomData) {
-  console.log("[showFinalPhaseGMModal] Called", roomData);
   const modal = document.getElementById("discussion-modal");
   const timerEl = document.getElementById("discussion-timer");
   const titleEl = modal?.querySelector("h2");
   const summaryEl = modal?.querySelector("p");
   const actionsEl = modal?.querySelector(".modal-actions");
   
-  console.log("[showFinalPhaseGMModal] Elements:", { modal, timerEl, titleEl, actionsEl });
   if (!modal || !timerEl || !titleEl || !actionsEl) {
     console.error("[showFinalPhaseGMModal] Missing required elements");
     return;
@@ -2081,7 +2137,6 @@ function showFinalPhaseGMModal(roomData) {
   }
   // discussionEndTimeが設定されていない場合は、タイマーを表示しない（説明ポップアップのOK押下待ち）
   if (!discussionEndTime) {
-    console.log("[showFinalPhaseGMModal] discussionEndTime not set yet, waiting for explanation popup OK");
     return;
   }
   lastFinalPhaseGMModalTimestamp = votesTimestamp;

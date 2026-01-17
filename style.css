@@ -152,6 +152,18 @@ body.turn-5 {
   animation: pulse 2s ease-in-out infinite;
 }
 
+/* ゲストUI（参加者画面）は、パネル外の背景を透過にする */
+body.guest-ui {
+  background: transparent !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+body.guest-ui #app {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 @keyframes pulse {
   0%, 100% {
     box-shadow: inset 0 0 120px rgba(255, 100, 100, 0.15);
@@ -1242,6 +1254,11 @@ button {
 
 .modal-content.wide {
   width: 640px;
+}
+
+/* ルール設定は内容が多いので、通常の wide より少し広めにする（レスポンシブ） */
+#rules-settings-modal .modal-content.wide {
+  width: min(860px, 92vw);
 }
 
 .modal-content.scrollable {
