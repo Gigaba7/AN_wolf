@@ -185,6 +185,9 @@ function setupHomeScreen() {
         maxPlayers: 8,
         stageMinChapter: GameState.options.stageMinChapter,
         stageMaxChapter: GameState.options.stageMaxChapter,
+        stageRangesByTurn: GameState.options.stageRangesByTurn,
+        wolfActions: GameState.options.wolfActions,
+        // 旧互換（将来削除可）
         wolfActionTexts: GameState.options.wolfActionTexts,
       });
       
@@ -408,20 +411,150 @@ function setupHomeScreen() {
 }
 
 function refreshRulesSettingsModalControls() {
-  const minEl = $("#rules-stage-min");
-  const maxEl = $("#rules-stage-max");
-  const wolfEl = $("#rules-wolf-actions");
+  const stageRangesEl = $("#rules-stage-ranges");
+  const wolfActionsEditorEl = $("#rules-wolf-actions-editor");
   const wolfCostEl = $("#rules-wolf-initial-cost");
 
-  if (minEl instanceof HTMLSelectElement) {
-    minEl.value = String(GameState.options.stageMinChapter);
+  // ターンごとの章レンジを描画
+  if (stageRangesEl instanceof HTMLElement) {
+    const maxTurns = Number(GameState.maxTurns || 5) || 5;
+    const ranges = Array.isArray(GameState.options.stageRangesByTurn) && GameState.options.stageRangesByTurn.length
+      ? GameState.options.stageRangesByTurn
+      : Array.from({ length: maxTurns }, () => ({ min: GameState.options.stageMinChapter, max: GameState.options.stageMaxChapter }));
+
+    stageRangesEl.innerHTML = "";
+
+    const makeSelect = (value) => {
+      const sel = document.createElement("select");
+      sel.style.flex = "1";
+      for (let i = 0; i <= 15; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = `${i}章`;
+        sel.appendChild(opt);
+      }
+      sel.value = String(value);
+      return sel;
+    };
+
+    for (let t = 1; t <= maxTurns; t++) {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "8px";
+
+      const label = document.createElement("div");
+      label.textContent = `${t}ターン目`;
+      label.style.width = "80px";
+      label.style.opacity = "0.9";
+      label.style.fontSize = "13px";
+
+      const min = Number(ranges[t - 1]?.min);
+      const max = Number(ranges[t - 1]?.max);
+      const minSel = makeSelect(Number.isFinite(min) ? min : GameState.options.stageMinChapter);
+      const maxSel = makeSelect(Number.isFinite(max) ? max : GameState.options.stageMaxChapter);
+      minSel.dataset.turn = String(t);
+      maxSel.dataset.turn = String(t);
+      minSel.dataset.kind = "min";
+      maxSel.dataset.kind = "max";
+
+      const sep = document.createElement("span");
+      sep.textContent = "〜";
+      sep.style.opacity = "0.7";
+
+      row.appendChild(label);
+      row.appendChild(minSel);
+      row.appendChild(sep);
+      row.appendChild(maxSel);
+      stageRangesEl.appendChild(row);
+    }
   }
-  if (maxEl instanceof HTMLSelectElement) {
-    maxEl.value = String(GameState.options.stageMaxChapter);
+
+  // 妨害エディタを描画（編集可能: タイトル / 表示文言 / コスト）
+  if (wolfActionsEditorEl instanceof HTMLElement) {
+    const actions = Array.isArray(GameState.options.wolfActions) && GameState.options.wolfActions.length
+      ? GameState.options.wolfActions
+      : [];
+
+    wolfActionsEditorEl.innerHTML = "";
+
+    actions.forEach((a) => {
+      const key = a?.text || "";
+      const wrap = document.createElement("div");
+      wrap.style.padding = "10px";
+      wrap.style.border = "1px solid rgba(255,255,255,0.12)";
+      wrap.style.borderRadius = "10px";
+      wrap.style.background = "rgba(255,255,255,0.03)";
+      wrap.style.display = "flex";
+      wrap.style.flexDirection = "column";
+      wrap.style.gap = "8px";
+
+      const top = document.createElement("div");
+      top.style.display = "flex";
+      top.style.justifyContent = "space-between";
+      top.style.gap = "10px";
+      top.style.alignItems = "center";
+
+      const name = document.createElement("div");
+      name.style.fontWeight = "600";
+      name.textContent = a.displayName || a.text || "妨害";
+
+      const hint = document.createElement("div");
+      hint.style.fontSize = "11px";
+      hint.style.opacity = "0.75";
+      hint.textContent = `キー: ${key}`;
+
+      top.appendChild(name);
+      top.appendChild(hint);
+      wrap.appendChild(top);
+
+      const grid = document.createElement("div");
+      grid.style.display = "grid";
+      grid.style.gridTemplateColumns = "1fr 1fr 120px";
+      grid.style.gap = "8px";
+
+      const titleInput = document.createElement("input");
+      titleInput.type = "text";
+      titleInput.placeholder = "タイトル（ポップアップの見出し）";
+      titleInput.value = a.announcementTitle || "";
+      titleInput.dataset.actionKey = key;
+      titleInput.dataset.field = "announcementTitle";
+
+      const displayInput = document.createElement("input");
+      displayInput.type = "text";
+      displayInput.placeholder = "表示文言（リスト表示）";
+      displayInput.value = a.displayName || a.text || "";
+      displayInput.dataset.actionKey = key;
+      displayInput.dataset.field = "displayName";
+
+      const costInput = document.createElement("input");
+      costInput.type = "number";
+      costInput.min = "0";
+      costInput.max = "999";
+      costInput.step = "1";
+      costInput.value = String(Number.isFinite(Number(a.cost)) ? Number(a.cost) : 0);
+      costInput.dataset.actionKey = key;
+      costInput.dataset.field = "cost";
+
+      [titleInput, displayInput, costInput].forEach((el) => {
+        el.style.width = "100%";
+        el.style.padding = "8px";
+        el.style.borderRadius = "8px";
+        el.style.border = "1px solid rgba(255,255,255,0.2)";
+        el.style.background = "rgba(5,7,18,0.8)";
+        el.style.color = "#f5f5f7";
+        el.style.fontSize = "13px";
+      });
+
+      grid.appendChild(titleInput);
+      grid.appendChild(displayInput);
+      grid.appendChild(costInput);
+      wrap.appendChild(grid);
+
+      wolfActionsEditorEl.appendChild(wrap);
+    });
   }
-  if (wolfEl instanceof HTMLTextAreaElement) {
-    wolfEl.value = GameState.options.wolfActionTexts.join("\n");
-  }
+
   if (wolfCostEl instanceof HTMLInputElement) {
     // ルーム設定から初期コストを取得、なければデフォルト100
     const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
@@ -668,28 +801,70 @@ function setupModals() {
 
   // ルール設定モーダルの保存ボタン
   $("#rules-save")?.addEventListener("click", () => {
-    const minEl = $("#rules-stage-min");
-    const maxEl = $("#rules-stage-max");
-    const wolfEl = $("#rules-wolf-actions");
+    const stageRangesEl = $("#rules-stage-ranges");
+    const wolfActionsEditorEl = $("#rules-wolf-actions-editor");
     const wolfCostEl = $("#rules-wolf-initial-cost");
 
-    if (minEl instanceof HTMLSelectElement && maxEl instanceof HTMLSelectElement) {
-      const min = Number(minEl.value);
-      const max = Number(maxEl.value);
-      if (min > max) {
-        alert("ステージ範囲の最小章は最大章より大きくできません。");
-        return;
+    // ターンごとの章レンジを収集
+    /** @type {{min:number,max:number}[]} */
+    const stageRangesByTurn = [];
+    if (stageRangesEl instanceof HTMLElement) {
+      const sels = Array.from(stageRangesEl.querySelectorAll("select"));
+      const maxTurns = Number(GameState.maxTurns || 5) || 5;
+      for (let t = 1; t <= maxTurns; t++) {
+        const minSel = sels.find((s) => s.dataset?.turn === String(t) && s.dataset?.kind === "min");
+        const maxSel = sels.find((s) => s.dataset?.turn === String(t) && s.dataset?.kind === "max");
+        const min = Number(minSel?.value);
+        const max = Number(maxSel?.value);
+        if (!Number.isFinite(min) || !Number.isFinite(max)) {
+          alert(`ステージ範囲（${t}ターン目）が不正です。`);
+          return;
+        }
+        if (min > max) {
+          alert(`ステージ範囲（${t}ターン目）の最小章は最大章より大きくできません。`);
+          return;
+        }
+        stageRangesByTurn.push({ min, max });
       }
-      GameState.options.stageMinChapter = min;
-      GameState.options.stageMaxChapter = max;
     }
-    if (wolfEl instanceof HTMLTextAreaElement) {
-      const lines = wolfEl.value
-        .split("\n")
-        .map((v) => v.trim())
-        .filter(Boolean);
-      if (lines.length) {
-        GameState.options.wolfActionTexts = lines;
+
+    if (stageRangesByTurn.length) {
+      GameState.options.stageRangesByTurn = stageRangesByTurn;
+      // 互換のため、全体レンジは1ターン目の設定を保持
+      GameState.options.stageMinChapter = stageRangesByTurn[0].min;
+      GameState.options.stageMaxChapter = stageRangesByTurn[0].max;
+    }
+
+    // 妨害（title / displayName / cost）を収集
+    if (wolfActionsEditorEl instanceof HTMLElement) {
+      try {
+        const inputs = Array.from(wolfActionsEditorEl.querySelectorAll("input"));
+        const current = Array.isArray(GameState.options.wolfActions) ? GameState.options.wolfActions : [];
+        const next = current.map((a) => {
+          const key = a?.text || "";
+          const get = (field) =>
+            inputs.find((el) => el.dataset?.actionKey === key && el.dataset?.field === field);
+
+          const announcementTitle = (get("announcementTitle")?.value || "").trim();
+          const displayName = (get("displayName")?.value || "").trim();
+          const costRaw = get("cost")?.value;
+          const cost = Number(costRaw);
+          if (!Number.isFinite(cost) || cost < 0 || cost > 999) {
+            throw new Error(`妨害「${key}」のコストが不正です。`);
+          }
+
+          return {
+            ...a,
+            announcementTitle: announcementTitle || a.announcementTitle || "",
+            displayName: displayName || a.displayName || a.text,
+            cost: Math.floor(cost),
+          };
+        });
+
+        GameState.options.wolfActions = next;
+      } catch (e) {
+        alert(e?.message || "妨害設定の保存に失敗しました。");
+        return;
       }
     }
     
@@ -711,9 +886,10 @@ function setupModals() {
     const isHost = !!(roomId && createdBy && myId && createdBy === myId);
     if (roomId && isHost) {
       syncToFirebase("updateConfig", {
-        stageMinChapter: GameState.options.stageMinChapter,
-        stageMaxChapter: GameState.options.stageMaxChapter,
-        wolfActionTexts: GameState.options.wolfActionTexts,
+        stageMinChapter: GameState.options.stageMinChapter, // 互換
+        stageMaxChapter: GameState.options.stageMaxChapter, // 互換
+        stageRangesByTurn: GameState.options.stageRangesByTurn,
+        wolfActions: GameState.options.wolfActions,
         wolfInitialCost: wolfInitialCost,
         roomId,
       }).catch((e) => {

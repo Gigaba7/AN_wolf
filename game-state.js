@@ -27,6 +27,15 @@ const GameState = {
     sound: false,
     stageMinChapter: 2,
     stageMaxChapter: 5,
+    // ターンごとの対象章レンジ（UIで編集可能）
+    // 例: [{min:0,max:1},{min:1,max:2},...]
+    stageRangesByTurn: [
+      { min: 2, max: 5 },
+      { min: 2, max: 5 },
+      { min: 2, max: 5 },
+      { min: 2, max: 5 },
+      { min: 2, max: 5 },
+    ],
     // 妨害データ構造: {text: string, cost: number, requiresRoulette?: boolean, rouletteOptions?: string[]}[]
     // requiresRoulette: trueの場合、GM画面でルーレットを実行する必要がある
     wolfActions: [

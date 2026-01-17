@@ -100,6 +100,18 @@ body {
   border: 2px solid rgba(255, 0, 0, 0.5);
 }
 
+/* 人狼妨害（赤い演出）だけを残す：
+   通常モーダルのフェード/スライドインを無効化して、二重アニメーションに見えるのを防ぐ */
+#announcement-modal.wolf-action {
+  animation: none;
+  opacity: 1;
+}
+
+#announcement-modal.wolf-action .modal-backdrop {
+  animation: none;
+  opacity: 1;
+}
+
 /* ホーム/待機（マッチング）画面は背景を不透明にする */
 body.opaque-bg {
   background: linear-gradient(135deg, #0a0d14 0%, #050712 50%, #0a0d14 100%);

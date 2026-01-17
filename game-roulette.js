@@ -10,8 +10,10 @@ function startStageRoulette() {
   if (!itemsEl) return;
 
   itemsEl.innerHTML = "";
-  const min = GameState.options.stageMinChapter;
-  const max = GameState.options.stageMaxChapter;
+  const turn = Number(GameState.turn || 1) || 1;
+  const range = Array.isArray(GameState.options.stageRangesByTurn) ? GameState.options.stageRangesByTurn[turn - 1] : null;
+  const min = Number.isFinite(Number(range?.min)) ? Number(range.min) : GameState.options.stageMinChapter;
+  const max = Number.isFinite(Number(range?.max)) ? Number(range.max) : GameState.options.stageMaxChapter;
   const stages = getStageCandidatesByChapterRange(min, max);
 
   // 候補が多い場合、表示は10件程度に絞って演出を軽量化（ただし選出は全候補に対して一様）

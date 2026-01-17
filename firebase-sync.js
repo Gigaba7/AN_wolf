@@ -102,6 +102,9 @@ async function createRoomAndStartGame(players, config) {
       maxPlayers: config.maxPlayers || 8,
       stageMinChapter: config.stageMinChapter,
       stageMaxChapter: config.stageMaxChapter,
+      stageRangesByTurn: config.stageRangesByTurn,
+      wolfActions: config.wolfActions,
+      // 旧互換（将来削除可）
       wolfActionTexts: config.wolfActionTexts,
     };
     // 既に生成されたルームIDがある場合のみ渡す（undefinedを避ける）
@@ -954,7 +957,13 @@ function syncGameStateFromFirebase(roomData) {
   if (typeof config.stageMaxChapter === "number") {
     GameState.options.stageMaxChapter = config.stageMaxChapter;
   }
-  if (Array.isArray(config.wolfActionTexts) && config.wolfActionTexts.length) {
+  if (Array.isArray(config.stageRangesByTurn) && config.stageRangesByTurn.length) {
+    GameState.options.stageRangesByTurn = config.stageRangesByTurn;
+  }
+  if (Array.isArray(config.wolfActions) && config.wolfActions.length) {
+    GameState.options.wolfActions = config.wolfActions;
+  } else if (Array.isArray(config.wolfActionTexts) && config.wolfActionTexts.length) {
+    // 旧テキスト互換
     GameState.options.wolfActionTexts = config.wolfActionTexts;
   }
   
@@ -1796,7 +1805,7 @@ async function handleStageRouletteAction(data, roomId) {
 
 /**
  * ルーム共通設定更新（ホストのみ）
- * - 共有: stageMinChapter / stageMaxChapter / wolfActionTexts
+ * - 共有: stageMinChapter / stageMaxChapter / stageRangesByTurn / wolfActions（旧: wolfActionTexts）
  * - 非共有: それ以外（クライアントローカル）
  */
 async function handleUpdateConfigAction(data, roomId) {
@@ -1810,14 +1819,18 @@ async function handleUpdateConfigAction(data, roomId) {
 
   const min = Number(data?.stageMinChapter);
   const max = Number(data?.stageMaxChapter);
-  const wolfActionTexts = Array.isArray(data?.wolfActionTexts) ? data.wolfActionTexts : null;
+  const stageRangesByTurn = Array.isArray(data?.stageRangesByTurn) ? data.stageRangesByTurn : null;
+  const wolfActions = Array.isArray(data?.wolfActions) ? data.wolfActions : null;
+  const wolfActionTexts = Array.isArray(data?.wolfActionTexts) ? data.wolfActionTexts : null; // 旧互換
   const wolfInitialCost = Number(data?.wolfInitialCost);
 
   /** @type {Record<string, any>} */
   const updates = {};
   if (Number.isFinite(min)) updates["config.stageMinChapter"] = min;
   if (Number.isFinite(max)) updates["config.stageMaxChapter"] = max;
-  if (wolfActionTexts && wolfActionTexts.length) updates["config.wolfActionTexts"] = wolfActionTexts;
+  if (stageRangesByTurn && stageRangesByTurn.length) updates["config.stageRangesByTurn"] = stageRangesByTurn;
+  if (wolfActions && wolfActions.length) updates["config.wolfActions"] = wolfActions;
+  else if (wolfActionTexts && wolfActionTexts.length) updates["config.wolfActionTexts"] = wolfActionTexts;
   if (Number.isFinite(wolfInitialCost) && wolfInitialCost >= 1 && wolfInitialCost <= 200) {
     updates["config.wolfInitialCost"] = wolfInitialCost;
   }

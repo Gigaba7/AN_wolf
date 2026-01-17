@@ -791,46 +791,13 @@
           <section class="options-section">
             <div class="options-row">
               <label>
-                対象ステージ範囲 (章)
-                <div class="inline-inputs">
-                  <select id="rules-stage-min" name="rules-stage-min">
-                    <option value="0">0章</option>
-                    <option value="1">1章</option>
-                    <option value="2" selected>2章</option>
-                    <option value="3">3章</option>
-                    <option value="4">4章</option>
-                    <option value="5">5章</option>
-                    <option value="6">6章</option>
-                    <option value="7">7章</option>
-                    <option value="8">8章</option>
-                    <option value="9">9章</option>
-                    <option value="10">10章</option>
-                    <option value="11">11章</option>
-                    <option value="12">12章</option>
-                    <option value="13">13章</option>
-                    <option value="14">14章</option>
-                    <option value="15">15章</option>
-                  </select>
-                  <span>〜</span>
-                  <select id="rules-stage-max" name="rules-stage-max">
-                    <option value="0">0章</option>
-                    <option value="1">1章</option>
-                    <option value="2">2章</option>
-                    <option value="3">3章</option>
-                    <option value="4">4章</option>
-                    <option value="5" selected>5章</option>
-                    <option value="6">6章</option>
-                    <option value="7">7章</option>
-                    <option value="8">8章</option>
-                    <option value="9">9章</option>
-                    <option value="10">10章</option>
-                    <option value="11">11章</option>
-                    <option value="12">12章</option>
-                    <option value="13">13章</option>
-                    <option value="14">14章</option>
-                    <option value="15">15章</option>
-                  </select>
+                対象ステージ範囲 (章) ※ターンごとに設定
+                <div id="rules-stage-ranges" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                  <!-- JSでターンごとの章レンジを描画 -->
                 </div>
+                <p style="font-size: 11px; color: #a0a4ba; margin-top: 6px;">
+                  例）1ターン目: 0〜1章 / 2ターン目: 1〜2章
+                </p>
               </label>
             </div>
 
@@ -852,13 +819,10 @@
 
             <div class="options-row">
               <label>
-                人狼妨害カスタム (1行につき1項目)
-                <textarea
-                  id="rules-wolf-actions"
-                  name="rules-wolf-actions"
-                  rows="5"
-                  placeholder="例：&#10;編成人数10人&#10;強襲ステージ&#10;推し+☆2以下編成&#10;ドクター神拳使用不可"
-                ></textarea>
+                人狼妨害（編集可能: タイトル / 表示文言 / コスト）
+                <div id="rules-wolf-actions-editor" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+                  <!-- JSで妨害エディタを描画 -->
+                </div>
               </label>
             </div>
           </section>
