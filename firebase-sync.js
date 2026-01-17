@@ -290,8 +290,8 @@ function maybeShowDeferredGMAnnouncements() {
     if (key !== lastTurnEndRecoveryKey) {
       lastTurnEndRecoveryKey = key;
       showAnnouncement(
-        "ターン終了処理（復旧）",
-        "OKで次のターンに進めます。",
+        "ターン終了",
+        "OKで次のターンに進みます。",
         null,
         0,
         true,
@@ -1961,6 +1961,7 @@ function showFinalPhaseModal(roomData) {
   const summaryEl = document.getElementById("result-summary");
   const extraEl = document.getElementById("result-extra");
   const rolesEl = document.getElementById("result-roles");
+  const actionsEl = modal?.querySelector(".modal-actions");
   
   if (!modal || !titleEl || !summaryEl || !extraEl) return;
 
@@ -2013,6 +2014,11 @@ function showFinalPhaseModal(roomData) {
 
   // 投票ボタンを表示
   extraEl.innerHTML = "";
+
+  // 投票中は「ロビーに戻る/解散」などのボタンを表示しない
+  if (actionsEl) {
+    actionsEl.style.display = "none";
+  }
   
   // 10分タイマーを表示
   const discussionEndTime = gameState.finalPhaseDiscussionEndTime || null;
@@ -2302,6 +2308,10 @@ function showGameResult(roomData, gameResult) {
   const rolesEl = document.getElementById("victory-roles");
   
   if (!victoryScreen || !titleEl || !storyEl || !rolesEl) return;
+
+  // 勝利画面は背景を不透明にしたいので、ゲストUI透過クラスを確実に外す
+  document.body.classList.remove("guest-ui");
+  document.getElementById("app")?.classList.remove("guest-ui");
 
   const playersObj = roomData.players || {};
   const playersArr = Object.entries(playersObj).map(([id, data]) => ({
