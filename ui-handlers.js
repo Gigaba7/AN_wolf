@@ -645,10 +645,14 @@ function refreshRulesSettingsModalControls() {
         el.style.fontSize = "13px";
       });
 
-      // 背水の陣は特殊仕様：キー/表示文言を編集できない
-      if (key === "背水の陣") {
+      // 特殊仕様：編集不可の妨害
+      const isSpecialLocked = key === "背水の陣" || key === "ターゲットバン";
+      if (isSpecialLocked) {
+        // 表示文言・サブタイトルは編集不可
         displayInput.disabled = true;
+        subtitleInput.disabled = true;
         displayInput.style.opacity = "0.7";
+        subtitleInput.style.opacity = "0.7";
       }
 
       grid.appendChild(displayInput);
@@ -661,7 +665,16 @@ function refreshRulesSettingsModalControls() {
 
       if (key === "背水の陣") {
         const note = document.createElement("div");
-        note.textContent = "※背水の陣は特殊な仕様のため編集することができません";
+        note.textContent = "※背水の陣は特殊な仕様のため表示文言・サブタイトルを編集することができません";
+        note.style.fontSize = "12px";
+        note.style.color = "#a0a4ba";
+        note.style.opacity = "0.95";
+        wrap.appendChild(note);
+      }
+
+      if (key === "ターゲットバン") {
+        const note = document.createElement("div");
+        note.textContent = "※ターゲットバンは特殊な仕様のため表示文言・サブタイトルを編集することができません";
         note.style.fontSize = "12px";
         note.style.color = "#a0a4ba";
         note.style.opacity = "0.95";
@@ -769,6 +782,63 @@ function setupParticipantScreen() {
     }
     onDoctorSkip();
   });
+
+  // ログ表示ボタン
+  $("#open-log-from-participant")?.addEventListener("click", () => {
+    showLogModal();
+  });
+}
+
+/**
+ * ログ表示ポップアップを表示
+ */
+function showLogModal() {
+  const modal = document.getElementById("log-modal");
+  const contentEl = document.getElementById("log-content");
+  if (!modal || !contentEl) return;
+
+  const roomInfo = typeof window !== "undefined" ? window.RoomInfo : null;
+  const gs = roomInfo?.gameState || {};
+  const whiteStars = Number(gs?.whiteStars || 0);
+  const blackStars = Number(gs?.blackStars || 0);
+  const turnLog = Array.isArray(gs?.turnLog) ? gs.turnLog : [];
+
+  // テーブルHTMLを生成
+  let html = '<table class="log-table">';
+  html += '<thead><tr><th>ラウンド</th><th>結果</th><th>プレイヤー</th></tr></thead>';
+  html += '<tbody>';
+
+  // 各ラウンドごとに表示
+  turnLog.forEach((roundData) => {
+    if (!roundData || typeof roundData.round !== "number") return;
+    
+    const round = roundData.round;
+    const roundResult = round <= whiteStars ? "○" : round <= whiteStars + blackStars ? "×" : "（進行中）";
+    const players = Array.isArray(roundData.players) ? roundData.players : [];
+    
+    // プレイヤーの結果を整形（改行区切り）
+    const playerResults = players.map((p) => {
+      const name = p?.playerName || "プレイヤー";
+      const result = p?.result || "（不明）";
+      return `${name}：${result}`;
+    }).join("\n") || "（データなし）";
+
+    html += `<tr><td class="log-round">${round}ラウンド目</td><td class="log-result">${roundResult}</td><td class="log-players">${escapeHtml(playerResults)}</td></tr>`;
+  });
+
+  html += '</tbody></table>';
+
+  contentEl.innerHTML = html;
+  modal.classList.remove("hidden");
+}
+
+/**
+ * HTMLエスケープ（簡易版）
+ */
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function setupModals() {
@@ -1068,9 +1138,15 @@ function setupModals() {
           return {
             ...a,
             enabled: enabled,
-            announcementSubtitle: announcementSubtitle || a.announcementSubtitle || "",
-            // 背水の陣はキー/表示文言を編集不可（特殊仕様）
-            displayName: key === "背水の陣" ? (a.displayName || a.text) : (displayName || a.displayName || a.text),
+            // 背水の陣 / ターゲットバン は表示文言・サブタイトルを編集不可（特殊仕様）
+            announcementSubtitle:
+              (key === "背水の陣" || key === "ターゲットバン")
+                ? (a.announcementSubtitle || "")
+                : (announcementSubtitle || a.announcementSubtitle || ""),
+            displayName:
+              (key === "背水の陣" || key === "ターゲットバン")
+                ? (a.displayName || a.text)
+                : (displayName || a.displayName || a.text),
             cost: Math.floor(cost),
             ...(rouletteOptions ? { rouletteOptions } : {}),
           };

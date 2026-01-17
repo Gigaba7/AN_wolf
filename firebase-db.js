@@ -723,6 +723,20 @@ async function applySuccess(roomId) {
     }
 
     const nextIndex = (idx + 1) % order.length;
+    const currentPlayerId = order[idx];
+    const currentPlayer = playersObj[currentPlayerId] || {};
+    const currentPlayerName = currentPlayer.name || `プレイヤー${idx + 1}`;
+    const turn = Number(data?.gameState?.turn || 1);
+
+    // ログを記録（各プレイヤーの成功/失敗を保存）
+    const turnLog = Array.isArray(data?.gameState?.turnLog) ? [...data.gameState.turnLog] : [];
+    // 現在のラウンドのログが存在しない場合は作成
+    if (!turnLog[turn - 1]) {
+      turnLog[turn - 1] = { round: turn, players: [] };
+    }
+    // 現在のプレイヤーの結果を記録
+    turnLog[turn - 1].players.push({ playerId: currentPlayerId, playerName: currentPlayerName, result: "成功" });
+
     // 1周したら「○」でターン終了（=全員完了）
     // ただし、最後のプレイヤーの挑戦結果ポップアップを表示してからターン終了処理を行う
     if (nextIndex === 0) {
@@ -731,6 +745,7 @@ async function applySuccess(roomId) {
       // ここではpendingLastPlayerResultフラグを設定して、成功ポップアップのonOkでendTurnAndPrepareNextを呼ぶ
       const updates = {
         "gameState.pendingLastPlayerResult": true, // 最後のプレイヤーの挑戦結果表示待ちフラグ
+        "gameState.turnLog": turnLog, // ログを保存
         // 結果ポップアップ表示中にGMが誤って追加で成功/失敗を押してしまうと、
         // 進行が二重に走り、await_doctor などの別フローに入ることがある。
         // そのため、ここでは判定入力を受け付けない専用サブフェーズに切り替える。
@@ -748,6 +763,7 @@ async function applySuccess(roomId) {
     // 専用の待機サブフェーズ await_next_player にして入力を受け付けないようにする。
     const updates = {
       "gameState.currentPlayerIndex": nextIndex,
+      "gameState.turnLog": turnLog, // ログを保存
       // currentStage と stageTurn は保持（そのターン中は固定）
       "gameState.subphase": "await_next_player",
       "gameState.pendingNextPlayerChallenge": true, // 次のプレイヤーの挑戦開始フラグ
@@ -805,14 +821,27 @@ async function applyFail(roomId) {
     const currentPlayerId = order[idx];
     const isDoctor = doctorId && currentPlayerId === doctorId;
     
+    const turn = Number(data?.gameState?.turn || 1);
+    const currentPlayerName = playersObj[currentPlayerId]?.name || `プレイヤー${idx + 1}`;
+
+    // ログを記録（各プレイヤーの成功/失敗を保存）
+    const turnLog = Array.isArray(data?.gameState?.turnLog) ? [...data.gameState.turnLog] : [];
+    if (!turnLog[turn - 1]) {
+      turnLog[turn - 1] = { round: turn, players: [] };
+    }
+
     // すでに保留なら「神拳を使わない（失敗確定）」＝×で即次ターン
     // これはGMが「失敗確定（神拳なし）」ボタンを押した場合
     if (pending) {
       const pendingPlayerId = pending.playerId || order[pending.playerIndex] || currentPlayerId;
       const isPendingDoctor = doctorId && pendingPlayerId === doctorId;
+      const pendingPlayerName = playersObj[pendingPlayerId]?.name || `プレイヤー${idx + 1}`;
+      
+      // 失敗を記録
+      turnLog[turn - 1].players.push({ playerId: pendingPlayerId, playerName: pendingPlayerName, result: "失敗" });
       
       // ドクターが失敗した場合、失敗履歴を記録
-      const updates = { "gameState.pendingFailure": null };
+      const updates = { "gameState.pendingFailure": null, "gameState.turnLog": turnLog };
       if (isPendingDoctor) {
         updates["gameState.doctorHasFailed"] = true;
       }
@@ -822,6 +851,7 @@ async function applyFail(roomId) {
     }
 
     // 神拳が使えるなら保留にする（進行は止まる）
+    // この時点では失敗を記録しない（神拳で打ち消される可能性があるため）
     if (doctorId && docRemain > 0 && docAvail) {
       // ドクターが失敗した場合、失敗履歴を記録（神拳で打ち消しても失敗として記録）
       const updates = {
@@ -837,8 +867,11 @@ async function applyFail(roomId) {
     }
 
     // 神拳が無いので失敗確定：×で即次ターン
+    // 失敗を記録
+    turnLog[turn - 1].players.push({ playerId: currentPlayerId, playerName: currentPlayerName, result: "失敗" });
+    
     // ドクターが失敗した場合、失敗履歴を記録
-    const updates = { "gameState.pendingFailure": null };
+    const updates = { "gameState.pendingFailure": null, "gameState.turnLog": turnLog };
     if (isDoctor) {
       updates["gameState.doctorHasFailed"] = true;
     }
@@ -894,12 +927,22 @@ async function applyDoctorPunch(roomId) {
     const isPendingDoctor = pendingPlayerId === userId;
     const pendingPlayerName = playersObj?.[pendingPlayerId]?.name || "プレイヤー";
 
+    // ログを記録（ドクター神拳で失敗→成功に変更）
+    const turn = Number(data?.gameState?.turn || 1);
+    const turnLog = Array.isArray(data?.gameState?.turnLog) ? [...data.gameState.turnLog] : [];
+    if (!turnLog[turn - 1]) {
+      turnLog[turn - 1] = { round: turn, players: [] };
+    }
+    // 失敗を記録（ドクター神拳で打ち消し）
+    turnLog[turn - 1].players.push({ playerId: pendingPlayerId, playerName: pendingPlayerName, result: "失敗(ドクター神拳)" });
+
     // 神拳使用＝成功扱いで次へ進む（ターン内は1回まで）
     // ドクター神拳発動後は、成功ポップアップを表示してから次のプレイヤーに進む
     // 最後のプレイヤーの場合も、成功ポップアップを表示してからターン終了する
     // 注意：currentPlayerIndexはここでは更新しない（proceedToNextPlayerAfterDoctorPunchで更新する）
     const updates = {
       "gameState.pendingFailure": null,
+      "gameState.turnLog": turnLog, // ログを保存
       // currentStage と stageTurn は保持（そのターン中は固定）
       "gameState.subphase": "await_doctor_punch_result", // ドクター神拳発動後の成功ポップアップ表示フェーズ
       [`players.${userId}.resources.doctorPunchRemaining`]: remain - 1,
@@ -1249,9 +1292,9 @@ async function resolveWolfActionRoulette(roomId, selectedJob, announcementTitle 
         cost: Math.floor(Math.max(0, actionCost)),
         timestamp: nowTs
       },
-      // 映像下エリア表示用（妨害内容を保持）
+      // 映像下エリア表示用（妨害内容を保持）：キーとルーレット結果を「：○○」形式で表示
       "gameState.currentWolfAction": {
-        text: `${actionText}（使用禁止職業: ${selectedJob}）`,
+        text: `${actionText}：${selectedJob}`,
         announcementTitle: computedTitle,
         announcementSubtitle: announcementSubtitle || null,
         cost: Math.floor(Math.max(0, actionCost)),
@@ -1383,30 +1426,34 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
     const currentStage = data?.gameState?.currentStage || null;
     const nextSubphase = currentStage ? "await_result" : "gm_stage";
     
-    // ターゲットバン（入力付き）：通知文言に入力を埋め込む
+    // ターゲットバン（入力付き）：サブタイトルの「○○」を入力テキストで置換（末尾の「(使用不可：...)」は付けない）
     const normalizedCustomText = typeof customText === "string" ? customText.trim() : "";
-    const targetBanSuffix =
-      actionText === "ターゲットバン" && normalizedCustomText
-        ? `（使用不可: ${normalizedCustomText}）`
-        : "";
+    let finalAnnouncementSubtitle = announcementSubtitle || null;
+    if (actionText === "ターゲットバン" && normalizedCustomText && finalAnnouncementSubtitle) {
+      // 「○○」を入力テキストで置換
+      finalAnnouncementSubtitle = finalAnnouncementSubtitle.replace(/○○/g, normalizedCustomText);
+    }
+
+    // 映像下エリア表示用テキスト：キーを表示し、入力テキストがある場合は「：○○」形式で追加
+    const displayText = normalizedCustomText ? `${actionText}：${normalizedCustomText}` : actionText;
 
     const nowTs = Date.now();
     // 背水の陣が発動された場合、ドクター神拳使用不可フラグを設定
     const updates = {
       [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
       "gameState.wolfActionNotification": { 
-        text: `${actionText}${targetBanSuffix}`, 
+        text: actionText, 
         announcementTitle: computedTitle,
-        announcementSubtitle: (announcementSubtitle ? `${announcementSubtitle}${targetBanSuffix}` : (targetBanSuffix ? targetBanSuffix.replace(/^\（/, "（").replace(/\）$/, "）") : null)),
-        logMessage: logMessage ? `${logMessage}${targetBanSuffix}` : `妨害『${actionText}』が発動されました${targetBanSuffix}`,
+        announcementSubtitle: finalAnnouncementSubtitle,
+        logMessage: logMessage || `妨害『${actionText}』が発動されました`,
         cost: Math.floor(Math.max(0, actionCost)),
         timestamp: nowTs
       },
       // 映像下エリア表示用（妨害内容を保持）
       "gameState.currentWolfAction": {
-        text: `${actionText}${targetBanSuffix}`,
+        text: displayText,
         announcementTitle: computedTitle,
-        announcementSubtitle: (announcementSubtitle ? `${announcementSubtitle}${targetBanSuffix}` : (targetBanSuffix ? targetBanSuffix.replace(/^\（/, "（").replace(/\）$/, "）") : null)),
+        announcementSubtitle: finalAnnouncementSubtitle,
         cost: Math.floor(Math.max(0, actionCost)),
         timestamp: nowTs,
       },

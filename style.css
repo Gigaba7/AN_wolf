@@ -1270,7 +1270,8 @@ button {
   border-radius: 12px;
   border: 2px solid rgba(125, 211, 252, 0.2);
   padding: 24px 28px 22px;
-  width: 420px;
+  min-width: 420px;
+  max-width: 80vw;
   max-height: 80vh;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   display: flex;
@@ -1278,6 +1279,8 @@ button {
   /* メタリックな質感 */
   background: linear-gradient(145deg, #0f1219 0%, #050712 50%, #0f1219 100%);
   border: 2px solid rgba(200, 200, 220, 0.15);
+  outline: 1px solid rgba(200, 200, 220, 0.2);
+  outline-offset: 2px;
   box-shadow: 
     0 12px 48px rgba(0, 0, 0, 0.7),
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
@@ -1328,6 +1331,11 @@ button {
   margin-bottom: 4px;
 }
 
+/* アナウンスポップアップのタイトルを中央寄せ */
+#announcement-modal .modal-content h2#announcement-title {
+  text-align: center;
+}
+
 .modal-subtitle {
   font-size: 0.85em;
   color: #a0a4ba;
@@ -1339,6 +1347,13 @@ button {
   font-size: 1.15em;
   margin-top: 12px;
   opacity: 0.7;
+  /* 2行以内で表示（それ以上は省略） */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.5;
+  max-height: calc(1.5em * 2); /* line-height * 2行 */
 }
 
 .modal-actions {
@@ -1346,6 +1361,61 @@ button {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* ログ表示テーブル */
+.log-content {
+  margin: 20px 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1em;
+}
+
+.log-table thead {
+  background: rgba(125, 211, 252, 0.1);
+  border-bottom: 2px solid rgba(125, 211, 252, 0.3);
+}
+
+.log-table th {
+  padding: 12px 16px;
+  text-align: left;
+  color: #f5f5f7;
+  font-weight: 600;
+  font-size: 1.05em;
+}
+
+.log-table td {
+  padding: 12px 16px;
+  color: #d4d6e3;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.log-table tbody tr:hover {
+  background: rgba(125, 211, 252, 0.05);
+}
+
+.log-round {
+  font-weight: 500;
+  color: #f5f5f7;
+  min-width: 120px;
+}
+
+.log-result {
+  font-weight: 600;
+  font-size: 1.1em;
+  text-align: center;
+  min-width: 60px;
+}
+
+.log-players {
+  color: #a0a4ba;
+  white-space: pre-line;
+  line-height: 1.6;
 }
 
 /* ルール設定など、内容が長いモーダル用（中身だけスクロール / ボタンは常時表示） */
