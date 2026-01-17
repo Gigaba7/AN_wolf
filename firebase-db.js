@@ -597,6 +597,15 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
   if (doctorFailedThisTurn) {
     updates["gameState.phase"] = "finished";
     updates["gameState.gameResult"] = "wolf_win";
+    // 即時敗北時は最終フェーズ系フラグが立たないようにクリア（安全策）
+    updates["gameState.pendingFinalPhaseExplanation"] = null;
+    updates["gameState.pendingFinalPhaseDiscussion"] = false;
+    updates["gameState.finalPhaseVotes"] = null;
+    updates["gameState.finalPhaseVoteCounts"] = null;
+    updates["gameState.finalPhaseDiscussionEndTime"] = null;
+    // 即時敗北時は会議フェーズも起動しない（安全策）
+    updates["gameState.discussionPhase"] = false;
+    updates["gameState.discussionEndTime"] = null;
   }
   // ○が過半数以上 → 市民勝利（会議フェーズなし）
   else if (whiteStars >= majority) {
@@ -1019,12 +1028,23 @@ async function clearDoctorSkipNotification(roomId) {
     const pendingTurnEnd = data?.gameState?.pendingDoctorSkipTurnEnd === true;
 
     if (pendingTurnEnd) {
+      // どのプレイヤーの失敗を「不使用」で確定したのか（通知に入っている）
+      const skipNotif = data?.gameState?.doctorSkipNotification || null;
+      const skippedPlayerId = skipNotif?.playerId || null;
+      const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+      const skippedWasDoctor = !!(doctorId && skippedPlayerId && skippedPlayerId === doctorId);
+
       // このタイミングでターン終了（失敗ターン）を確定する
       const extraUpdates = {
         "gameState.doctorSkipNotification": null,
         "gameState.pendingDoctorSkipTurnEnd": null,
         "gameState.subphase": "await_result", // 念のため進行停止サブフェーズを解除（次の状態はendTurnAndPrepareNextで設定される）
       };
+      // ドクター自身の失敗を打ち消せなかった（不使用/使用不可）場合は即時敗北
+      // endTurnAndPrepareNext 内の doctorFailedThisTurn 判定に必要なフラグを渡す
+      if (skippedWasDoctor) {
+        extraUpdates["gameState.doctorHasFailed"] = true;
+      }
       endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, extraUpdates);
       return;
     }
