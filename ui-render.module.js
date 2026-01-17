@@ -633,7 +633,7 @@ function escapeHtml(s) {
 
 const DEFAULT_RULE_TEXT = "・☆6禁止\n・合計コスト20以下";
 
-// GM画面：映像下エリアに「このターンの妨害内容」と「ルールテキスト」を表示
+// GM画面：ルール表示エリアに「このターンの妨害内容」と「ルールテキスト」を表示
 function renderUnderVideoInfo() {
   const el = document.querySelector(".play-video-under-space");
   if (!(el instanceof HTMLElement)) return;
