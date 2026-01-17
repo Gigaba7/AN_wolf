@@ -786,46 +786,48 @@
       <!-- ルール設定モーダル（GM専用） -->
       <div id="rules-settings-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
-        <div class="modal-content wide">
+        <div class="modal-content wide scroll-shell">
           <h2>ルール設定</h2>
-          <section class="options-section">
-            <div class="options-row">
-              <label>
-                対象ステージ範囲 (章) ※ターンごとに設定
-                <div id="rules-stage-ranges" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
-                  <!-- JSでターンごとの章レンジを描画 -->
-                </div>
-                <p style="font-size: 11px; color: #a0a4ba; margin-top: 6px;">
-                  例）1ターン目: 0〜1章 / 2ターン目: 1〜2章
-                </p>
-              </label>
-            </div>
+          <div class="modal-body-scroll">
+            <section class="options-section">
+              <div class="options-row">
+                <label>
+                  対象ステージ範囲 (章) ※ターンごとに設定
+                  <div id="rules-stage-ranges" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                    <!-- JSでターンごとの章レンジを描画 -->
+                  </div>
+                  <p style="font-size: 11px; color: #a0a4ba; margin-top: 6px;">
+                    例）1ターン目: 0〜1章 / 2ターン目: 1〜2章
+                  </p>
+                </label>
+              </div>
 
-            <div class="options-row">
-              <label>
-                人狼の初期コスト
-                <input
-                  type="number"
-                  id="rules-wolf-initial-cost"
-                  name="rules-wolf-initial-cost"
-                  min="1"
-                  max="200"
-                  value="100"
-                  style="width: 100%; padding: 8px; margin-top: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px;"
-                />
-                <p style="font-size: 11px; color: #a0a4ba; margin-top: 4px;">人狼が使用できる妨害の総コストです（デフォルト: 100）</p>
-              </label>
-            </div>
+              <div class="options-row">
+                <label>
+                  人狼の初期コスト
+                  <input
+                    type="number"
+                    id="rules-wolf-initial-cost"
+                    name="rules-wolf-initial-cost"
+                    min="1"
+                    max="200"
+                    value="100"
+                    style="width: 100%; padding: 8px; margin-top: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px;"
+                  />
+                  <p style="font-size: 11px; color: #a0a4ba; margin-top: 4px;">人狼が使用できる妨害の総コストです（デフォルト: 100）</p>
+                </label>
+              </div>
 
-            <div class="options-row">
-              <label>
-                人狼妨害（編集可能: タイトル / 表示文言 / コスト）
-                <div id="rules-wolf-actions-editor" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
-                  <!-- JSで妨害エディタを描画 -->
-                </div>
-              </label>
-            </div>
-          </section>
+              <div class="options-row">
+                <label>
+                  人狼妨害（編集可能: タイトル / 表示文言 / コスト）
+                  <div id="rules-wolf-actions-editor" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+                    <!-- JSで妨害エディタを描画 -->
+                  </div>
+                </label>
+              </div>
+            </section>
+          </div>
 
           <div class="modal-actions">
             <button id="rules-save" class="btn primary">保存</button>

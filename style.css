@@ -1259,6 +1259,26 @@ button {
   gap: 8px;
 }
 
+/* ルール設定など、内容が長いモーダル用（中身だけスクロール / ボタンは常時表示） */
+.modal-content.scroll-shell {
+  max-height: min(88vh, 860px);
+}
+
+.modal-content.scroll-shell .modal-body-scroll {
+  flex: 1;
+  min-height: 0; /* flex内スクロールのため必須 */
+  overflow: auto;
+  padding-right: 4px; /* スクロールバーで詰まらないように */
+}
+
+.modal-content.scroll-shell .modal-actions {
+  flex: 0 0 auto;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(5, 7, 18, 0) 0%, rgba(5, 7, 18, 0.85) 30%, rgba(5, 7, 18, 0.95) 100%);
+}
+
 .roulette-list {
   flex: 1;
   border-radius: 10px;
