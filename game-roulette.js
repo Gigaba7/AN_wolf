@@ -3,6 +3,7 @@
 import { GameState, $, $$ } from "./game-state.js";
 import { closeAllRouletteModals } from "./ui-modals.js";
 import { syncToFirebase } from "./firebase-sync.js";
+import { getStageCandidatesByChapterRange } from "./stage-data.js";
 
 function startStageRoulette() {
   const itemsEl = $("#stage-roulette-items");
@@ -11,15 +12,15 @@ function startStageRoulette() {
   itemsEl.innerHTML = "";
   const min = GameState.options.stageMinChapter;
   const max = GameState.options.stageMaxChapter;
-  const stages = [];
+  const stages = getStageCandidatesByChapterRange(min, max);
 
-  for (let ch = min; ch <= max; ch++) {
-    for (let st = 1; st <= 10; st++) {
-      stages.push(`${ch}-${st}`);
-    }
-  }
+  // 候補が多い場合、表示は10件程度に絞って演出を軽量化（ただし選出は全候補に対して一様）
+  // 候補が多い場合でも見た目が寂しくならないよう、表示は「10件より多く」出す
+  const DISPLAY_LIMIT = 12;
+  const shouldSample = stages.length > 60;
+  const displayStages = shouldSample ? sampleUnique(stages, Math.min(DISPLAY_LIMIT, stages.length)) : stages;
 
-  stages.forEach((stage) => {
+  displayStages.forEach((stage) => {
     const item = document.createElement("div");
     item.className = "roulette-item";
     item.textContent = stage;
@@ -27,22 +28,23 @@ function startStageRoulette() {
   });
 
   let currentIndex = 0;
+  let prevIndex = -1;
+  const items = Array.from(itemsEl.querySelectorAll(".roulette-item"));
+  if (items.length === 0) return;
   const interval = setInterval(() => {
-    $$(".roulette-item").forEach((el, idx) => {
-      el.classList.toggle("active", idx === currentIndex);
-    });
-    currentIndex = (currentIndex + 1) % stages.length;
+    if (prevIndex >= 0 && items[prevIndex]) items[prevIndex].classList.remove("active");
+    if (items[currentIndex]) items[currentIndex].classList.add("active");
+    prevIndex = currentIndex;
+    currentIndex = (currentIndex + 1) % items.length;
   }, 50);
 
   setTimeout(() => {
     clearInterval(interval);
-    const selected = stages[Math.floor(Math.random() * stages.length)];
-    $$(".roulette-item").forEach((el) => {
-      el.classList.remove("active");
-      if (el.textContent === selected) {
-        el.classList.add("selected");
-      }
-    });
+    // 選出は「表示候補」から選ぶ（サンプル方式でも全候補に対して一様になる）
+    const selected = displayStages[Math.floor(Math.random() * displayStages.length)];
+    items.forEach((el) => el.classList.remove("active"));
+    const selectedEl = items.find((el) => el.textContent === selected);
+    if (selectedEl) selectedEl.classList.add("selected");
 
     // ルーレットの停止位置で1秒停止
     setTimeout(() => {
@@ -66,3 +68,13 @@ function startStageRoulette() {
 }
 
 export { startStageRoulette };
+
+function sampleUnique(arr, n) {
+  // Fisher–Yates の部分シャッフルで n 件だけ取り出す（均一な部分集合）
+  const copy = arr.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}

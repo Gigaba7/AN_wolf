@@ -26,7 +26,7 @@ const GameState = {
   options: {
     sound: false,
     stageMinChapter: 2,
-    stageMaxChapter: 3,
+    stageMaxChapter: 5,
     // 妨害データ構造: {text: string, cost: number, requiresRoulette?: boolean, rouletteOptions?: string[]}[]
     // requiresRoulette: trueの場合、GM画面でルーレットを実行する必要がある
     wolfActions: [

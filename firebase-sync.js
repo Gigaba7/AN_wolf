@@ -239,7 +239,7 @@ function maybeShowDeferredGMAnnouncements() {
       });
       showAnnouncement(
         "最終フェーズ（逆転指名）",
-        "全プレイヤーがレユニオンを指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけの場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
+        "怪しいと思うプレイヤーに投票を行ってください。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけの場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。",
         "最終フェーズ開始",
         0,
         true, // OKボタンを要求
@@ -278,7 +278,7 @@ function maybeShowDeferredGMAnnouncements() {
     (gs.subphase === "wolf_decision" || gs.subphase === "wolf_resolving") &&
     isAnnouncementQueueEmpty()
   ) {
-    showAnnouncement("レユニオンが操作中です。", null, null, 0, false, false, true);
+    showAnnouncement("何者かが操作中です。", null, null, 0, false, false, true);
   }
 }
 
@@ -325,7 +325,7 @@ function _isContinuousAnnouncementShowing() {
   const currentTitle = titleEl.textContent;
   return (
     currentTitle === "人狼が操作中です。" ||
-    currentTitle === "レユニオンが操作中です。" ||
+    currentTitle === "何者かが操作中です。" ||
     currentTitle === "ドクターが操作中です。"
   );
 }
@@ -650,7 +650,7 @@ function syncGameStateFromFirebase(roomData) {
     const announcementModal = document.getElementById("announcement-modal");
     if (announcementModal && !announcementModal.classList.contains("hidden")) {
       const titleEl = document.getElementById("announcement-title");
-      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "何者かが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
         announcementModal.classList.add("hidden");
         lastAnnouncementTitle = null;
         processAnnouncementQueue();
@@ -1195,7 +1195,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
     const announcementModal = document.getElementById("announcement-modal");
     if (announcementModal && !announcementModal.classList.contains("hidden")) {
       const titleEl = document.getElementById("announcement-title");
-      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "何者かが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
         announcementModal.classList.add("hidden");
         // 継続表示が閉じられたので、キューがあれば処理を再開
         processAnnouncementQueue();
@@ -1213,7 +1213,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
     const announcementModal = document.getElementById("announcement-modal");
     if (announcementModal && !announcementModal.classList.contains("hidden")) {
       const titleEl = document.getElementById("announcement-title");
-      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "何者かが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
         announcementModal.classList.add("hidden");
         // 継続表示が閉じられたので、キューがあれば処理を再開
         processAnnouncementQueue();
@@ -1864,7 +1864,7 @@ function showFinalPhaseModal(roomData) {
   const hasVoted = myId && votes[myId] !== undefined;
 
   titleEl.textContent = "最終判定: レユニオン投票フェーズ";
-  summaryEl.textContent = "全プレイヤーがレユニオンを指名します。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。";
+  summaryEl.textContent = "怪しいと思うプレイヤーに投票を行ってください。全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけの場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。";
 
   // プレイヤー一覧を表示
   if (rolesEl) {
@@ -2080,7 +2080,7 @@ function showFinalPhaseGMModal(roomData) {
   // タイトルと説明を設定
   titleEl.textContent = "最終フェーズ（逆転指名）";
   if (summaryEl) {
-    summaryEl.textContent = `全プレイヤーがレユニオンを指名します。投票状況: ${votedCount}/${voterCount}人`;
+    summaryEl.textContent = `怪しいと思うプレイヤーに投票を行ってください。投票状況: ${votedCount}/${voterCount}人`;
   }
 
   // タイマーを更新
@@ -2698,7 +2698,7 @@ function setupResultModalButtons(roomData) {
         const announcementModal = document.getElementById("announcement-modal");
         if (announcementModal && !announcementModal.classList.contains("hidden")) {
           const titleEl = document.getElementById("announcement-title");
-          if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+          if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "何者かが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
             announcementModal.classList.add("hidden");
             // 継続表示が閉じられたので、キューがあれば処理を再開
             processAnnouncementQueue();
@@ -2779,7 +2779,7 @@ function stopRoomSync() {
   const announcementModal = document.getElementById("announcement-modal");
   if (announcementModal && !announcementModal.classList.contains("hidden")) {
     const titleEl = document.getElementById("announcement-title");
-    if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+    if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "何者かが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
       announcementModal.classList.add("hidden");
       // 継続表示が閉じられたので、キューがあれば処理を再開
       processAnnouncementQueue();

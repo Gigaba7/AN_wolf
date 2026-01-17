@@ -1257,6 +1257,7 @@ button {
   flex-direction: column;
   gap: 4px;
   overflow-y: auto;
+  max-height: min(52vh, 520px);
 }
 
 .roulette-item {
