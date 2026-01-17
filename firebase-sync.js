@@ -271,6 +271,15 @@ function maybeShowDeferredGMAnnouncements() {
   if (gs.phase === "playing" && gs.subphase === "await_doctor" && isAnnouncementQueueEmpty()) {
     showAnnouncement("ドクターが操作中です。", null, null, 0, false, false, true);
   }
+
+  // 3) レユニオン操作中：人狼（=レユニオン）が妨害を選んでいる/解決中の間は継続表示
+  if (
+    gs.phase === "playing" &&
+    (gs.subphase === "wolf_decision" || gs.subphase === "wolf_resolving") &&
+    isAnnouncementQueueEmpty()
+  ) {
+    showAnnouncement("レユニオンが操作中です。", null, null, 0, false, false, true);
+  }
 }
 
 function showAnnouncement(title, subtitle = null, logMessage = null, autoCloseDelay = 2000, requireOk = false, isWolfAction = false, gmOnly = false, onOk = null) {
@@ -314,7 +323,11 @@ function _isContinuousAnnouncementShowing() {
     return false;
   }
   const currentTitle = titleEl.textContent;
-  return currentTitle === "人狼が操作中です。" || currentTitle === "ドクターが操作中です。";
+  return (
+    currentTitle === "人狼が操作中です。" ||
+    currentTitle === "レユニオンが操作中です。" ||
+    currentTitle === "ドクターが操作中です。"
+  );
 }
 
 /**
@@ -637,7 +650,7 @@ function syncGameStateFromFirebase(roomData) {
     const announcementModal = document.getElementById("announcement-modal");
     if (announcementModal && !announcementModal.classList.contains("hidden")) {
       const titleEl = document.getElementById("announcement-title");
-      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
         announcementModal.classList.add("hidden");
         lastAnnouncementTitle = null;
         processAnnouncementQueue();
@@ -1182,7 +1195,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
     const announcementModal = document.getElementById("announcement-modal");
     if (announcementModal && !announcementModal.classList.contains("hidden")) {
       const titleEl = document.getElementById("announcement-title");
-      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
         announcementModal.classList.add("hidden");
         // 継続表示が閉じられたので、キューがあれば処理を再開
         processAnnouncementQueue();
@@ -1200,7 +1213,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
     const announcementModal = document.getElementById("announcement-modal");
     if (announcementModal && !announcementModal.classList.contains("hidden")) {
       const titleEl = document.getElementById("announcement-title");
-      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+      if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
         announcementModal.classList.add("hidden");
         // 継続表示が閉じられたので、キューがあれば処理を再開
         processAnnouncementQueue();
@@ -2431,20 +2444,17 @@ function setupVictoryScreenButtons(roomData) {
           const snap = await tx.get(roomRef);
           if (!snap.exists()) throw new Error("Room not found");
           const data = snap.data();
-          const currentAcks = data?.gameState?.resultReturnLobbyAcks || {};
-          const newAcks = { ...currentAcks, [userId]: true };
-          
-          // 既存のresultReturnLobbyAcksを取得（なければ空オブジェクト）
           const existingAcks = data?.gameState?.resultReturnLobbyAcks || {};
           
           // 最初のプレイヤーが「ロビーに戻る」を押した場合は、ゲーム状態をリセット
           const shouldResetGameState = Object.keys(existingAcks).length === 0;
           
-          const updates = {
-            "gameState.resultReturnLobbyAcks": newAcks,
-          };
+          const updates = {};
           
           if (shouldResetGameState) {
+            // まずACKをリセットし、押した本人だけtrueにする（次の試合でも「最初の押下」を判定できるように）
+            updates["gameState.resultReturnLobbyAcks"] = { [userId]: true };
+
             // ゲーム状態をwaitingフェーズにリセット
             updates["gameState.phase"] = "waiting";
             updates["gameState.turn"] = 1;
@@ -2458,6 +2468,14 @@ function setupVictoryScreenButtons(roomData) {
             updates["gameState.playerOrder"] = null;
             updates["gameState.wolfDecisionPlayerId"] = null;
             updates["gameState.wolfActionRequest"] = null;
+            updates["gameState.wolfActionNotification"] = null;
+            updates["gameState.pendingNextPlayerChallenge"] = null;
+            updates["gameState.pendingLastPlayerResult"] = null;
+            updates["gameState.pendingDoctorPunchProceed"] = null;
+            updates["gameState.pendingDoctorPunchSuccess"] = null;
+            updates["gameState.doctorSkipNotification"] = null;
+            updates["gameState.pendingDoctorSkipTurnEnd"] = null;
+            updates["gameState.lock"] = null;
             updates["gameState.gameResult"] = null;
             updates["gameState.discussionPhase"] = false;
             updates["gameState.discussionEndTime"] = null;
@@ -2465,6 +2483,8 @@ function setupVictoryScreenButtons(roomData) {
             updates["gameState.finalPhaseVoteCounts"] = null;
             updates["gameState.finalPhaseDiscussionEndTime"] = null;
             updates["gameState.pendingFinalPhaseExplanation"] = null;
+            updates["gameState.pendingFinalPhase"] = false;
+            updates["gameState.pendingFinalPhaseDiscussion"] = false;
             updates["gameState.turnResult"] = null;
             updates["gameState.turnResultTurn"] = null;
             updates["gameState.doctorHasFailed"] = false;
@@ -2483,6 +2503,9 @@ function setupVictoryScreenButtons(roomData) {
                 updates[`players.${pid}.resources.doctorPunchAvailableThisTurn`] = true;
               }
             });
+          } else {
+            // 2人目以降は既存ACKに追記
+            updates[`gameState.resultReturnLobbyAcks.${userId}`] = true;
           }
           
           tx.update(roomRef, updates);
@@ -2503,6 +2526,8 @@ function setupVictoryScreenButtons(roomData) {
         } else {
           switchScreen("home-screen", "waiting-screen");
         }
+        // 次の試合で極秘命令を再表示できるようにリセット
+        missionBriefShown = false;
       } catch (e) {
         console.error("Failed to return to lobby:", e);
         alert(e?.message || "ロビーに戻る処理に失敗しました。");
@@ -2594,6 +2619,9 @@ function setupResultModalButtons(roomData) {
           const updates = {};
           
           if (shouldResetGameState) {
+            // まずACKをリセットし、押した本人だけtrueにする（次の試合でも「最初の押下」を判定できるように）
+            updates["gameState.resultReturnLobbyAcks"] = { [userId]: true };
+
             // ゲーム状態をwaitingフェーズにリセット（すべてのゲームパラメータをリセット）
             updates["gameState.phase"] = "waiting";
             updates["gameState.turn"] = 1;
@@ -2607,21 +2635,32 @@ function setupResultModalButtons(roomData) {
             updates["gameState.playerOrder"] = null;
             updates["gameState.wolfDecisionPlayerId"] = null;
             updates["gameState.wolfActionRequest"] = null;
+            updates["gameState.wolfActionNotification"] = null;
+            updates["gameState.pendingNextPlayerChallenge"] = null;
+            updates["gameState.pendingLastPlayerResult"] = null;
+            updates["gameState.pendingDoctorPunchProceed"] = null;
+            updates["gameState.pendingDoctorPunchSuccess"] = null;
+            updates["gameState.doctorSkipNotification"] = null;
+            updates["gameState.pendingDoctorSkipTurnEnd"] = null;
             updates["gameState.gameResult"] = null;
             updates["gameState.turnResult"] = null;
+            updates["gameState.turnResultTurn"] = null;
             updates["gameState.doctorHasFailed"] = false;
             updates["gameState.revealAcks"] = {}; // 役職公開の確認をリセット
             updates["gameState.finalPhaseVotes"] = {}; // 最終フェーズの投票をリセット
+            updates["gameState.finalPhaseVoteCounts"] = null;
+            updates["gameState.finalPhaseDiscussionEndTime"] = null;
+            updates["gameState.pendingFinalPhaseExplanation"] = null;
             updates["gameState.discussionPhase"] = false; // 会議フェーズをリセット
             updates["gameState.discussionEndTime"] = null; // 会議フェーズの終了時刻をリセット
             updates["gameState.pendingFinalPhase"] = false; // 最終フェーズ前の会議フラグをリセット
             updates["gameState.pendingFinalPhaseDiscussion"] = false; // 最終フェーズ前の10分会議フラグをリセット
-            updates["gameState.pendingDoctorPunchProceed"] = null; // ドクター神拳発動後の進行フラグをリセット
             updates["gameState.lock"] = null; // 排他制御用ロックをリセット
           }
-          
-          // ロビーに戻る確認を記録（既存の値を保持しつつ、自分のIDだけをtrueに設定）
-          updates[`gameState.resultReturnLobbyAcks.${userId}`] = true;
+          // ロビーに戻る確認を記録（最初以外は既存に追記）
+          if (!shouldResetGameState) {
+            updates[`gameState.resultReturnLobbyAcks.${userId}`] = true;
+          }
           
           // ゲーム状態をリセットする場合（最初のプレイヤーが「ロビーに戻る」を押したとき）は、resourcesもリセット
           if (shouldResetGameState) {
@@ -2659,7 +2698,7 @@ function setupResultModalButtons(roomData) {
         const announcementModal = document.getElementById("announcement-modal");
         if (announcementModal && !announcementModal.classList.contains("hidden")) {
           const titleEl = document.getElementById("announcement-title");
-          if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+          if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
             announcementModal.classList.add("hidden");
             // 継続表示が閉じられたので、キューがあれば処理を再開
             processAnnouncementQueue();
@@ -2677,6 +2716,8 @@ function setupResultModalButtons(roomData) {
         } else {
           switchScreen("home-screen", "waiting-screen");
         }
+        // 次の試合で極秘命令を再表示できるようにリセット
+        missionBriefShown = false;
       } catch (e) {
         console.error("Failed to return to lobby:", e);
         alert("ロビーに戻るのに失敗しました。");
@@ -2738,7 +2779,7 @@ function stopRoomSync() {
   const announcementModal = document.getElementById("announcement-modal");
   if (announcementModal && !announcementModal.classList.contains("hidden")) {
     const titleEl = document.getElementById("announcement-title");
-    if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
+    if (titleEl && (titleEl.textContent === "人狼が操作中です。" || titleEl.textContent === "レユニオンが操作中です。" || titleEl.textContent === "ドクターが操作中です。")) {
       announcementModal.classList.add("hidden");
       // 継続表示が閉じられたので、キューがあれば処理を再開
       processAnnouncementQueue();

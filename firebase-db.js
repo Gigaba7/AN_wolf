@@ -341,6 +341,8 @@ async function startGameAsHost(roomId) {
     const updates = {
       "gameState.phase": "revealing",
       "gameState.revealAcks": {}, // uid -> true
+      // 再戦（同ルーム）対策：前試合のロビー戻りACKや各種残骸をクリア
+      "gameState.resultReturnLobbyAcks": {},
       "gameState.turn": 1,
       "gameState.whiteStars": 0,
       "gameState.blackStars": 0,
@@ -352,6 +354,26 @@ async function startGameAsHost(roomId) {
       "gameState.subphase": startPhase.subphase,
       "gameState.wolfDecisionPlayerId": startPhase.wolfDecisionPlayerId,
       "gameState.wolfActionRequest": null,
+      "gameState.wolfActionNotification": null,
+      "gameState.pendingNextPlayerChallenge": null,
+      "gameState.pendingLastPlayerResult": null,
+      "gameState.pendingDoctorPunchProceed": null,
+      "gameState.pendingDoctorPunchSuccess": null,
+      "gameState.doctorSkipNotification": null,
+      "gameState.pendingDoctorSkipTurnEnd": null,
+      "gameState.turnResult": null,
+      "gameState.turnResultTurn": null,
+      "gameState.discussionPhase": false,
+      "gameState.discussionEndTime": null,
+      "gameState.pendingFinalPhaseExplanation": null,
+      "gameState.pendingFinalPhase": false,
+      "gameState.pendingFinalPhaseDiscussion": false,
+      "gameState.finalPhaseVotes": {},
+      "gameState.finalPhaseVoteCounts": null,
+      "gameState.finalPhaseDiscussionEndTime": null,
+      "gameState.gameResult": null,
+      "gameState.doctorHasFailed": false,
+      "gameState.lock": null,
     };
 
     playerIds.forEach((pid, idx) => {
