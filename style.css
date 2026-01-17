@@ -925,7 +925,8 @@ button {
 
 /* プレイ映像エリアの下：操作エリアと同じ高さの“透明エリア” */
 .play-video-under-space {
-  height: var(--gm-control-panel-height);
+  /* 映像下エリアの高さは半分 */
+  height: calc(var(--gm-control-panel-height) / 2);
   width: 100%;
   /* 後で機能を載せる前提なので操作可能にしておく */
   pointer-events: auto;

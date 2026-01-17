@@ -629,6 +629,8 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
+const DEFAULT_RULE_TEXT = "・☆6禁止\n・合計コスト20以下";
+
 // GM画面：映像下エリアに「このターンの妨害内容」と「ルールテキスト」を表示
 function renderUnderVideoInfo() {
   const el = document.querySelector(".play-video-under-space");
@@ -642,7 +644,9 @@ function renderUnderVideoInfo() {
   const wolfText = typeof currentWolf?.text === "string" ? currentWolf.text : "";
   const wolfSub = typeof currentWolf?.announcementSubtitle === "string" ? currentWolf.announcementSubtitle : "";
 
-  const ruleText = typeof cfg?.ruleText === "string" ? cfg.ruleText : (GameState.options.ruleText || "");
+  const rawRuleText =
+    typeof cfg?.ruleText === "string" ? cfg.ruleText : (GameState.options.ruleText || "");
+  const ruleText = (rawRuleText || "").trim() ? rawRuleText : DEFAULT_RULE_TEXT;
 
   el.innerHTML = `
     <div style="display:flex; gap:16px; height:100%; padding:14px 16px; box-sizing:border-box;">
@@ -655,9 +659,7 @@ function renderUnderVideoInfo() {
       </div>
       <div style="flex: 1; min-width: 0;">
         <div style="font-weight:700; font-size:16px; color:#f5f5f7; margin-bottom:8px;">ルール</div>
-        <div style="font-size:14px; color:#d4d6e3; line-height:1.6; white-space:pre-wrap; overflow:auto; max-height:100%;">
-          ${escapeHtml(ruleText || "（ルールテキスト未設定：ルール設定で入力してください）")}
-        </div>
+        <div style="font-size:14px; color:#d4d6e3; line-height:1.6; white-space:pre-wrap; overflow:auto; max-height:100%;">${escapeHtml(ruleText)}</div>
       </div>
     </div>
   `;

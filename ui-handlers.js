@@ -594,6 +594,13 @@ function refreshRulesSettingsModalControls() {
       displayInput.dataset.actionKey = key;
       displayInput.dataset.field = "displayName";
 
+      const subtitleInput = document.createElement("input");
+      subtitleInput.type = "text";
+      subtitleInput.placeholder = "サブタイトル（ポップアップの補足文）";
+      subtitleInput.value = typeof a.announcementSubtitle === "string" ? a.announcementSubtitle : "";
+      subtitleInput.dataset.actionKey = key;
+      subtitleInput.dataset.field = "announcementSubtitle";
+
       const costInput = document.createElement("input");
       costInput.type = "number";
       costInput.min = "0";
@@ -628,7 +635,7 @@ function refreshRulesSettingsModalControls() {
       enabledWrap.appendChild(enabledInput);
       enabledWrap.appendChild(enabledText);
 
-      [displayInput, costInput].forEach((el) => {
+      [displayInput, subtitleInput, costInput].forEach((el) => {
         el.style.width = "100%";
         el.style.padding = "8px";
         el.style.borderRadius = "8px";
@@ -648,6 +655,9 @@ function refreshRulesSettingsModalControls() {
       grid.appendChild(enabledWrap);
       grid.appendChild(costInput);
       wrap.appendChild(grid);
+
+      // サブタイトル（任意）
+      wrap.appendChild(subtitleInput);
 
       if (key === "背水の陣") {
         const note = document.createElement("div");
@@ -724,7 +734,8 @@ function refreshRulesSettingsModalControls() {
     // ルーム設定を優先（参加者側も同じ値を見る）
     const fromRoom = typeof window !== "undefined" ? window.RoomInfo?.config?.ruleText : null;
     const v = typeof fromRoom === "string" ? fromRoom : (GameState.options.ruleText || "");
-    ruleTextEl.value = v;
+    const fallback = "・☆6禁止\n・合計コスト20以下";
+    ruleTextEl.value = (v || "").trim() ? v : fallback;
   }
 }
 
@@ -931,6 +942,20 @@ function setupModals() {
     closeModal("options-modal");
   });
 
+  // 歯車メニューからいつでもルール設定を開ける（GMのみ）
+  $("#opt-open-rules-settings")?.addEventListener("click", () => {
+    const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+    const myId = typeof window !== "undefined" ? window.__uid : null;
+    const isHost = !!(createdBy && myId && createdBy === myId);
+    if (!isHost) {
+      alert("ルール設定はGM（ホスト）のみ編集できます。");
+      return;
+    }
+    closeModal("options-modal");
+    refreshRulesSettingsModalControls();
+    openModal("rules-settings-modal");
+  });
+
   $("#opt-back-home")?.addEventListener("click", () => {
     closeModal("options-modal");
     switchScreen("main-screen", "home-screen");
@@ -1013,6 +1038,7 @@ function setupModals() {
             textareas.find((el) => el.dataset?.actionKey === key && el.dataset?.field === field);
 
           const displayName = (get("displayName")?.value || "").trim();
+          const announcementSubtitle = (get("announcementSubtitle")?.value || "").trim();
           const costRaw = get("cost")?.value;
           const cost = Number(costRaw);
           if (!Number.isFinite(cost) || cost < 0 || cost > 999) {
@@ -1042,6 +1068,7 @@ function setupModals() {
           return {
             ...a,
             enabled: enabled,
+            announcementSubtitle: announcementSubtitle || a.announcementSubtitle || "",
             // 背水の陣はキー/表示文言を編集不可（特殊仕様）
             displayName: key === "背水の陣" ? (a.displayName || a.text) : (displayName || a.displayName || a.text),
             cost: Math.floor(cost),
