@@ -1,3 +1,6 @@
+/* フォント読み込み */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&display=swap');
+
 /* ベース設定 */
 *,
 *::before,
@@ -366,7 +369,7 @@ button {
 
 /* ホーム画面 */
 .app-header {
-  padding: 16px 24px 10px;
+  padding: 12px 24px 8px;
   border-bottom: 2px solid rgba(200, 200, 220, 0.2);
   background: linear-gradient(180deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
   box-shadow: 
@@ -376,22 +379,22 @@ button {
 }
 
 .app-header h1 {
-  font-size: 22px;
+  font-size: 24px;
   letter-spacing: 0.04em;
   margin: 0;
 }
 
 .app-header .subtitle {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 13px;
   color: #c5c7d7;
 }
 
 .home-layout {
   display: grid;
   grid-template-columns: 1fr 1.35fr;
-  gap: 12px;
-  padding: 12px 16px 16px;
+  gap: 10px;
+  padding: 8px 16px 12px;
 }
 
 /* ホーム画面は全体的にテキストを1.2倍 */
@@ -402,7 +405,7 @@ button {
 .home-card {
   background: linear-gradient(145deg, #0f1219, #050712);
   border-radius: 10px;
-  padding: 14px 16px 16px;
+  padding: 12px 14px 14px;
   border: 2px solid rgba(200, 200, 220, 0.15);
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.6),
@@ -422,19 +425,19 @@ button {
 }
 
 .home-card h2 {
-  font-size: 16px;
+  font-size: 17px;
   margin-bottom: 8px;
 }
 
 .disclaimer-card ul {
   padding-left: 18px;
-  font-size: 12px;
+  font-size: 13px;
   color: #d4d6e3;
-  margin: 8px 0;
+  margin: 6px 0;
 }
 
 .disclaimer-card li + li {
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .start-btn {
@@ -521,7 +524,7 @@ button {
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .video-wrapper iframe {
@@ -535,7 +538,7 @@ button {
 .home-links {
   display: flex;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 /* メイン画面レイアウト */
@@ -543,7 +546,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px 24px;
+  padding: 14px 24px;
   background: linear-gradient(145deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
   border: 2px solid rgba(200, 200, 220, 0.15);
   border-bottom: none;
@@ -552,7 +555,7 @@ button {
   gap: 20px;
   position: relative;
   z-index: 10;
-  border-radius: 8px;
+  border-radius: 8px 8px 0 0;
   box-shadow: 
     0 4px 16px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
@@ -565,18 +568,18 @@ button {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 40px;
+  gap: 48px;
 }
 
 .status-main-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .status-main-label {
-  font-size: 18px;
+  font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #a0a4ba;
@@ -584,9 +587,9 @@ button {
 }
 
 .status-main-value {
-  font-size: 36px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: #f5f5f7;
   text-align: center;
 }
@@ -600,16 +603,16 @@ button {
 }
 
 .status-main-stars {
-  font-size: 30px;
+  font-size: 28px;
   letter-spacing: 0.1em;
-  font-weight: 500;
+  font-weight: 600;
   color: #f5f5f7;
   text-align: center;
 }
 
 .status-stage-value {
-  font-size: 27px;
-  font-weight: 500;
+  font-size: 24px;
+  font-weight: 600;
   color: #f5f5f7;
   text-align: center;
 }
@@ -647,15 +650,15 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(5, 7, 18, 0.8);
   color: #f5f5f7;
-  /* 歯車アイコンの見た目に合わせて“○”を小さく */
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 10;
-  font-size: 22px;
+  font-size: 20px;
+  transition: all 0.2s ease;
 }
 
 #wolf-remaining-in-button {
@@ -705,9 +708,13 @@ button {
 }
 
 .panel h2 {
-  font-size: 16px;
-  margin-bottom: 8px;
+  font-family: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho', 'HiraMinProN-W3', 'HGS明朝E', 'MS PMincho', serif;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
   padding: 0 4px;
+  color: #f5f5f7;
+  letter-spacing: 0.05em;
 }
 
 .players-panel {
@@ -727,18 +734,17 @@ button {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   padding-right: 4px;
-  padding-top: 20px;
-  padding-bottom: 20px;
+  padding-top: 16px;
+  padding-bottom: 16px;
 }
 
 .player-card {
   display: grid;
-  /* アイコンを0.7倍に合わせて左カラムも縮小 */
   grid-template-columns: 40px 1fr;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 12px;
+  padding: 10px 12px;
   border-radius: 8px;
   background: linear-gradient(145deg, rgba(15, 18, 25, 0.8), rgba(5, 7, 18, 0.9));
   align-items: center;
@@ -818,17 +824,17 @@ button {
 .player-meta {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .player-name {
-  /* プレイヤー表示エリアのフォントを2倍（ベース14px→28px相当） */
-  font-size: 28px;
-  font-weight: 500;
+  font-size: 22px;
+  font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #f5f5f7;
 }
 
 .player-name.player-name-self {
@@ -926,17 +932,29 @@ button {
   overflow: hidden;
 }
 
-/* プレイ映像エリアの下：操作エリアと同じ高さの“透明エリア” */
+/* プレイ映像エリアの下：操作エリアと同じ高さの"透明エリア" */
 .play-video-under-space {
-  /* 映像下エリアの高さは半分 */
-  height: calc(var(--gm-control-panel-height) / 2);
+  height: 55px;
   width: 100%;
-  /* 後で機能を載せる前提なので操作可能にしておく */
   pointer-events: auto;
   position: relative;
   z-index: 2;
-  /* “穴”の外側と同じトーンで見やすく（必要なら後で変更） */
-  background: rgba(5, 7, 18, 0.94);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.under-video-info {
+  font-size: 13px;
+  color: #a0a4ba;
+  text-align: center;
+}
+
+.under-video-info strong {
+  color: #f5f5f7;
+  font-weight: 600;
 }
 
 /* プレイ映像エリア以外を不透明に塗りつぶす（16:9の“穴”を開ける） */
@@ -1068,7 +1086,7 @@ button {
 
 .app-footer {
   padding: 8px 20px;
-  font-size: 12px;
+  font-size: 11px;
   color: #777c99;
   text-align: right;
   flex: 0 0 auto;
@@ -1078,8 +1096,8 @@ button {
 .btn {
   border-radius: 8px;
   border: 2px solid rgba(200, 200, 220, 0.2);
-  padding: 12px 24px;
-  font-size: 14px;
+  padding: 14px 24px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
