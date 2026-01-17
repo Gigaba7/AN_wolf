@@ -68,21 +68,7 @@ body {
   }
 }
 
-/* 妨害アニメーション */
-@keyframes wolfActionLightning {
-  0%, 100% {
-    box-shadow: 0 0 0 rgba(255, 0, 0, 0);
-  }
-  25% {
-    box-shadow: 0 0 20px rgba(255, 0, 0, 0.8), 0 0 40px rgba(255, 100, 0, 0.6), inset 0 0 20px rgba(255, 0, 0, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(255, 0, 0, 1), 0 0 60px rgba(255, 100, 0, 0.8), inset 0 0 30px rgba(255, 0, 0, 0.5);
-  }
-  75% {
-    box-shadow: 0 0 20px rgba(255, 0, 0, 0.8), 0 0 40px rgba(255, 100, 0, 0.6), inset 0 0 20px rgba(255, 0, 0, 0.3);
-  }
-}
+/* 妨害（枠色は赤にするが、インアニメーションは付けない） */
 
 @keyframes pulse {
   0%, 100% {
@@ -96,8 +82,14 @@ body {
 }
 
 #announcement-modal.wolf-action .modal-content {
-  animation: wolfActionLightning 0.8s ease-in-out;
-  border: 2px solid rgba(255, 0, 0, 0.5);
+  animation: none;
+  border: 2px solid rgba(255, 0, 0, 0.55);
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 100, 100, 0.25),
+    0 0 18px rgba(255, 100, 100, 0.14);
 }
 
 /* 人狼妨害（赤い演出）だけを残す：
@@ -110,6 +102,17 @@ body {
 #announcement-modal.wolf-action .modal-backdrop {
   animation: none;
   opacity: 1;
+}
+
+/* 「何者かが操作中です。」（継続表示）も赤枠にする */
+#announcement-modal.wolf-operating .modal-content {
+  border-color: rgba(255, 100, 100, 0.65);
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 100, 100, 0.25),
+    0 0 18px rgba(255, 100, 100, 0.14);
 }
 
 /* ホーム/待機（マッチング）画面は背景を不透明にする */
@@ -1213,6 +1216,17 @@ button {
     inset 0 -1px 0 rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(200, 200, 220, 0.05);
   animation: modalContentSlideIn 0.2s ease-out;
+}
+
+/* 役職配布（self-role-modal）：レユニオンは赤枠 */
+#self-role-modal.role-wolf .modal-content {
+  border-color: rgba(255, 100, 100, 0.65);
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 100, 100, 0.25),
+    0 0 22px rgba(255, 100, 100, 0.18);
 }
 
 @keyframes modalContentSlideIn {

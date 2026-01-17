@@ -520,6 +520,13 @@ function refreshRulesSettingsModalControls() {
       titleInput.dataset.actionKey = key;
       titleInput.dataset.field = "announcementTitle";
 
+      const subtitleInput = document.createElement("input");
+      subtitleInput.type = "text";
+      subtitleInput.placeholder = "サブタイトル（ポップアップの補足文）";
+      subtitleInput.value = a.announcementSubtitle || "";
+      subtitleInput.dataset.actionKey = key;
+      subtitleInput.dataset.field = "announcementSubtitle";
+
       const displayInput = document.createElement("input");
       displayInput.type = "text";
       displayInput.placeholder = "表示文言（リスト表示）";
@@ -536,7 +543,7 @@ function refreshRulesSettingsModalControls() {
       costInput.dataset.actionKey = key;
       costInput.dataset.field = "cost";
 
-      [titleInput, displayInput, costInput].forEach((el) => {
+      [titleInput, subtitleInput, displayInput, costInput].forEach((el) => {
         el.style.width = "100%";
         el.style.padding = "8px";
         el.style.borderRadius = "8px";
@@ -546,10 +553,79 @@ function refreshRulesSettingsModalControls() {
         el.style.fontSize = "13px";
       });
 
-      grid.appendChild(titleInput);
-      grid.appendChild(displayInput);
-      grid.appendChild(costInput);
+      // 1段目: タイトル / コスト
+      const row1 = document.createElement("div");
+      row1.style.display = "grid";
+      row1.style.gridTemplateColumns = "1fr 120px";
+      row1.style.gap = "8px";
+      row1.appendChild(titleInput);
+      row1.appendChild(costInput);
+
+      // 2段目: サブタイトル
+      const row2 = document.createElement("div");
+      row2.style.display = "grid";
+      row2.style.gridTemplateColumns = "1fr";
+      row2.appendChild(subtitleInput);
+
+      // 3段目: 表示文言
+      const row3 = document.createElement("div");
+      row3.style.display = "grid";
+      row3.style.gridTemplateColumns = "1fr";
+      row3.appendChild(displayInput);
+
+      grid.appendChild(row1);
+      grid.appendChild(row2);
+      grid.appendChild(row3);
       wrap.appendChild(grid);
+
+      // ルーレット妨害の場合：候補を編集できる（デフォルトはアコーディオンで非表示）
+      if (a?.requiresRoulette === true) {
+        const details = document.createElement("details");
+        details.style.marginTop = "6px";
+        details.style.border = "1px solid rgba(255,255,255,0.10)";
+        details.style.borderRadius = "10px";
+        details.style.background = "rgba(5,7,18,0.35)";
+
+        const summary = document.createElement("summary");
+        summary.textContent = "ルーレット候補（編集）";
+        summary.style.cursor = "pointer";
+        summary.style.padding = "10px 12px";
+        summary.style.userSelect = "none";
+        summary.style.fontSize = "12px";
+        summary.style.color = "#d4d6e3";
+        details.appendChild(summary);
+
+        const body = document.createElement("div");
+        body.style.padding = "10px 12px 12px";
+        body.style.display = "flex";
+        body.style.flexDirection = "column";
+        body.style.gap = "6px";
+
+        const help = document.createElement("div");
+        help.textContent = "1行につき1候補（空行は無視されます）";
+        help.style.fontSize = "11px";
+        help.style.color = "#a0a4ba";
+        body.appendChild(help);
+
+        const ta = document.createElement("textarea");
+        ta.rows = 6;
+        ta.placeholder = "例）\n先鋒\n前衛\n重装\n狙撃\n術師\n医療\n補助\n特殊";
+        ta.value = Array.isArray(a.rouletteOptions) ? a.rouletteOptions.join("\n") : "";
+        ta.dataset.actionKey = key;
+        ta.dataset.field = "rouletteOptions";
+        ta.style.width = "100%";
+        ta.style.borderRadius = "10px";
+        ta.style.border = "1px solid rgba(255,255,255,0.2)";
+        ta.style.background = "rgba(5,7,18,0.8)";
+        ta.style.color = "#f5f5f7";
+        ta.style.padding = "8px";
+        ta.style.fontSize = "12px";
+        ta.style.resize = "vertical";
+        body.appendChild(ta);
+
+        details.appendChild(body);
+        wrap.appendChild(details);
+      }
 
       wolfActionsEditorEl.appendChild(wrap);
     });
@@ -839,13 +915,16 @@ function setupModals() {
     if (wolfActionsEditorEl instanceof HTMLElement) {
       try {
         const inputs = Array.from(wolfActionsEditorEl.querySelectorAll("input"));
+        const textareas = Array.from(wolfActionsEditorEl.querySelectorAll("textarea"));
         const current = Array.isArray(GameState.options.wolfActions) ? GameState.options.wolfActions : [];
         const next = current.map((a) => {
           const key = a?.text || "";
           const get = (field) =>
-            inputs.find((el) => el.dataset?.actionKey === key && el.dataset?.field === field);
+            inputs.find((el) => el.dataset?.actionKey === key && el.dataset?.field === field) ||
+            textareas.find((el) => el.dataset?.actionKey === key && el.dataset?.field === field);
 
           const announcementTitle = (get("announcementTitle")?.value || "").trim();
+          const announcementSubtitle = (get("announcementSubtitle")?.value || "").trim();
           const displayName = (get("displayName")?.value || "").trim();
           const costRaw = get("cost")?.value;
           const cost = Number(costRaw);
@@ -853,11 +932,27 @@ function setupModals() {
             throw new Error(`妨害「${key}」のコストが不正です。`);
           }
 
+          // ルーレット候補（requiresRoulette の場合のみ）
+          let rouletteOptions = Array.isArray(a.rouletteOptions) ? a.rouletteOptions : null;
+          if (a?.requiresRoulette === true) {
+            const raw = (get("rouletteOptions")?.value || "").trim();
+            const lines = raw
+              .split("\n")
+              .map((v) => v.trim())
+              .filter(Boolean);
+            // 空なら「誤って消す」を避けるため既存を維持
+            if (lines.length) {
+              rouletteOptions = lines;
+            }
+          }
+
           return {
             ...a,
             announcementTitle: announcementTitle || a.announcementTitle || "",
+            announcementSubtitle: announcementSubtitle || a.announcementSubtitle || "",
             displayName: displayName || a.displayName || a.text,
             cost: Math.floor(cost),
+            ...(rouletteOptions ? { rouletteOptions } : {}),
           };
         });
 

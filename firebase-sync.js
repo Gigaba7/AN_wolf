@@ -453,15 +453,11 @@ function _showAnnouncementDirect(title, subtitle = null, logMessage = null, auto
     announcementTimeout = null;
   }
   
-  // 妨害アニメーション用のクラスを追加/削除
-  if (isWolfAction) {
-    modal.classList.add("wolf-action");
-    setTimeout(() => {
-      modal.classList.remove("wolf-action");
-    }, 800);
-  } else {
-    modal.classList.remove("wolf-action");
-  }
+  // 妨害/継続表示の枠色クラスを追加/削除
+  // - wolf-action: 人狼妨害の発動ポップアップ（枠は赤、アニメーションはCSS側で無効化）
+  // - wolf-operating: 「何者かが操作中です。」の継続表示（枠は赤）
+  modal.classList.toggle("wolf-action", !!isWolfAction);
+  modal.classList.toggle("wolf-operating", title === "何者かが操作中です。");
   
   titleEl.textContent = title;
   lastAnnouncementTitle = title;
@@ -1034,6 +1030,11 @@ function handlePhaseUI(roomData, previousPhase = null) {
           myRole === "wolf" ? "レユニオン" : myRole === "doctor" ? "ドクター" : "オペレーター";
       }
 
+      // 役職に応じた枠色（人狼陣営＝赤枠）
+      if (modal) {
+        modal.classList.toggle("role-wolf", myRole === "wolf");
+      }
+
       // GMの場合は、self-role-okボタンを無効化（gm-roles-modalのOKボタンでゲーム開始）
       if (isGM) {
         okBtn?.setAttribute("disabled", "true");
@@ -1110,7 +1111,9 @@ function handlePhaseUI(roomData, previousPhase = null) {
   // playing: 待機画面→GM/参加者画面へ分岐
   if (phase === 'playing') {
     // role modalを閉じる
-    document.getElementById("self-role-modal")?.classList.add("hidden");
+    const selfRoleModal = document.getElementById("self-role-modal");
+    selfRoleModal?.classList.add("hidden");
+    selfRoleModal?.classList.remove("role-wolf");
 
     const waiting = document.getElementById("waiting-screen");
     const main = document.getElementById("main-screen");
