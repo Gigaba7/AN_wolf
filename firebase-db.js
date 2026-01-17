@@ -121,6 +121,13 @@ async function joinRoom(roomId, playerName, avatarImage = null, avatarLetter = n
       [`players.${userId}.status`]: 'ready',
     });
   } else {
+    // プレイヤー上限（要望により最大7人）
+    const maxPlayers = Math.min(7, Math.max(3, Number(roomData?.config?.maxPlayers || 7) || 7));
+    const currentCount = roomData?.players ? Object.keys(roomData.players).length : 0;
+    if (currentCount >= maxPlayers) {
+      throw new Error(`このルームは満員です（上限${maxPlayers}人）。`);
+    }
+
     // 新規参加
     // ルーム設定から初期コストを取得、なければデフォルト100
     const wolfInitialCost = roomData?.config?.wolfInitialCost || 100;

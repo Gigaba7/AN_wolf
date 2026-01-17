@@ -20,6 +20,7 @@ body {
   align-items: stretch;
   justify-content: center;
   background: transparent;
+  overflow: hidden; /* 常に1920*1080内に収める（スクロールを出さない） */
 }
 
 /* 共有：操作パネル高（= 映像下エリアの高さにも使う） */
@@ -27,6 +28,9 @@ body {
   --gm-control-panel-height: 220px;
   /* 左カラム（プレイヤー/操作）幅：560px の 0.8倍 */
   --side-panel-width: 448px;
+  /* OBS想定キャンバス */
+  --app-base-width: 1920px;
+  --app-base-height: 1080px;
 }
 
 /* 汎用ユーティリティ */
@@ -314,14 +318,15 @@ body.victory-wolf-bg {
 }
 
 #app {
-  width: 100%;
-  max-width: 1920px;
-  margin: 0 auto;
-  min-height: 100vh;
-  height: 1080px;
+  width: var(--app-base-width);
+  height: var(--app-base-height);
+  position: fixed;
+  left: 0;
+  top: 0;
   display: flex;
   flex-direction: column;
   background: transparent;
+  transform-origin: top left; /* main.js で translate/scale を適用 */
 }
 
 h1,
@@ -666,7 +671,6 @@ button {
   grid-template-rows: 1fr auto;
   gap: 12px;
   padding: 12px 16px;
-  height: calc(1080px - 24px);
   min-height: 0;
   overflow: hidden;
 }
@@ -727,7 +731,8 @@ button {
 
 .player-card {
   display: grid;
-  grid-template-columns: 56px 1fr;
+  /* アイコンを0.7倍に合わせて左カラムも縮小 */
+  grid-template-columns: 40px 1fr;
   gap: 10px;
   padding: 8px 10px;
   border-radius: 8px;
@@ -773,15 +778,17 @@ button {
 }
 
 .player-avatar {
-  width: 56px;
-  height: 56px;
+  /* 56px の 0.7倍 ≒ 39.2px */
+  width: 39px;
+  height: 39px;
   border-radius: 50%;
   background: linear-gradient(145deg, rgba(125, 211, 252, 0.2), rgba(15, 18, 25, 0.8));
   display: flex;
   align-items: center;
   justify-content: center;
   color: #f5f5f7;
-  font-size: 22px;
+  /* 22px の 0.7倍 ≒ 15.4px */
+  font-size: 15px;
   font-weight: 600;
   border: 2px solid rgba(200, 200, 220, 0.3);
   overflow: hidden;
@@ -1538,7 +1545,6 @@ textarea {
   grid-template-rows: 1fr auto;
   gap: 12px;
   padding: 12px 16px;
-  height: calc(1080px - 24px);
   min-height: 0;
   overflow: hidden;
 }

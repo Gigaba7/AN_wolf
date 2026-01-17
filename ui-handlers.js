@@ -182,7 +182,7 @@ function setupHomeScreen() {
         hostName: hostName,
         hostAvatarLetter: hostName[0] || "?",
         hostAvatarImage: pendingHostAvatarImage,
-        maxPlayers: 8,
+        maxPlayers: 7,
         stageMinChapter: GameState.options.stageMinChapter,
         stageMaxChapter: GameState.options.stageMaxChapter,
         stageRangesByTurn: GameState.options.stageRangesByTurn,
@@ -425,17 +425,76 @@ function refreshRulesSettingsModalControls() {
 
     stageRangesEl.innerHTML = "";
 
-    const makeSelect = (value) => {
-      const sel = document.createElement("select");
-      sel.style.flex = "1";
-      for (let i = 0; i <= 15; i++) {
-        const opt = document.createElement("option");
-        opt.value = String(i);
-        opt.textContent = `${i}章`;
-        sel.appendChild(opt);
-      }
-      sel.value = String(value);
-      return sel;
+    const clampChapter = (n) => {
+      const v = Number(n);
+      if (!Number.isFinite(v)) return 0;
+      return Math.max(0, Math.min(15, Math.floor(v)));
+    };
+
+    const makeChapterStepper = (value) => {
+      const wrap = document.createElement("div");
+      wrap.style.display = "flex";
+      wrap.style.alignItems = "center";
+      wrap.style.gap = "6px";
+      wrap.style.flex = "1";
+      wrap.style.minWidth = "0";
+
+      const btnStyle = (btn) => {
+        btn.type = "button";
+        btn.style.width = "28px";
+        btn.style.height = "28px";
+        btn.style.borderRadius = "8px";
+        btn.style.border = "1px solid rgba(255,255,255,0.18)";
+        btn.style.background = "rgba(255,255,255,0.04)";
+        btn.style.color = "#f5f5f7";
+        btn.style.cursor = "pointer";
+        btn.style.lineHeight = "1";
+      };
+
+      const minus = document.createElement("button");
+      minus.textContent = "−";
+      btnStyle(minus);
+
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "0";
+      input.max = "15";
+      input.step = "1";
+      input.value = String(clampChapter(value));
+      input.inputMode = "numeric";
+      input.style.width = "64px";
+      input.style.padding = "6px 8px";
+      input.style.borderRadius = "8px";
+      input.style.border = "1px solid rgba(255,255,255,0.18)";
+      input.style.background = "rgba(5,7,18,0.65)";
+      input.style.color = "#f5f5f7";
+      input.style.textAlign = "center";
+      input.style.fontSize = "13px";
+
+      const suffix = document.createElement("span");
+      suffix.textContent = "章";
+      suffix.style.opacity = "0.75";
+      suffix.style.fontSize = "12px";
+
+      const plus = document.createElement("button");
+      plus.textContent = "+";
+      btnStyle(plus);
+
+      const setValue = (next) => {
+        input.value = String(clampChapter(next));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+
+      minus.addEventListener("click", () => setValue(Number(input.value) - 1));
+      plus.addEventListener("click", () => setValue(Number(input.value) + 1));
+      input.addEventListener("blur", () => setValue(input.value));
+
+      wrap.appendChild(minus);
+      wrap.appendChild(input);
+      wrap.appendChild(suffix);
+      wrap.appendChild(plus);
+
+      return { wrap, input };
     };
 
     for (let t = 1; t <= maxTurns; t++) {
@@ -452,21 +511,35 @@ function refreshRulesSettingsModalControls() {
 
       const min = Number(ranges[t - 1]?.min);
       const max = Number(ranges[t - 1]?.max);
-      const minSel = makeSelect(Number.isFinite(min) ? min : GameState.options.stageMinChapter);
-      const maxSel = makeSelect(Number.isFinite(max) ? max : GameState.options.stageMaxChapter);
-      minSel.dataset.turn = String(t);
-      maxSel.dataset.turn = String(t);
-      minSel.dataset.kind = "min";
-      maxSel.dataset.kind = "max";
+      const minStep = makeChapterStepper(Number.isFinite(min) ? min : GameState.options.stageMinChapter);
+      const maxStep = makeChapterStepper(Number.isFinite(max) ? max : GameState.options.stageMaxChapter);
+      minStep.input.dataset.turn = String(t);
+      maxStep.input.dataset.turn = String(t);
+      minStep.input.dataset.kind = "min";
+      maxStep.input.dataset.kind = "max";
+
+      // min <= max を常に維持
+      const normalize = (prefer) => {
+        let a = clampChapter(minStep.input.value);
+        let b = clampChapter(maxStep.input.value);
+        if (a > b) {
+          if (prefer === "min") b = a;
+          else a = b;
+        }
+        minStep.input.value = String(a);
+        maxStep.input.value = String(b);
+      };
+      minStep.input.addEventListener("change", () => normalize("min"));
+      maxStep.input.addEventListener("change", () => normalize("max"));
 
       const sep = document.createElement("span");
       sep.textContent = "〜";
       sep.style.opacity = "0.7";
 
       row.appendChild(label);
-      row.appendChild(minSel);
+      row.appendChild(minStep.wrap);
       row.appendChild(sep);
-      row.appendChild(maxSel);
+      row.appendChild(maxStep.wrap);
       stageRangesEl.appendChild(row);
     }
   }
@@ -895,13 +968,13 @@ function setupModals() {
     /** @type {{min:number,max:number}[]} */
     const stageRangesByTurn = [];
     if (stageRangesEl instanceof HTMLElement) {
-      const sels = Array.from(stageRangesEl.querySelectorAll("select"));
+      const inputs = Array.from(stageRangesEl.querySelectorAll("input[data-turn][data-kind]"));
       const maxTurns = Number(GameState.maxTurns || 5) || 5;
       for (let t = 1; t <= maxTurns; t++) {
-        const minSel = sels.find((s) => s.dataset?.turn === String(t) && s.dataset?.kind === "min");
-        const maxSel = sels.find((s) => s.dataset?.turn === String(t) && s.dataset?.kind === "max");
-        const min = Number(minSel?.value);
-        const max = Number(maxSel?.value);
+        const minEl = inputs.find((s) => s.dataset?.turn === String(t) && s.dataset?.kind === "min");
+        const maxEl = inputs.find((s) => s.dataset?.turn === String(t) && s.dataset?.kind === "max");
+        const min = Number(minEl?.value);
+        const max = Number(maxEl?.value);
         if (!Number.isFinite(min) || !Number.isFinite(max)) {
           alert(`ステージ範囲（${t}ラウンド目）が不正です。`);
           return;

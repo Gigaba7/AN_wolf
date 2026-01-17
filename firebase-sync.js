@@ -99,7 +99,8 @@ async function createRoomAndStartGame(players, config) {
       hostName: config.hostName || 'ホスト',
       hostAvatarLetter: config.hostAvatarLetter,
       hostAvatarImage: config.hostAvatarImage,
-      maxPlayers: config.maxPlayers || 8,
+      // プレイヤー上限（要望により最大7人）
+      maxPlayers: Math.min(7, Math.max(3, Number(config.maxPlayers || 7) || 7)),
       stageMinChapter: config.stageMinChapter,
       stageMaxChapter: config.stageMaxChapter,
       stageRangesByTurn: config.stageRangesByTurn,
@@ -2074,13 +2075,45 @@ async function handleUpdateConfigAction(data, roomId) {
   const wolfInitialCost = Number(data?.wolfInitialCost);
   const ruleText = typeof data?.ruleText === "string" ? data.ruleText : null;
 
+  // Firestore は undefined を保存できないため、payload 内の undefined を再帰的に除去する
+  const stripUndefinedDeep = (v) => {
+    if (v === undefined) return undefined;
+    if (v === null) return null;
+    if (Array.isArray(v)) {
+      const out = [];
+      for (const item of v) {
+        const cleaned = stripUndefinedDeep(item);
+        if (cleaned !== undefined) out.push(cleaned);
+      }
+      return out;
+    }
+    if (typeof v === "object") {
+      /** @type {Record<string, any>} */
+      const out = {};
+      for (const [k, val] of Object.entries(v)) {
+        const cleaned = stripUndefinedDeep(val);
+        if (cleaned !== undefined) out[k] = cleaned;
+      }
+      return out;
+    }
+    return v;
+  };
+
   /** @type {Record<string, any>} */
   const updates = {};
   if (Number.isFinite(min)) updates["config.stageMinChapter"] = min;
   if (Number.isFinite(max)) updates["config.stageMaxChapter"] = max;
-  if (stageRangesByTurn && stageRangesByTurn.length) updates["config.stageRangesByTurn"] = stageRangesByTurn;
-  if (wolfActions && wolfActions.length) updates["config.wolfActions"] = wolfActions;
-  else if (wolfActionTexts && wolfActionTexts.length) updates["config.wolfActionTexts"] = wolfActionTexts;
+  if (stageRangesByTurn && stageRangesByTurn.length) {
+    const cleaned = stripUndefinedDeep(stageRangesByTurn);
+    if (Array.isArray(cleaned) && cleaned.length) updates["config.stageRangesByTurn"] = cleaned;
+  }
+  if (wolfActions && wolfActions.length) {
+    const cleaned = stripUndefinedDeep(wolfActions);
+    if (Array.isArray(cleaned) && cleaned.length) updates["config.wolfActions"] = cleaned;
+  } else if (wolfActionTexts && wolfActionTexts.length) {
+    const cleaned = stripUndefinedDeep(wolfActionTexts);
+    if (Array.isArray(cleaned) && cleaned.length) updates["config.wolfActionTexts"] = cleaned;
+  }
   if (Number.isFinite(wolfInitialCost) && wolfInitialCost >= 1 && wolfInitialCost <= 200) {
     updates["config.wolfInitialCost"] = wolfInitialCost;
   }
@@ -2088,7 +2121,16 @@ async function handleUpdateConfigAction(data, roomId) {
 
   if (!Object.keys(updates).length) return;
 
-  await updateDoc(doc(firestore, "rooms", roomId), updates);
+  // 念のため updateDoc 直前にも undefined を除去（将来フィールドが増えても安全）
+  /** @type {Record<string, any>} */
+  const cleanedUpdates = {};
+  for (const [k, v] of Object.entries(updates)) {
+    const cleaned = stripUndefinedDeep(v);
+    if (cleaned !== undefined) cleanedUpdates[k] = cleaned;
+  }
+
+  if (!Object.keys(cleanedUpdates).length) return;
+  await updateDoc(doc(firestore, "rooms", roomId), cleanedUpdates);
 }
 
 

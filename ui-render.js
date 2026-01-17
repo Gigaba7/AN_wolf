@@ -66,7 +66,7 @@
     }
 
     if (startBtn) {
-      const canStart = players.length >= 3 && players.length <= 8;
+      const canStart = players.length >= 3 && players.length <= 7;
       startBtn.disabled = !canStart;
       startBtn.textContent = canStart
         ? `ゲーム開始 (${players.length}人)`

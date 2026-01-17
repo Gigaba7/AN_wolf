@@ -337,7 +337,7 @@ function renderWaitingScreen(roomId) {
       const isHost = !!(createdBy && myId && createdBy === myId);
       const resultReturnLobbyAcks = typeof window !== "undefined" ? window.RoomInfo?.gameState?.resultReturnLobbyAcks : {};
 
-      const canStartCount = GameState.players.length >= 3 && GameState.players.length <= 8;
+      const canStartCount = GameState.players.length >= 3 && GameState.players.length <= 7;
       const canStartPhase = !phase || phase === "waiting";
       
       // ロビーに戻る確認メカニズム：全員がロビーに戻るまでゲーム開始をブロック
