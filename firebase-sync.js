@@ -1101,6 +1101,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
   const gameState = roomData.gameState || {};
   const phase = gameState.phase;
   const userId = getCurrentUserId();
+  const isGMClient = _isGMClient();
 
   // revealing: GMは全員の役職を周知、参加者は自分の役職のみ表示
   if (phase === 'revealing') {
@@ -1204,6 +1205,17 @@ function handlePhaseUI(roomData, previousPhase = null) {
 
   // playing: 待機画面→GM/参加者画面へ分岐
   if (phase === 'playing') {
+    // OBSブラウザソースで「映像エリアを透過」させるため、
+    // GM画面のページ背景は透明にする（パネル類が不透明なので見た目は崩れない）
+    if (typeof document !== "undefined") {
+      document.body.classList.toggle("gm-ui", isGMClient);
+      document.getElementById("app")?.classList.toggle("gm-ui", isGMClient);
+      if (isGMClient) {
+        document.body.classList.remove("guest-ui");
+        document.getElementById("app")?.classList.remove("guest-ui");
+      }
+    }
+
     // role modalを閉じる
     const selfRoleModal = document.getElementById("self-role-modal");
     selfRoleModal?.classList.add("hidden");
@@ -1213,7 +1225,7 @@ function handlePhaseUI(roomData, previousPhase = null) {
     const main = document.getElementById("main-screen");
     const participant = document.getElementById("participant-screen");
     
-    const isGM = _isGMClient();
+    const isGM = isGMClient;
 
     if (waiting?.classList.contains("active")) {
       waiting.classList.remove("active");
@@ -1255,6 +1267,16 @@ function handlePhaseUI(roomData, previousPhase = null) {
 
   // final_phase: 最終フェーズ（人狼投票）
   if (phase === 'final_phase') {
+    // playing と同様に、GMは背景を透明にする（ブラウザソース合成用）
+    if (typeof document !== "undefined") {
+      document.body.classList.toggle("gm-ui", isGMClient);
+      document.getElementById("app")?.classList.toggle("gm-ui", isGMClient);
+      if (isGMClient) {
+        document.body.classList.remove("guest-ui");
+        document.getElementById("app")?.classList.remove("guest-ui");
+      }
+    }
+
     const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
     const myId = typeof window !== "undefined" ? window.__uid : null;
     const isGM = !!(createdBy && myId && createdBy === myId);
@@ -1289,6 +1311,12 @@ function handlePhaseUI(roomData, previousPhase = null) {
 
   // finished: ゲーム終了（勝利画面表示）
   if (phase === 'finished') {
+    // 勝利画面側で背景を制御するので、gm-ui は外す
+    if (typeof document !== "undefined") {
+      document.body.classList.remove("gm-ui");
+      document.getElementById("app")?.classList.remove("gm-ui");
+    }
+
     // finished直前/直後に通知が入るケースがあるため、GM側はここでもチェック
     const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
     const myId = typeof window !== "undefined" ? window.__uid : null;
@@ -2329,6 +2357,10 @@ function showGameResult(roomData, gameResult) {
   // 勝利画面を表示
   victoryScreen.classList.add("active");
   
+  // 勝利画面は背景を不透明にしたいので、透過クラスを確実に外す
+  document.body.classList.remove("guest-ui", "gm-ui");
+  document.getElementById("app")?.classList.remove("guest-ui", "gm-ui");
+
   // 背景色を設定
   if (gameResult === "citizen_win" || gameResult === "citizen_win_reverse") {
     // ロドス陣営の勝利：青系統

@@ -164,6 +164,18 @@ body.guest-ui #app {
   box-shadow: none !important;
 }
 
+/* GM画面（ブラウザソース合成用）：ページ背景を透過にする */
+body.gm-ui {
+  background: transparent !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+body.gm-ui #app {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 @keyframes pulse {
   0%, 100% {
     box-shadow: inset 0 0 120px rgba(255, 100, 100, 0.15);
