@@ -888,6 +888,7 @@ button {
   border-radius: 12px;
   border: none;
   background: transparent;
+  opacity: 0;
   overflow: hidden;
 }
 
@@ -1506,6 +1507,11 @@ textarea {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+/* ゲストUI：パネル下に少し余白を追加 */
+body.guest-ui .participant-panel {
+  margin-bottom: 9px;
 }
 
 .participant-column {
