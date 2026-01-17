@@ -575,12 +575,18 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     "gameState.blackStars": blackStars,
     "gameState.playerOrder": nextOrder,
     "gameState.pendingFailure": null,
+    // 「最後のプレイヤー結果待ち」フラグはターン確定時に必ずクリアしないと、
+    // 次ターンの成功/失敗ポップアップの onOk が誤ってターン終了扱いになってしまう
+    "gameState.pendingLastPlayerResult": null,
     "gameState.wolfDecisionPlayerId": null,
     "gameState.wolfActionRequest": null,
     "gameState.pendingDoctorPunchProceed": null, // ドクター神拳進行フラグをクリア
     "gameState.wolfActionNotification": null, // 妨害通知をクリア
     "gameState.pendingNextPlayerChallenge": null, // 次のプレイヤーの挑戦開始フラグをクリア
     "gameState.pendingDoctorPunchSuccess": null, // ドクター神拳成功ポップアップ表示用フラグをクリア
+    // ドクター神拳不使用系の残骸も安全にクリア
+    "gameState.pendingDoctorSkipTurnEnd": null,
+    "gameState.doctorSkipNotification": null,
   };
 
   // 最終フェーズに突入する場合はターンを進めない
