@@ -209,6 +209,7 @@ let isProcessingQueue = false; // キュー処理中フラグ
 
 // 状態ログ（ターン状況の把握用 / 変化したときだけ出す）
 let lastTurnStateLogKey = null;
+let lastTurnEndRecoveryKey = null;
 
 function _isGMClient() {
   const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
@@ -275,6 +276,37 @@ function maybeShowDeferredGMAnnouncements() {
     isAnnouncementQueueEmpty()
   ) {
     showAnnouncement("何者かが操作中です。", null, null, 0, false, false, true);
+  }
+
+  // 4) 最後のプレイヤー結果待ちの復旧：await_turn_end で止まった場合にOKで進める
+  if (
+    roomId &&
+    gs.phase === "playing" &&
+    gs.subphase === "await_turn_end" &&
+    gs.pendingLastPlayerResult === true &&
+    isAnnouncementQueueEmpty()
+  ) {
+    const key = `${roomId}:${gs.turn || ""}:turn_end_recovery`;
+    if (key !== lastTurnEndRecoveryKey) {
+      lastTurnEndRecoveryKey = key;
+      showAnnouncement(
+        "ターン終了処理（復旧）",
+        "OKで次のターンに進めます。",
+        null,
+        0,
+        true,
+        false,
+        true,
+        async () => {
+          try {
+            console.log("[TurnFlow] endTurnAfterLastPlayerResult (recovery)", { roomId, turn: gs.turn });
+            await endTurnAfterLastPlayerResultDB(roomId);
+          } catch (e) {
+            console.error("[TurnFlow] endTurnAfterLastPlayerResult failed (recovery)", e);
+          }
+        }
+      );
+    }
   }
 }
 
@@ -1680,6 +1712,7 @@ async function syncToFirebase(action, data) {
 async function handleSuccessAction(data, roomId) {
   const userId = getCurrentUserId();
   const name = data?.playerName || "プレイヤー";
+  console.log("[TurnFlow] success (dispatch)", { roomId, playerName: name });
   await applySuccessDB(roomId);
   
   // ルームの状態を確認して、最後のプレイヤーかどうかを判定
@@ -1690,6 +1723,16 @@ async function handleSuccessAction(data, roomId) {
   const roomData = snap.data();
   const gameState = roomData?.gameState || {};
   const isLastPlayer = gameState.pendingLastPlayerResult === true;
+  console.log("[TurnFlow] success (after apply)", {
+    roomId,
+    isLastPlayer,
+    turn: gameState.turn,
+    subphase: gameState.subphase ?? null,
+    currentPlayerIndex: gameState.currentPlayerIndex,
+    pendingLastPlayerResult: gameState.pendingLastPlayerResult ?? null,
+    pendingNextPlayerChallenge: gameState.pendingNextPlayerChallenge ?? null,
+    pendingFailure: gameState.pendingFailure ?? null,
+  });
   
   // 挑戦結果アナウンス（GM画面のみ）
   // ポップアップが閉じた後に次のプレイヤーの挑戦開始フェーズに移行、またはターン終了処理を実行
@@ -1707,6 +1750,7 @@ async function handleSuccessAction(data, roomId) {
         const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
         if (roomId) {
           try {
+            console.log("[TurnFlow] endTurnAfterLastPlayerResult (from success popup)", { roomId });
             // ターン終了処理を実行（成功として）
             await endTurnAfterLastPlayerResultDB(roomId);
           } catch (e) {
