@@ -366,7 +366,7 @@ button {
 
 /* ホーム画面 */
 .app-header {
-  padding: 24px 28px 12px;
+  padding: 16px 24px 10px;
   border-bottom: 2px solid rgba(200, 200, 220, 0.2);
   background: linear-gradient(180deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
   box-shadow: 
@@ -376,21 +376,22 @@ button {
 }
 
 .app-header h1 {
-  font-size: 24px;
+  font-size: 22px;
   letter-spacing: 0.04em;
+  margin: 0;
 }
 
 .app-header .subtitle {
-  margin-top: 6px;
-  font-size: 13px;
+  margin-top: 4px;
+  font-size: 12px;
   color: #c5c7d7;
 }
 
 .home-layout {
   display: grid;
   grid-template-columns: 1fr 1.35fr;
-  gap: 16px;
-  padding: 16px 24px 24px;
+  gap: 12px;
+  padding: 12px 16px 16px;
 }
 
 /* ホーム画面は全体的にテキストを1.2倍 */
@@ -400,8 +401,8 @@ button {
 
 .home-card {
   background: linear-gradient(145deg, #0f1219, #050712);
-  border-radius: 12px;
-  padding: 20px 20px 22px;
+  border-radius: 10px;
+  padding: 14px 16px 16px;
   border: 2px solid rgba(200, 200, 220, 0.15);
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.6),
@@ -421,18 +422,19 @@ button {
 }
 
 .home-card h2 {
-  font-size: 17px;
-  margin-bottom: 10px;
+  font-size: 16px;
+  margin-bottom: 8px;
 }
 
 .disclaimer-card ul {
   padding-left: 18px;
-  font-size: 13px;
+  font-size: 12px;
   color: #d4d6e3;
+  margin: 8px 0;
 }
 
 .disclaimer-card li + li {
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 .start-btn {
@@ -516,9 +518,10 @@ button {
   position: relative;
   padding-bottom: 56.25%;
   height: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 8px;
 }
 
 .video-wrapper iframe {
@@ -531,8 +534,8 @@ button {
 
 .home-links {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 /* メイン画面レイアウト */
