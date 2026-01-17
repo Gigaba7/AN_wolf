@@ -866,7 +866,11 @@ function syncGameStateFromFirebase(roomData) {
   }
   
   // pendingNextPlayerChallengeフラグが立っている場合、次のプレイヤーの挑戦開始フェーズに移行
-  if (GameState.phase === "playing" && gameState.pendingNextPlayerChallenge && GameState.subphase === "await_result") {
+  if (
+    GameState.phase === "playing" &&
+    gameState.pendingNextPlayerChallenge &&
+    (GameState.subphase === "await_result" || GameState.subphase === "await_next_player")
+  ) {
     const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
     if (roomId) {
       setTimeout(async () => {

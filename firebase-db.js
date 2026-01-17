@@ -718,12 +718,13 @@ async function applySuccess(roomId) {
     }
 
     // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
-    // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う
-    // ここでは次のプレイヤーのインデックスのみ更新し、subphaseはawait_resultのまま
+    // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う。
+    // この待機中に subphase が await_result のままだと、GMが「もう一度成功/失敗を入力すべき？」と誤認しやすいので、
+    // 専用の待機サブフェーズ await_next_player にして入力を受け付けないようにする。
     const updates = {
       "gameState.currentPlayerIndex": nextIndex,
       // currentStage と stageTurn は保持（そのターン中は固定）
-      // subphaseはawait_resultのまま（挑戦結果ポップアップが表示された後にchallenge_startに移行）
+      "gameState.subphase": "await_next_player",
       "gameState.pendingNextPlayerChallenge": true, // 次のプレイヤーの挑戦開始フラグ
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
@@ -952,11 +953,11 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
     }
     
     // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
-    // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う
-    // ここでは次のプレイヤーのインデックスのみ更新し、subphaseはawait_resultのまま
+    // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う。
+    // 専用の待機サブフェーズ await_next_player にして入力を受け付けないようにする。
     tx.update(roomRef, {
       "gameState.currentPlayerIndex": nextIndex,
-      "gameState.subphase": "await_result", // 挑戦結果ポップアップが表示されるまで待つ
+      "gameState.subphase": "await_next_player",
       "gameState.pendingNextPlayerChallenge": true, // 次のプレイヤーの挑戦開始フラグ
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,

@@ -16,11 +16,10 @@ function startStageRoulette() {
   const max = Number.isFinite(Number(range?.max)) ? Number(range.max) : GameState.options.stageMaxChapter;
   const stages = getStageCandidatesByChapterRange(min, max);
 
-  // 候補が多い場合、表示は10件程度に絞って演出を軽量化（ただし選出は全候補に対して一様）
-  // 候補が多い場合でも見た目が寂しくならないよう、表示は「10件より多く」出す
-  const DISPLAY_LIMIT = 12;
-  const shouldSample = stages.length > 60;
-  const displayStages = shouldSample ? sampleUnique(stages, Math.min(DISPLAY_LIMIT, stages.length)) : stages;
+  // ルーレットの表示候補は常に10件に制限する。
+  // 候補が10件を超える場合は、先にランダムに10件を抽出してからルーレットを開始する。
+  const DISPLAY_LIMIT = 10;
+  const displayStages = stages.length > DISPLAY_LIMIT ? sampleUnique(stages, DISPLAY_LIMIT) : stages;
 
   displayStages.forEach((stage) => {
     const item = document.createElement("div");
@@ -42,7 +41,7 @@ function startStageRoulette() {
 
   setTimeout(() => {
     clearInterval(interval);
-    // 選出は「表示候補」から選ぶ（サンプル方式でも全候補に対して一様になる）
+    // 選出は「表示候補（最大10件）」から選ぶ
     const selected = displayStages[Math.floor(Math.random() * displayStages.length)];
     items.forEach((el) => el.classList.remove("active"));
     const selectedEl = items.find((el) => el.textContent === selected);
