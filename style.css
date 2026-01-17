@@ -22,6 +22,11 @@ body {
   background: transparent;
 }
 
+/* 共有：操作パネル高（= 映像下エリアの高さにも使う） */
+:root {
+  --gm-control-panel-height: 220px;
+}
+
 /* 汎用ユーティリティ */
 .hidden {
   display: none !important;
@@ -96,13 +101,13 @@ body {
    通常モーダルのフェード/スライドインを無効化して、二重アニメーションに見えるのを防ぐ */
 #announcement-modal.wolf-action {
   animation: none;
-  opacity: 1;
+    opacity: 1;
 }
 
 #announcement-modal.wolf-action .modal-backdrop {
   animation: none;
   opacity: 1;
-}
+  }
 
 /* 「何者かが操作中です。」（継続表示）も赤枠にする */
 #announcement-modal.wolf-operating .modal-content {
@@ -113,7 +118,7 @@ body {
     inset 0 -1px 0 rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(255, 100, 100, 0.25),
     0 0 18px rgba(255, 100, 100, 0.14);
-}
+  }
 
 /* ホーム/待機（マッチング）画面は背景を不透明にする */
 body.opaque-bg {
@@ -134,7 +139,7 @@ body.turn-1 {
 body.turn-2 {
   background: linear-gradient(135deg, #0d1018 0%, #070912 50%, #0d1018 100%);
   box-shadow: inset 0 0 50px rgba(139, 230, 195, 0.05);
-}
+  }
 
 body.turn-3 {
   background: linear-gradient(135deg, #10121c 0%, #090b14 50%, #10121c 100%);
@@ -561,7 +566,7 @@ button {
 }
 
 .status-main-label {
-  font-size: 12px;
+  font-size: 18px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #a0a4ba;
@@ -569,7 +574,7 @@ button {
 }
 
 .status-main-value {
-  font-size: 24px;
+  font-size: 36px;
   font-weight: 600;
   letter-spacing: 0.05em;
   color: #f5f5f7;
@@ -577,7 +582,7 @@ button {
 }
 
 .status-phase-next {
-  font-size: 14px;
+  font-size: 21px;
   font-weight: 400;
   letter-spacing: 0.05em;
   color: rgba(245, 245, 247, 0.5);
@@ -585,7 +590,7 @@ button {
 }
 
 .status-main-stars {
-  font-size: 20px;
+  font-size: 30px;
   letter-spacing: 0.1em;
   font-weight: 500;
   color: #f5f5f7;
@@ -593,7 +598,7 @@ button {
 }
 
 .status-stage-value {
-  font-size: 18px;
+  font-size: 27px;
   font-weight: 500;
   color: #f5f5f7;
   text-align: center;
@@ -604,7 +609,7 @@ button {
   align-items: center;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 500;
 }
 
@@ -619,7 +624,7 @@ button {
 }
 
 .status-sub {
-  font-size: 11px;
+  font-size: 16px;
   color: #a0a4ba;
 }
 
@@ -719,15 +724,15 @@ button {
 
 .player-card {
   display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 8px;
-  padding: 10px 12px;
+  grid-template-columns: 56px 1fr;
+  gap: 10px;
+  padding: 8px 10px;
   border-radius: 8px;
   background: linear-gradient(145deg, rgba(15, 18, 25, 0.8), rgba(5, 7, 18, 0.9));
   align-items: center;
   transition: all 0.2s ease;
   border: 2px solid rgba(200, 200, 220, 0.1);
-  min-height: 60px;
+  min-height: 64px;
   box-shadow: 
     0 2px 8px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
@@ -765,15 +770,15 @@ button {
 }
 
 .player-avatar {
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   background: linear-gradient(145deg, rgba(125, 211, 252, 0.2), rgba(15, 18, 25, 0.8));
   display: flex;
   align-items: center;
   justify-content: center;
   color: #f5f5f7;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 600;
   border: 2px solid rgba(200, 200, 220, 0.3);
   overflow: hidden;
@@ -803,9 +808,9 @@ button {
 }
 
 .player-name {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 500;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .player-name.player-name-self {
@@ -882,9 +887,9 @@ button {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* 映像の“穴”は、下の追加エリア（操作エリアと同高さ）より上に置く */
+  bottom: var(--gm-control-panel-height);
   width: 100%;
-  height: 100%;
   z-index: 0;
   pointer-events: none;
   display: flex;
@@ -899,14 +904,20 @@ button {
   /* 16:9 アスペクト比を維持 */
   padding-bottom: 56.25%;
   border-radius: 12px;
-  /* 16:9 フレーム（縁だけ不透明） */
-  border: 2px solid rgba(245, 245, 247, 0.28);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.35),
-    0 0 24px rgba(0, 0, 0, 0.25),
-    0 0 18px rgba(125, 211, 252, 0.10);
+  /* 枠は削除 */
+  border: none;
+  box-shadow: none;
   background: transparent;
   overflow: hidden;
+}
+
+/* プレイ映像エリアの下：操作エリアと同じ高さの“透明エリア” */
+.play-video-under-space {
+  margin-top: auto;
+  height: var(--gm-control-panel-height);
+  width: 100%;
+  pointer-events: none;
+  background: transparent;
 }
 
 /* プレイ映像エリア以外を不透明に塗りつぶす（16:9の“穴”を開ける） */
@@ -991,8 +1002,8 @@ button {
 
 .control-panel {
   gap: 6px;
-  height: 220px;
-  max-height: 220px;
+  height: var(--gm-control-panel-height);
+  max-height: var(--gm-control-panel-height);
   padding-top: 12px;
   padding-bottom: 12px;
   grid-row: 2;
@@ -1257,6 +1268,8 @@ button {
     inset 0 -1px 0 rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(200, 200, 220, 0.05);
   animation: modalContentSlideIn 0.2s ease-out;
+  /* ポップアップ系のフォントを拡大（ボタンは .btn が px 指定なので影響しない） */
+  font-size: 1.3em;
 }
 
 /* 役職配布（self-role-modal）：レユニオンは赤枠 */
@@ -1295,19 +1308,19 @@ button {
 }
 
 .modal h2 {
-  font-size: 18px;
+  font-size: 1.15em;
   margin-bottom: 4px;
 }
 
 .modal-subtitle {
-  font-size: 12px;
+  font-size: 0.85em;
   color: #a0a4ba;
   margin-bottom: 10px;
 }
 
 .announcement-subtitle {
   text-align: center;
-  font-size: 18px;
+  font-size: 1.15em;
   margin-top: 12px;
   opacity: 0.7;
 }

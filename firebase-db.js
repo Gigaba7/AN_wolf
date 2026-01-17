@@ -559,12 +559,25 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
   let nextTurn = turn + 1;
   if (finished) nextTurn = maxTurns;
 
-  // プレイ順は保持（ターンごとのシャッフルは不要）
+  // プレイ順は「次ラウンドへ進む場合のみ」シャッフルする
+  // - 最終フェーズへ突入する場合は、順番を変えない（表示や整合性のため）
   const nextOrder = [...order];
+  const shuffleInPlace = (arr) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
 
   // 勝敗判定（×が過半数以上の場合、ターンを進めずに最終フェーズに突入）
   const majority = Math.ceil(maxTurns / 2); // 過半数（3ターンの場合は2、5ターンの場合は3）
   const shouldEnterFinalPhase = blackStars >= majority;
+
+  // 次ラウンドへ進む場合のみシャッフル（勝利/最終フェーズの場合は不要）
+  if (!shouldEnterFinalPhase) {
+    shuffleInPlace(nextOrder);
+  }
 
   // ターン開始時は常にステージ選出から始まる（妨害フェーズはステージ選出後に設定される）
   // ただし、最終フェーズに突入する場合はターンを進めない
@@ -1028,7 +1041,7 @@ async function applyDoctorSkip(roomId) {
     if (isPendingDoctor) {
       updates["gameState.doctorHasFailed"] = true;
     }
-
+    
     tx.update(roomRef, updates);
   });
 }
@@ -1041,7 +1054,7 @@ async function clearDoctorSkipNotification(roomId) {
   if (!userId) throw new Error("User not authenticated");
 
   const roomRef = doc(firestore, "rooms", roomId);
-
+  
   // 失敗確定ポップアップが閉じた後に呼ばれる想定：
   // - 通知をクリア
   // - pendingDoctorSkipTurnEnd が立っていれば、このタイミングでターン終了処理を実行
@@ -1069,7 +1082,7 @@ async function clearDoctorSkipNotification(roomId) {
 
       // このタイミングでターン終了（失敗ターン）を確定する
       const extraUpdates = {
-        "gameState.doctorSkipNotification": null,
+      "gameState.doctorSkipNotification": null,
         "gameState.pendingDoctorSkipTurnEnd": null,
         "gameState.subphase": "await_result", // 念のため進行停止サブフェーズを解除（次の状態はendTurnAndPrepareNextで設定される）
       };
@@ -1292,7 +1305,7 @@ async function applyWolfAction(roomId) {
  * @param {string} announcementSubtitle - アナウンスサブタイトル
  * @param {string} logMessage - 表示文（通知用）
  */
-async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null, announcementTitle = null, announcementSubtitle = null, logMessage = null) {
+async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null, announcementTitle = null, announcementSubtitle = null, logMessage = null, customText = null) {
   const userId = getCurrentUserId();
   if (!userId) throw new Error("User not authenticated");
 
@@ -1336,14 +1349,21 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
     const currentStage = data?.gameState?.currentStage || null;
     const nextSubphase = currentStage ? "await_result" : "gm_stage";
     
+    // ターゲットバン（入力付き）：通知文言に入力を埋め込む
+    const normalizedCustomText = typeof customText === "string" ? customText.trim() : "";
+    const targetBanSuffix =
+      actionText === "ターゲットバン" && normalizedCustomText
+        ? `（使用不可: ${normalizedCustomText}）`
+        : "";
+
     // 背水の陣が発動された場合、ドクター神拳使用不可フラグを設定
     const updates = {
       [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
       "gameState.wolfActionNotification": { 
-        text: actionText, 
+        text: `${actionText}${targetBanSuffix}`, 
         announcementTitle: announcementTitle || `妨害『${actionText}』が発動されました`,
-        announcementSubtitle: announcementSubtitle || null,
-        logMessage: logMessage || `妨害『${actionText}』が発動されました`,
+        announcementSubtitle: (announcementSubtitle ? `${announcementSubtitle}${targetBanSuffix}` : (targetBanSuffix ? targetBanSuffix.replace(/^\（/, "（").replace(/\）$/, "）") : null)),
+        logMessage: logMessage ? `${logMessage}${targetBanSuffix}` : `妨害『${actionText}』が発動されました${targetBanSuffix}`,
         timestamp: Date.now() 
       },
       "gameState.subphase": nextSubphase,

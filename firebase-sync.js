@@ -290,8 +290,8 @@ function maybeShowDeferredGMAnnouncements() {
     if (key !== lastTurnEndRecoveryKey) {
       lastTurnEndRecoveryKey = key;
       showAnnouncement(
-        "ターン終了",
-        "OKで次のターンに進みます。",
+        "ラウンド終了",
+        "OKで次のラウンドに進みます。",
         null,
         0,
         true,
@@ -781,7 +781,7 @@ function syncGameStateFromFirebase(roomData) {
         showAnnouncement(
           `${successPlayerName}の失敗はドクター神拳により打ち消されました。`,
           null,
-          `${successPlayerName}の挑戦：× → 神拳で打ち消し`,
+          `${successPlayerName}のターン：× → 神拳で打ち消し`,
           0,
           true,
           false,
@@ -808,8 +808,8 @@ function syncGameStateFromFirebase(roomData) {
     if (gameState.turnResult === "success") {
       showAnnouncement(
         "作戦結果：成功",
-        "ターン結果に〇を付けて次のターンへ進みます。",
-        `ターン${turn}結果：〇`,
+        "ラウンド結果に〇を付けて次のラウンドへ進みます。",
+        `ラウンド${turn}結果：〇`,
         2000,
         false,
         false,
@@ -842,8 +842,8 @@ function syncGameStateFromFirebase(roomData) {
     } else if (gameState.turnResult === "failure") {
       showAnnouncement(
         "作戦結果：失敗",
-        "ターン結果に×を付けて次のターンへ進みます。",
-        `ターン${turn}結果：×`,
+        "ラウンド結果に×を付けて次のラウンドへ進みます。",
+        `ラウンド${turn}結果：×`,
         2000,
         false,
         false,
@@ -907,7 +907,7 @@ function syncGameStateFromFirebase(roomData) {
   // 前回の会議フェーズ状態を更新（ターン結果表示後に会議フェーズを処理するため）
   previousDiscussionPhase = currentDiscussionPhase;
   
-  // ターン切り替え時のポップアップを表示（1ターン目も含む）
+  // ラウンド切り替え時のポップアップを表示（1ラウンド目も含む）
   if (previousTurn !== currentTurn && GameState.phase === "playing") {
     // ターンが変わった時は重複防止フラグをリセット
     lastSuccessAnnouncementPlayerIndex = null;
@@ -944,9 +944,9 @@ function syncGameStateFromFirebase(roomData) {
     }
     
     showAnnouncement(
-      `${currentTurn}ターン目`,
+      `${currentTurn}ラウンド目`,
       null,
-      `${currentTurn}ターン目開始`,
+      `${currentTurn}ラウンド目開始`,
       2000,
       false,
       false,
@@ -973,7 +973,7 @@ function syncGameStateFromFirebase(roomData) {
     }
   }
   
-  // 挑戦開始フェーズ（challenge_start）：「○○の挑戦です」を表示してから妨害フェーズに移行
+  // ターン開始フェーズ（challenge_start）：「○○のターンです」を表示してから妨害フェーズに移行
   if (GameState.phase === "playing" && GameState.subphase === "challenge_start") {
     const order = GameState.playerOrder || Object.keys(players);
     const currentPlayerId = order[GameState.currentPlayerIndex];
@@ -981,15 +981,15 @@ function syncGameStateFromFirebase(roomData) {
     // プレイヤーが変わった時、または前回のサブフェーズがchallenge_startでない時に表示
     if (currentPlayer && (previousPlayerIndex !== GameState.currentPlayerIndex || previousSubphase !== "challenge_start")) {
       showAnnouncement(
-        `${currentPlayer.name}の挑戦です。`,
+        `${currentPlayer.name}のターンです。`,
         null,
-        `${currentPlayer.name}の挑戦`,
+        `${currentPlayer.name}のターン`,
         2000,
         false,
         false,
         true, // GM画面のみ
         async () => {
-          // 「○○の挑戦です」が表示された後、妨害フェーズに移行
+          // 「○○のターンです」が表示された後、妨害フェーズに移行
           const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
           if (!roomId) return;
           
@@ -1589,9 +1589,9 @@ function checkDoctorSkipNotification(roomData) {
   const name = pid && playersObj[pid]?.name ? playersObj[pid].name : "プレイヤー";
 
   showAnnouncement(
-    `${name}の挑戦は失敗しました。`,
+    `${name}のターンは失敗しました。`,
     null,
-    `${name}の挑戦：×`,
+    `${name}のターン：×`,
     2000,
     false,
     false,
@@ -1765,9 +1765,9 @@ async function handleSuccessAction(data, roomId) {
   // 挑戦結果アナウンス（GM画面のみ）
   // ポップアップが閉じた後に次のプレイヤーの挑戦開始フェーズに移行、またはターン終了処理を実行
   showAnnouncement(
-    `${name}の挑戦は成功しました。`,
+    `${name}のターンは成功しました。`,
     null,
-    `${name}の挑戦：〇`,
+    `${name}のターン：〇`,
     2000,
     false,
     false,
@@ -1824,9 +1824,9 @@ async function handleFailAction(data, roomId) {
   if (isConfirm || subphase !== "await_doctor") {
     // 神拳が残っていない、または失敗確定
     showAnnouncement(
-      `${name}の挑戦は失敗しました。`,
+      `${name}のターンは失敗しました。`,
       isConfirm ? "ドクター神拳が残っていないため、強制的に失敗となります。" : null,
-        `${name}の挑戦：×`,
+        `${name}のターン：×`,
         2000,
       false,
       false,
@@ -2990,7 +2990,7 @@ async function resolveWolfActionRoulette(roomId, selectedJob) {
   return await resolveWolfActionRouletteDB(roomId, selectedJob, announcementTitle, announcementSubtitle, logMessage);
 }
 
-async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null) {
+async function activateWolfAction(roomId, actionText, actionCost, requiresRoulette = false, rouletteOptions = null, customText = null) {
   // actionTextから対応する妨害情報を取得
   const GameState = typeof window !== 'undefined' ? window.GameState : null;
   let announcementTitle = null;
@@ -3006,7 +3006,7 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
     }
   }
   
-  return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions, announcementTitle, announcementSubtitle, logMessage);
+  return await activateWolfActionDB(roomId, actionText, actionCost, requiresRoulette, rouletteOptions, announcementTitle, announcementSubtitle, logMessage, customText);
 }
 
 // identifyWolfDBは既にインポートされているので、そのままエクスポート

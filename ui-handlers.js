@@ -444,7 +444,7 @@ function refreshRulesSettingsModalControls() {
       row.style.gap = "8px";
 
       const label = document.createElement("div");
-      label.textContent = `${t}ターン目`;
+      label.textContent = `${t}ラウンド目`;
       label.style.width = "80px";
       label.style.opacity = "0.9";
       label.style.fontSize = "13px";
@@ -893,11 +893,11 @@ function setupModals() {
         const min = Number(minSel?.value);
         const max = Number(maxSel?.value);
         if (!Number.isFinite(min) || !Number.isFinite(max)) {
-          alert(`ステージ範囲（${t}ターン目）が不正です。`);
+          alert(`ステージ範囲（${t}ラウンド目）が不正です。`);
           return;
         }
         if (min > max) {
-          alert(`ステージ範囲（${t}ターン目）の最小章は最大章より大きくできません。`);
+          alert(`ステージ範囲（${t}ラウンド目）の最小章は最大章より大きくできません。`);
           return;
         }
         stageRangesByTurn.push({ min, max });
@@ -906,7 +906,7 @@ function setupModals() {
 
     if (stageRangesByTurn.length) {
       GameState.options.stageRangesByTurn = stageRangesByTurn;
-      // 互換のため、全体レンジは1ターン目の設定を保持
+      // 互換のため、全体レンジは1ラウンド目の設定を保持
       GameState.options.stageMinChapter = stageRangesByTurn[0].min;
       GameState.options.stageMaxChapter = stageRangesByTurn[0].max;
     }
@@ -1103,6 +1103,12 @@ function setupModals() {
   function openRulebook() {
     currentRulebookPage = 1;
     updateRulebookPage();
+    // ルールブック内の「妨害一覧」をルーム設定（wolfActions）から再描画
+    import("./ui-render.module.js")
+      .then((m) => {
+        if (m?.renderRulebookWolfActions) m.renderRulebookWolfActions();
+      })
+      .catch(() => {});
     openModal("rulebook-modal");
   }
 

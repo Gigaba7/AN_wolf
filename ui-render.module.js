@@ -430,6 +430,72 @@ function renderWolfActionList() {
           const { activateWolfAction } = await import("./firebase-sync.js");
           // requiresRoulette が true の場合は、ルーレットオプションも渡す
           const rouletteOptions = typeof action === "object" && Array.isArray(action.rouletteOptions) ? action.rouletteOptions : null;
+
+          // ターゲットバンは入力が必要
+          if (actionText === "ターゲットバン") {
+            // 既に入力UIがあれば二重に作らない
+            if (!item.querySelector(".targetban-input")) {
+              const box = document.createElement("div");
+              box.className = "targetban-input";
+              box.style.marginTop = "10px";
+              box.style.display = "flex";
+              box.style.flexDirection = "column";
+              box.style.gap = "8px";
+
+              const input = document.createElement("input");
+              input.type = "text";
+              input.placeholder = "使用不可にするオペレーター名（例: Exusiai）";
+              input.style.width = "100%";
+              input.style.padding = "8px";
+              input.style.borderRadius = "8px";
+              input.style.border = "1px solid rgba(255,255,255,0.2)";
+              input.style.background = "rgba(5,7,18,0.8)";
+              input.style.color = "#f5f5f7";
+              input.style.fontSize = "13px";
+
+              const row = document.createElement("div");
+              row.style.display = "flex";
+              row.style.gap = "8px";
+              row.style.justifyContent = "flex-end";
+
+              const confirmBtn = document.createElement("button");
+              confirmBtn.className = "btn primary small";
+              confirmBtn.textContent = "確定";
+
+              const cancelBtn = document.createElement("button");
+              cancelBtn.className = "btn ghost small";
+              cancelBtn.textContent = "キャンセル";
+
+              row.appendChild(cancelBtn);
+              row.appendChild(confirmBtn);
+              box.appendChild(input);
+              box.appendChild(row);
+              item.appendChild(box);
+              input.focus();
+
+              cancelBtn.addEventListener("click", () => {
+                box.remove();
+              });
+
+              confirmBtn.addEventListener("click", async () => {
+                const v = (input.value || "").trim();
+                if (!v) {
+                  alert("オペレーター名を入力してください。");
+                  return;
+                }
+                try {
+                  await activateWolfAction(roomId, actionText, actionCost, requiresRoulette, rouletteOptions, v);
+                  const { closeModal } = await import("./ui-modals.js");
+                  closeModal("wolf-action-select-modal");
+                } catch (e) {
+                  console.error("Failed to activate target ban:", e);
+                  alert(e?.message || "ターゲットバンの確定に失敗しました。");
+                }
+              });
+            }
+            return;
+          }
+
           await activateWolfAction(roomId, actionText, actionCost, requiresRoulette, rouletteOptions);
           const { closeModal } = await import("./ui-modals.js");
           closeModal("wolf-action-select-modal");
@@ -505,5 +571,58 @@ function renderParticipantInfo() {
   }
 }
 
-export { renderAll, renderStatus, renderPlayers, renderWaitingScreen, renderWolfActionList, renderParticipantInfo };
+// ルールブック（全員が閲覧可能）に、ルーム設定の人狼妨害一覧を描画する
+function renderRulebookWolfActions() {
+  const tbody = document.getElementById("rulebook-wolf-actions-body");
+  if (!tbody) return;
+
+  const cfgActions =
+    typeof window !== "undefined" ? window.RoomInfo?.config?.wolfActions : null;
+  const actions = Array.isArray(cfgActions) && cfgActions.length
+    ? cfgActions
+    : (Array.isArray(GameState.options.wolfActions) ? GameState.options.wolfActions : []);
+
+  tbody.innerHTML = "";
+
+  // actions が空でも崩れないようにフォールバック行を出す
+  if (!Array.isArray(actions) || actions.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="padding: 8px; color: #a0a4ba;" colspan="3">（妨害一覧を取得できませんでした）</td>
+    `;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  actions.forEach((a, idx) => {
+    const name = (a?.displayName || a?.text || `妨害${idx + 1}`).toString();
+    const cost = Number.isFinite(Number(a?.cost)) ? String(Math.floor(Number(a.cost))) : "-";
+    // ルールブックの「効果」欄は旧仕様メモ（oldName）を優先し、無ければサブタイトルを短く表示
+    const effect =
+      (a?.oldName && String(a.oldName).trim()) ||
+      (a?.announcementSubtitle && String(a.announcementSubtitle).trim()) ||
+      "";
+
+    const tr = document.createElement("tr");
+    const border = idx === actions.length - 1 ? "" : 'border-bottom: 1px solid rgba(255,255,255,0.05);';
+    tr.innerHTML = `
+      <td style="padding: 8px; color: #a0a4ba; ${border}">${escapeHtml(name)}</td>
+      <td style="padding: 8px; color: #ff6464; text-align: right; ${border}">${escapeHtml(cost)}</td>
+      <td style="padding: 8px; color: #a0a4ba; ${border}">${escapeHtml(effect)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function escapeHtml(s) {
+  const str = String(s ?? "");
+  return str
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+export { renderAll, renderStatus, renderPlayers, renderWaitingScreen, renderWolfActionList, renderParticipantInfo, renderRulebookWolfActions };
 

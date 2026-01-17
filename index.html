@@ -151,7 +151,7 @@
             <div class="status-bar">
               <div class="status-main">
                 <div class="status-main-item">
-                  <span class="status-main-label">ターン</span>
+                  <span class="status-main-label">ラウンド</span>
                   <span id="status-turn" class="status-main-value">1 / 5</span>
                 </div>
                 <div class="status-main-item">
@@ -185,6 +185,7 @@
             <!-- UI要素（前面レイヤー） -->
             <div class="center-ui-content">
               <!-- ログエリアは削除（レイアウトは維持） -->
+              <div class="play-video-under-space"></div>
             </div>
           </section>
 
@@ -222,16 +223,16 @@
             <!-- 一列目（左カラム）：役職名、コスト -->
             <div class="participant-column participant-column-left">
               <div class="control-group">
-                <!-- 役職表示 -->
-                <div id="participant-role-display" class="participant-role-display" style="display: none;">
-                  <span class="participant-role-label">役職:</span>
-                  <span id="participant-role-text" class="participant-role-text">-</span>
-                </div>
+            <!-- 役職表示 -->
+            <div id="participant-role-display" class="participant-role-display" style="display: none;">
+              <span class="participant-role-label">役職:</span>
+              <span id="participant-role-text" class="participant-role-text">-</span>
+            </div>
 
-                <!-- コスト表示（人狼のみ） -->
-                <div id="participant-cost-display" class="participant-cost-display" style="display: none;">
-                  <span class="participant-cost-label">Cost:</span>
-                  <span id="participant-cost-value" class="participant-cost-value">-</span>
+            <!-- コスト表示（人狼のみ） -->
+            <div id="participant-cost-display" class="participant-cost-display" style="display: none;">
+              <span class="participant-cost-label">Cost:</span>
+              <span id="participant-cost-value" class="participant-cost-value">-</span>
                 </div>
               </div>
             </div>
@@ -239,15 +240,15 @@
             <!-- 二列目（右カラム）：ルールブック、ログを表示 -->
             <div class="participant-column participant-column-right">
               <div class="control-group">
-                <button id="open-rulebook-from-participant" class="btn ghost wide">
-                  ルールブック
-                </button>
-              </div>
+              <button id="open-rulebook-from-participant" class="btn ghost wide">
+                ルールブック
+              </button>
+            </div>
               <div class="control-group">
                 <button id="open-log-from-participant" class="btn ghost wide">
                   ログを表示
                 </button>
-              </div>
+          </div>
             </div>
           </aside>
         </div>
@@ -363,13 +364,13 @@
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>ロドス陣営の勝利条件：</strong><br />
-                ・過半数のターンで攻略に成功すること（3ターンゲーム：2ターン成功、5ターンゲーム：3ターン成功）<br />
-                ・過半数のターンで攻略に失敗したのち、最終フェーズ（逆転指名）でレユニオンを投票により指名すること
+                ・過半数のラウンドで攻略に成功すること（3ラウンドゲーム：2ラウンド成功、5ラウンドゲーム：3ラウンド成功）<br />
+                ・過半数のラウンドで攻略に失敗したのち、最終フェーズ（逆転指名）でレユニオンを投票により指名すること
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>レユニオンの勝利条件：</strong><br />
-                ・ドクターの挑戦を失敗させること（ドクターが失敗し、ドクター神拳も使用できなかった場合、即座にレユニオン勝利）<br />
-                ・過半数のターンで攻略を失敗に導き、最終フェーズ（逆転指名）で投票により指名されないこと
+                ・ドクターのターンを失敗させること（ドクターが失敗し、ドクター神拳も使用できなかった場合、即座にレユニオン勝利）<br />
+                ・過半数のラウンドで攻略を失敗に導き、最終フェーズ（逆転指名）で投票により指名されないこと
               </p>
             </div>
             <div id="rulebook-page-2" class="rulebook-page" style="display: none;">
@@ -379,32 +380,32 @@
                 役職がランダムに配布されます。各プレイヤーは自分の役職を確認します。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>2. ターン進行</strong><br />
-                各ターンは以下の流れで進行します：<br />
+                <strong>2. ラウンド進行</strong><br />
+                各ラウンドは以下の流れで進行します：<br />
                 ① ステージ選出（GMがルーレットで選出）<br />
-                ② 挑戦開始（「○○の挑戦です」）<br />
+                ② ターン開始（「○○のターンです」）<br />
                 ③ レユニオン妨害フェーズ（レユニオンが妨害を選択可能）<br />
                 ④ ステージ攻略（プレイヤーが実際にステージをプレイ）<br />
                 ⑤ 成功/失敗判定（GMが判定）<br />
                 ⑥ ドクター神拳フェーズ（失敗時のみ、ドクターが神拳を使用可能）<br />
-                ⑦ 次のプレイヤーへ（全員が挑戦するまで繰り返し）
+                ⑦ 次のプレイヤーへ（全員のターンが一巡するまで繰り返し）
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
-                <strong>3. ターン終了</strong><br />
-                一度でも挑戦失敗すると、そのターンは失敗（×）となります。次のターンへ進みます。<br />
-                ただし、1ターンに1度だけドクター神拳による失敗の打ち消しが可能です。ドクター神拳を使用した場合、その失敗はなかったことになり、ターンは成功（○）として記録されます。
+                <strong>3. ラウンド終了</strong><br />
+                一度でもターン失敗すると、そのラウンドは失敗（×）となります。次のラウンドへ進みます。<br />
+                ただし、1ラウンドに1度だけドクター神拳による失敗の打ち消しが可能です。ドクター神拳を使用した場合、その失敗はなかったことになり、ラウンドは成功（○）として記録されます。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>4. 会議フェーズ</strong><br />
-                ターン終了後、5分間の会議フェーズが開始されます。この間にプレイヤーは自由に話し合いができます。
+                ラウンド終了後、5分間の会議フェーズが開始されます。この間にプレイヤーは自由に話し合いができます。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>5. 最終フェーズ（逆転指名）</strong><br />
-                ターン失敗（×）が過半数以上になった場合、10分の会議フェーズの後、最終フェーズ（逆転指名）が開始されます。全プレイヤー（オペレーター・ドクター・レユニオン）がレユニオンを指名し、全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。
+                ラウンド失敗（×）が過半数以上になった場合、10分の会議フェーズの後、最終フェーズ（逆転指名）が開始されます。全プレイヤー（オペレーター・ドクター・レユニオン）がレユニオンを指名し、全員が投票した時点で、一番被投票数の多いプレイヤーが1人だけ（同率1位ではない）の場合、そのプレイヤーがレユニオンかどうかで勝敗が決まります。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>6. ゲーム終了</strong><br />
-                勝利条件を満たした時点でゲームが終了し、勝敗が決定します。過半数がターン数を取得した時点で勝敗が決まるため、全ターン終了を待つ必要はありません。
+                勝利条件を満たした時点でゲームが終了し、勝敗が決定します。過半数がラウンド数を取得した時点で勝敗が決まるため、全ラウンド終了を待つ必要はありません。
               </p>
             </div>
             <div id="rulebook-page-3" class="rulebook-page" style="display: none;">
@@ -424,7 +425,7 @@
                   <strong style="color: #f5f5f7;">ステージ攻略</strong>
                 </div>
                 <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
-                  選出されたステージを、挑戦プレイヤーが実際にプレイします。人狼の妨害が適用されている場合は、その制約に従ってプレイする必要があります。
+                  選出されたステージを、そのターンのプレイヤーが実際にプレイします。人狼の妨害が適用されている場合は、その制約に従ってプレイする必要があります。
                 </p>
               </div>
               <div style="margin-top: 16px;">
@@ -434,7 +435,7 @@
                 </div>
                 <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
                   ステージをクリアできた場合は成功（○）、クリアできなかった場合は失敗（×）となります。判定はGMが行います。<br />
-                  <strong style="color: #ff6464;">重要：一度でも挑戦失敗すると、そのターンは失敗（×）となります。次のターンへ進みます。</strong>
+                  <strong style="color: #ff6464;">重要：一度でもターン失敗すると、そのラウンドは失敗（×）となります。次のラウンドへ進みます。</strong>
                 </p>
               </div>
               <div style="margin-top: 16px; padding: 16px; background: rgba(139, 230, 195, 0.1); border-radius: 8px; border-left: 4px solid #8be6c3;">
@@ -445,7 +446,7 @@
                 <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
                   失敗した場合、ドクターが「ドクター神拳」を使用することで、失敗をなかったことにできます。<br />
                   <span style="color: #8be6c3;">※ 1ゲーム中に5回まで使用可能</span><br />
-                  <span style="color: #8be6c3;">※ 1ターンに1度だけ使用可能（そのターンの最初の失敗のみ打ち消し可能）</span>
+                  <span style="color: #8be6c3;">※ 1ラウンドに1度だけ使用可能（そのラウンドの最初の失敗のみ打ち消し可能）</span>
                 </p>
               </div>
             </div>
@@ -472,7 +473,7 @@
                   <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
                     失敗したステージを「ドクター神拳」で打ち消すことができます。<br />
                     <span style="color: #8be6c3;">※ 1ゲーム中に5回まで使用可能</span><br />
-                    <span style="color: #8be6c3;">※ 1ターンに1度だけ使用可能（そのターンの最初の失敗のみ打ち消し可能）</span><br />
+                    <span style="color: #8be6c3;">※ 1ラウンドに1度だけ使用可能（そのラウンドの最初の失敗のみ打ち消し可能）</span><br />
                     ロドス陣営の勝利を目指します。
                   </p>
                 </div>
@@ -482,7 +483,7 @@
                     <strong style="color: #ff6464;">レユニオン（人狼）</strong>
                   </div>
                   <p style="color: #a0a4ba; line-height: 1.8; margin-left: 32px;">
-                    ステージ攻略を妨害する役職です。各挑戦の開始時に妨害を選択できます。<br />
+                    ステージ攻略を妨害する役職です。各ターンの開始時に妨害を選択できます。<br />
                     <span style="color: #ff6464;">※ 妨害コストの合計が初期コスト（デフォルト100）を超えない範囲で使用可能</span><br />
                     レユニオン陣営の勝利を目指します。
                   </p>
@@ -520,12 +521,12 @@
                 ・失敗したステージに対して、ドクターが「ドクター神拳」を使用できます<br />
                 ・使用すると、その失敗はなかったことになり、成功（○）として記録されます<br />
                 ・1ゲーム中に5回まで使用可能です<br />
-                ・<strong style="color: #8be6c3;">1ターンに1度だけ使用可能（そのターンの最初の失敗のみ打ち消し可能）</strong><br />
-                ・「背水の陣」の妨害が適用されている場合は、そのターン中は使用できません
+                ・<strong style="color: #8be6c3;">1ラウンドに1度だけ使用可能（そのラウンドの最初の失敗のみ打ち消し可能）</strong><br />
+                ・「背水の陣」の妨害が適用されている場合は、そのラウンド中は使用できません
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>行動指針</strong><br />
-                ・重要なターンや、失敗が致命的になる場面で使用を検討する<br />
+                ・重要なラウンドや、失敗が致命的になる場面で使用を検討する<br />
                 ・残り回数を考慮しながら、戦略的に使用する<br />
                 ・会議フェーズでは、神拳の使用状況を考慮した議論を行う
               </p>
@@ -535,13 +536,13 @@
               <div style="margin-top: 16px; padding: 16px; background: rgba(255, 100, 100, 0.1); border-radius: 8px; border-left: 4px solid #ff6464;">
                 <strong style="color: #ff6464; display: block; margin-bottom: 8px;">🐺 レユニオン（人狼）の役割</strong>
                 <p style="color: #a0a4ba; line-height: 1.8;">
-                  ステージ攻略を妨害することで、失敗（×）を増やすことが主な役割です。各挑戦の開始時に妨害を選択できます。
+                  ステージ攻略を妨害することで、失敗（×）を増やすことが主な役割です。各ターンの開始時に妨害を選択できます。
                 </p>
               </div>
               <div style="margin-top: 16px;">
                 <strong style="color: #f5f5f7; display: block; margin-bottom: 8px;">妨害の選択</strong>
                 <ul style="color: #a0a4ba; line-height: 1.8; margin-left: 20px;">
-                  <li>各挑戦の開始時に、妨害を選択するかどうかを決定します</li>
+                  <li>各ターンの開始時に、妨害を選択するかどうかを決定します</li>
                   <li>妨害を選択する場合は、コストを消費して妨害を発動します</li>
                   <li>妨害にはコストが設定されており、コストの合計が初期コスト（デフォルト100）を超えない範囲で使用できます</li>
                   <li>妨害を選択しないことも可能です</li>
@@ -557,37 +558,8 @@
                       <th style="padding: 8px; text-align: left; color: #f5f5f7; border-bottom: 1px solid rgba(255,255,255,0.1);">効果</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    <tr>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">強襲作戦</td>
-                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">20</td>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">作戦に問題が生じたため、強襲作戦となります</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">ジャミング</td>
-                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">15</td>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">編成上限8名</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">整備不良</td>
-                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">10</td>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">ランダム職業使用禁止</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">背水の陣</td>
-                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">30</td>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">ドクター神拳使用不可</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">補給遮断</td>
-                      <td style="padding: 8px; color: #ff6464; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05);">15</td>
-                      <td style="padding: 8px; color: #a0a4ba; border-bottom: 1px solid rgba(255,255,255,0.05);">再配置禁止</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px; color: #a0a4ba;">工作</td>
-                      <td style="padding: 8px; color: #ff6464; text-align: right;">10</td>
-                      <td style="padding: 8px; color: #a0a4ba;">手動スキル使用禁止</td>
-                    </tr>
+                  <tbody id="rulebook-wolf-actions-body">
+                    <!-- JSでルーム設定(wolfActions)を反映して描画 -->
                   </tbody>
                 </table>
               </div>
@@ -595,7 +567,7 @@
                 <strong style="color: #f5f5f7; display: block; margin-bottom: 8px;">行動指針</strong>
                 <ul style="color: #a0a4ba; line-height: 1.8; margin-left: 20px;">
                   <li>コストを考慮しながら、効果的な妨害を選択する</li>
-                  <li>重要なターンや、成功が致命的になる場面で妨害を使用する</li>
+                  <li>重要なラウンドや、成功が致命的になる場面で妨害を使用する</li>
                   <li>会議フェーズでは、人狼であることを隠しながら議論に参加する</li>
                 </ul>
               </div>
@@ -604,7 +576,7 @@
               <h3>最終フェーズ（逆転指名）について</h3>
               <p style="color: #a0a4ba; line-height: 1.8;">
                 <strong>最終フェーズの条件</strong><br />
-                ターン失敗（×）が過半数以上になった場合、最終フェーズ（逆転指名）に進みます。
+                ラウンド失敗（×）が過半数以上になった場合、最終フェーズ（逆転指名）に進みます。
               </p>
               <p style="color: #a0a4ba; line-height: 1.8; margin-top: 12px;">
                 <strong>最終フェーズの流れ</strong><br />
@@ -789,44 +761,44 @@
         <div class="modal-content wide scroll-shell">
           <h2>ルール設定</h2>
           <div class="modal-body-scroll">
-            <section class="options-section">
-              <div class="options-row">
-                <label>
-                  対象ステージ範囲 (章) ※ターンごとに設定
+          <section class="options-section">
+            <div class="options-row">
+              <label>
+                  対象ステージ範囲 (章) ※ラウンドごとに設定
                   <div id="rules-stage-ranges" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
-                    <!-- JSでターンごとの章レンジを描画 -->
-                  </div>
+                    <!-- JSでラウンドごとの章レンジを描画 -->
+                </div>
                   <p style="font-size: 11px; color: #a0a4ba; margin-top: 6px;">
-                    例）1ターン目: 0〜1章 / 2ターン目: 1〜2章
+                    例）1ラウンド目: 0〜1章 / 2ラウンド目: 1〜2章
                   </p>
-                </label>
-              </div>
+              </label>
+            </div>
 
-              <div class="options-row">
-                <label>
-                  人狼の初期コスト
-                  <input
-                    type="number"
-                    id="rules-wolf-initial-cost"
-                    name="rules-wolf-initial-cost"
-                    min="1"
-                    max="200"
-                    value="100"
-                    style="width: 100%; padding: 8px; margin-top: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px;"
-                  />
-                  <p style="font-size: 11px; color: #a0a4ba; margin-top: 4px;">人狼が使用できる妨害の総コストです（デフォルト: 100）</p>
-                </label>
-              </div>
+            <div class="options-row">
+              <label>
+                人狼の初期コスト
+                <input
+                  type="number"
+                  id="rules-wolf-initial-cost"
+                  name="rules-wolf-initial-cost"
+                  min="1"
+                  max="200"
+                  value="100"
+                  style="width: 100%; padding: 8px; margin-top: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(5,7,18,0.8); color: #f5f5f7; font-size: 14px;"
+                />
+                <p style="font-size: 11px; color: #a0a4ba; margin-top: 4px;">人狼が使用できる妨害の総コストです（デフォルト: 100）</p>
+              </label>
+            </div>
 
-              <div class="options-row">
-                <label>
+            <div class="options-row">
+              <label>
                   人狼妨害（編集可能: タイトル / 表示文言 / コスト）
                   <div id="rules-wolf-actions-editor" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
                     <!-- JSで妨害エディタを描画 -->
                   </div>
-                </label>
-              </div>
-            </section>
+              </label>
+            </div>
+          </section>
           </div>
 
           <div class="modal-actions">
