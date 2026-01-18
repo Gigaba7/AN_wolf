@@ -450,6 +450,14 @@ function _processNextAnnouncement() {
   // キューから最初のアナウンスを取得
   const item = announcementQueue.shift();
   
+  // GM画面のみのポップアップで、ゲストUIの場合はスキップして次のアイテムを処理
+  const isGM = _isGMClient();
+  if (item.gmOnly && !isGM) {
+    // ゲストUIでは表示しないが、キュー処理は継続
+    _processNextAnnouncement();
+    return;
+  }
+  
   // アナウンスを表示
   _showAnnouncementDirect(
     item.title,
@@ -1481,11 +1489,17 @@ function handlePhaseUI(roomData, previousPhase = null) {
     const gameResult = gameState.gameResult;
     if (gameResult) {
       // キューが空の場合のみ即座に表示、そうでない場合はキューが空になるまで待機
-      if (isAnnouncementQueueEmpty()) {
+      const queueEmpty = isAnnouncementQueueEmpty();
+      if (queueEmpty) {
         console.log("[syncGameStateFromFirebase] Phase is finished, queue is empty, calling showGameResult with:", gameResult);
         showGameResult(roomData, gameResult);
       } else {
-        console.log("[syncGameStateFromFirebase] Phase is finished, queue is not empty, waiting for queue to finish. Queue length:", announcementQueue.length);
+        // デバッグ情報を出力
+        const debugState = _getAnnouncementQueueDebugState();
+        console.log("[syncGameStateFromFirebase] Phase is finished, queue is not empty, waiting for queue to finish.", {
+          queueLength: announcementQueue.length,
+          debugState
+        });
         // キューが空になるまで待機
         pendingGameResult = { roomData, gameResult };
         // キュー処理が開始されていない場合は開始する
@@ -1517,6 +1531,38 @@ function handlePhaseUI(roomData, previousPhase = null) {
     }
     document.body.classList.remove("victory-wolf-bg", "victory-citizen-bg");
     document.getElementById("app")?.classList.remove("victory-wolf-bg", "victory-citizen-bg");
+    
+    // 勝利画面や他の画面から待機画面に遷移
+    const waiting = document.getElementById("waiting-screen");
+    const main = document.getElementById("main-screen");
+    const participant = document.getElementById("participant-screen");
+    
+    // 現在アクティブな画面を特定して、待機画面に切り替え
+    let currentActiveScreen = null;
+    if (victoryScreen && victoryScreen.classList.contains("active")) {
+      currentActiveScreen = "victory-screen";
+    } else if (main && main.classList.contains("active")) {
+      currentActiveScreen = "main-screen";
+    } else if (participant && participant.classList.contains("active")) {
+      currentActiveScreen = "participant-screen";
+    }
+    
+    // 画面を切り替え（switchScreenは既にimportされている）
+    if (currentActiveScreen && switchScreen) {
+      switchScreen(currentActiveScreen, "waiting-screen");
+    } else if (waiting && !waiting.classList.contains("active")) {
+      // どの画面もアクティブでない場合、待機画面を表示
+      if (victoryScreen) victoryScreen.classList.remove("active");
+      if (main) main.classList.remove("active");
+      if (participant) participant.classList.remove("active");
+      waiting.classList.add("active");
+    }
+    
+    // 待機画面を描画（renderAllが待機画面がアクティブな場合は自動的にrenderWaitingScreenを呼ぶ）
+    const renderAll = typeof window !== "undefined" && window.renderAll ? window.renderAll : null;
+    if (renderAll && typeof renderAll === "function") {
+      renderAll();
+    }
   }
 
   // 会議フェーズの処理（final_phaseの時はスキップ）
