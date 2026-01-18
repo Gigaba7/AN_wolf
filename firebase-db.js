@@ -982,19 +982,39 @@ async function applyDoctorPunch(roomId) {
     if (!snap.exists()) throw new Error("Room not found");
     const data = snap.data();
 
-    if (data?.gameState?.phase !== "playing") throw new Error("Game is not in playing phase");
+    console.log("[applyDoctorPunch] Transaction started", {
+      roomId,
+      userId,
+      phase: data?.gameState?.phase,
+      subphase: data?.gameState?.subphase
+    });
+
+    if (data?.gameState?.phase !== "playing") {
+      console.error("[applyDoctorPunch] Invalid phase", { phase: data?.gameState?.phase });
+      throw new Error("Game is not in playing phase");
+    }
 
     const playersObj = data?.players || {};
     const me = playersObj?.[userId];
-    if (!me || me.role !== "doctor") throw new Error("Only doctor can use Doctor Punch");
+    if (!me || me.role !== "doctor") {
+      console.error("[applyDoctorPunch] Not a doctor", { userId, role: me?.role });
+      throw new Error("Only doctor can use Doctor Punch");
+    }
 
     const pending = data?.gameState?.pendingFailure;
-    if (!pending) throw new Error("No pending failure");
+    if (!pending) {
+      console.error("[applyDoctorPunch] No pending failure");
+      throw new Error("No pending failure");
+    }
 
     const res = me.resources || {};
     const remain = Number(res.doctorPunchRemaining || 0);
     const avail = res.doctorPunchAvailableThisTurn !== false;
-    if (remain <= 0 || !avail) throw new Error("Doctor Punch not available");
+    console.log("[applyDoctorPunch] Resource check", { remain, avail, resources: res });
+    if (remain <= 0 || !avail) {
+      console.error("[applyDoctorPunch] Doctor Punch not available", { remain, avail });
+      throw new Error("Doctor Punch not available");
+    }
 
     const order = Array.isArray(data?.gameState?.playerOrder) && data.gameState.playerOrder.length
       ? data.gameState.playerOrder
@@ -1047,7 +1067,9 @@ async function applyDoctorPunch(roomId) {
         cleanedUpdates[key] = value;
       }
     }
+    console.log("[applyDoctorPunch] Updating Firebase", { cleanedUpdates });
     tx.update(roomRef, cleanedUpdates);
+    console.log("[applyDoctorPunch] Transaction completed successfully");
   });
 }
 
