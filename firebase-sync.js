@@ -2949,8 +2949,16 @@ function setupVictoryScreenButtons(roomData) {
         } else {
           switchScreen("home-screen", "waiting-screen");
         }
+        
+        // 待機画面を描画
+        const renderAll = typeof window !== "undefined" && window.renderAll ? window.renderAll : null;
+        if (renderAll && typeof renderAll === "function") {
+          renderAll();
+        }
+        
         // 次の試合で極秘命令を再表示できるようにリセット
         missionBriefShown = false;
+        console.log("[ReturnToLobby] All processing completed");
       } catch (e) {
         console.error("Failed to return to lobby:", e);
         alert(e?.message || "ロビーに戻る処理に失敗しました。");
