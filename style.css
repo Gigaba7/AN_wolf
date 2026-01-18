@@ -963,7 +963,8 @@ button {
 
 /* プレイ映像エリアのみ透明 */
 .panel.center-panel .play-video-wrapper {
-  background: transparent;
+  /* プレイ映像エリアの周囲に背景を追加 */
+  background: linear-gradient(145deg, rgba(15, 18, 25, 0.98), rgba(5, 7, 18, 0.98));
 }
 
 .center-ui-content {
@@ -987,6 +988,8 @@ button {
   padding: 12px 16px;
   flex: 1;
   min-height: 0;
+  /* プレイ映像エリアの周囲（上下左右）を背景で埋める */
+  background: linear-gradient(145deg, rgba(15, 18, 25, 0.98), rgba(5, 7, 18, 0.98));
 }
 
 .play-video-area {
@@ -1030,16 +1033,8 @@ button {
   font-weight: 600;
 }
 
-/* プレイ映像エリア以外を不透明に塗りつぶす（16:9の“穴”を開ける） */
-.play-video-area::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  /* 外側だけ塗る：巨大box-shadowを panel.center-panel の overflow:hidden でクリップする */
-  box-shadow: 0 0 0 9999px rgba(5, 7, 18, 0.94);
-}
+/* プレイ映像エリアは透明（背景透過） */
+/* .play-video-area::after は不要（削除） */
 
 .play-video-hint {
   position: absolute;
