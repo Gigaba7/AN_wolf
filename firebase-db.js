@@ -589,8 +589,17 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
   // ターン開始時は常にステージ選出から始まる（妨害フェーズはステージ選出後に設定される）
   // ただし、最終フェーズに突入する場合はターンを進めない
   /** @type {Record<string, any>} */
+  // extraUpdatesからundefinedを除外
+  const cleanedExtraUpdates = {};
+  if (extraUpdates && typeof extraUpdates === 'object') {
+    for (const [key, value] of Object.entries(extraUpdates)) {
+      if (value !== undefined) {
+        cleanedExtraUpdates[key] = value;
+      }
+    }
+  }
   const updates = {
-    ...extraUpdates,
+    ...cleanedExtraUpdates,
     "gameState.whiteStars": whiteStars,
     "gameState.blackStars": blackStars,
     "gameState.playerOrder": nextOrder,
@@ -689,7 +698,15 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     // ここでは設定しない
   }
 
-  tx.update(roomRef, updates);
+  // updatesからundefinedを除外（Firebaseはundefinedを許可しない）
+  const cleanedUpdates = {};
+  for (const [key, value] of Object.entries(updates)) {
+    if (value !== undefined) {
+      cleanedUpdates[key] = value;
+    }
+  }
+
+  tx.update(roomRef, cleanedUpdates);
 }
 
 /**
