@@ -324,13 +324,7 @@ async function startGameAsHost(roomId) {
       throw new Error("Player count must be 3-8 to start");
     }
 
-    // ロビーに戻る確認メカニズム：全員がロビーに戻るまでゲーム開始をブロック
-    const resultReturnLobbyAcks = data?.gameState?.resultReturnLobbyAcks || {};
-    const allReturnedLobby = playerIds.every((pid) => resultReturnLobbyAcks[pid] === true);
-    if (!allReturnedLobby && Object.keys(resultReturnLobbyAcks).length > 0) {
-      // resultReturnLobbyAcksが存在する場合（結果表示からロビーに戻った場合）、全員がロビーに戻るまで待つ
-      throw new Error("全員がロビーに戻るまでゲームを開始できません");
-    }
+    // ロビーに戻る確認メカニズムは削除：全員がロビーに戻るのを待たなくてもゲーム開始可能
 
     // 役職：1狼 + 1ドクター + 残り市民
     const roles = ["wolf", "doctor"];

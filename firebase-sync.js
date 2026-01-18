@@ -1488,23 +1488,35 @@ function handlePhaseUI(roomData, previousPhase = null) {
     
     const gameResult = gameState.gameResult;
     if (gameResult) {
-      // キューが空の場合のみ即座に表示、そうでない場合はキューが空になるまで待機
-      const queueEmpty = isAnnouncementQueueEmpty();
-      if (queueEmpty) {
-        console.log("[syncGameStateFromFirebase] Phase is finished, queue is empty, calling showGameResult with:", gameResult);
-        showGameResult(roomData, gameResult);
+      const showVictoryScreen = gameState.showVictoryScreen === true;
+      
+      // GM画面: キューが空の場合のみ即座に表示、そうでない場合はキューが空になるまで待機
+      // ゲストUI: showVictoryScreenフラグがtrueの場合のみ表示
+      if (isGM) {
+        // キューが空の場合のみ即座に表示、そうでない場合はキューが空になるまで待機
+        const queueEmpty = isAnnouncementQueueEmpty();
+        if (queueEmpty) {
+          console.log("[syncGameStateFromFirebase] Phase is finished, queue is empty, calling showGameResult with:", gameResult);
+          showGameResult(roomData, gameResult);
+        } else {
+          // デバッグ情報を出力
+          const debugState = _getAnnouncementQueueDebugState();
+          console.log("[syncGameStateFromFirebase] Phase is finished, queue is not empty, waiting for queue to finish.", {
+            queueLength: announcementQueue.length,
+            debugState
+          });
+          // キューが空になるまで待機
+          pendingGameResult = { roomData, gameResult };
+          // キュー処理が開始されていない場合は開始する
+          if (!isProcessingQueue) {
+            processAnnouncementQueue();
+          }
+        }
       } else {
-        // デバッグ情報を出力
-        const debugState = _getAnnouncementQueueDebugState();
-        console.log("[syncGameStateFromFirebase] Phase is finished, queue is not empty, waiting for queue to finish.", {
-          queueLength: announcementQueue.length,
-          debugState
-        });
-        // キューが空になるまで待機
-        pendingGameResult = { roomData, gameResult };
-        // キュー処理が開始されていない場合は開始する
-        if (!isProcessingQueue) {
-          processAnnouncementQueue();
+        // ゲストUI: showVictoryScreenフラグがtrueの場合のみ表示
+        if (showVictoryScreen) {
+          console.log("[syncGameStateFromFirebase] Phase is finished, showVictoryScreen flag is true, calling showGameResult with:", gameResult);
+          showGameResult(roomData, gameResult);
         }
       }
     } else {
@@ -2630,7 +2642,24 @@ function showGameResult(roomData, gameResult) {
     return;
   }
   
+  // 既に勝利画面が表示されている場合はスキップ（重複防止）
+  if (victoryScreen.classList.contains("active")) {
+    console.log("[showGameResult] Victory screen is already active, skipping");
+    return;
+  }
+  
   console.log("[showGameResult] Showing victory screen for gameResult:", gameResult);
+
+  // GM画面で勝利画面を表示する時に、Firebaseにフラグを設定してゲストUIにも通知
+  const isGM = _isGMClient();
+  const roomId = typeof window !== "undefined" && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+  if (isGM && roomId) {
+    updateGameState(roomId, {
+      "gameState.showVictoryScreen": true
+    }).catch(error => {
+      console.error("[showGameResult] Failed to set showVictoryScreen flag:", error);
+    });
+  }
 
   // 勝利画面は背景を不透明にしたいので、ゲストUI透過クラスを確実に外す
   document.body.classList.remove("guest-ui");
@@ -2879,8 +2908,18 @@ function setupVictoryScreenButtons(roomData) {
   const returnLobbyBtn = document.getElementById("victory-return-lobby");
   const disbandBtn = document.getElementById("victory-disband");
   
+  // ゲストUIの場合はボタンを非表示
+  const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const isGM = !!(createdBy && myId && createdBy === myId);
+  
   if (returnLobbyBtn) {
-    // 既存のイベントリスナーを削除してから追加
+    // ゲストUIの場合は非表示
+    if (!isGM) {
+      returnLobbyBtn.style.display = "none";
+    } else {
+      returnLobbyBtn.style.display = "";
+      // 既存のイベントリスナーを削除してから追加
     const newBtn = returnLobbyBtn.cloneNode(true);
     returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
     
@@ -2992,47 +3031,53 @@ function setupVictoryScreenButtons(roomData) {
   }
   
   if (disbandBtn) {
-    // 既存のイベントリスナーを削除してから追加
-    const newBtn = disbandBtn.cloneNode(true);
-    disbandBtn.parentNode.replaceChild(newBtn, disbandBtn);
-    
-    newBtn.addEventListener("click", async () => {
-      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-      if (!roomId) return;
+    // ゲストUIの場合は非表示
+    if (!isGM) {
+      disbandBtn.style.display = "none";
+    } else {
+      disbandBtn.style.display = "";
+      // 既存のイベントリスナーを削除してから追加
+      const newBtn = disbandBtn.cloneNode(true);
+      disbandBtn.parentNode.replaceChild(newBtn, disbandBtn);
       
-      try {
-        const userId = getCurrentUserId();
-        if (!userId) {
-          throw new Error("User not authenticated");
+      newBtn.addEventListener("click", async () => {
+        const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+        if (!roomId) return;
+        
+        try {
+          const userId = getCurrentUserId();
+          if (!userId) {
+            throw new Error("User not authenticated");
+          }
+          
+          const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+          const isGMCheck = !!(createdBy && userId && createdBy === userId);
+          
+          if (!isGMCheck) {
+            alert("GMのみがルームを解散できます。");
+            return;
+          }
+          
+          if (!confirm("ルームを解散してホームに戻りますか？")) {
+            return;
+          }
+          
+          // ルームを削除
+          const roomRef = doc(firestore, "rooms", roomId);
+          await updateDoc(roomRef, {
+            "gameState.phase": "waiting",
+          });
+          
+          // ホーム画面に戻る
+          if (typeof window !== "undefined" && window.returnToHome) {
+            window.returnToHome();
+          }
+        } catch (e) {
+          console.error("Failed to disband room:", e);
+          alert(e?.message || "ルームの解散に失敗しました。");
         }
-        
-        const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
-        const isGM = !!(createdBy && userId && createdBy === userId);
-        
-        if (!isGM) {
-          alert("GMのみがルームを解散できます。");
-          return;
-        }
-        
-        if (!confirm("ルームを解散してホームに戻りますか？")) {
-          return;
-        }
-        
-        // ルームを削除
-        const roomRef = doc(firestore, "rooms", roomId);
-        await updateDoc(roomRef, {
-          "gameState.phase": "waiting",
-        });
-        
-        // ホーム画面に戻る
-        if (typeof window !== "undefined" && window.returnToHome) {
-          window.returnToHome();
-        }
-      } catch (e) {
-        console.error("Failed to disband room:", e);
-        alert(e?.message || "ルームの解散に失敗しました。");
-      }
-    });
+      });
+    }
   }
 }
 
@@ -3043,10 +3088,20 @@ function setupResultModalButtons(roomData) {
   const returnLobbyBtn = document.getElementById("result-return-lobby");
   const disbandBtn = document.getElementById("result-disband");
   
+  // ゲストUIの場合はボタンを非表示
+  const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
+  const myId = typeof window !== "undefined" ? window.__uid : null;
+  const isGM = !!(createdBy && myId && createdBy === myId);
+  
   if (returnLobbyBtn) {
-    // 既存のイベントリスナーを削除してから追加
-    const newBtn = returnLobbyBtn.cloneNode(true);
-    returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
+    // ゲストUIの場合は非表示
+    if (!isGM) {
+      returnLobbyBtn.style.display = "none";
+    } else {
+      returnLobbyBtn.style.display = "";
+      // 既存のイベントリスナーを削除してから追加
+      const newBtn = returnLobbyBtn.cloneNode(true);
+      returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
     
     newBtn.addEventListener("click", async () => {
       const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
@@ -3179,49 +3234,56 @@ function setupResultModalButtons(roomData) {
         alert("ロビーに戻るのに失敗しました。");
       }
     });
+    }
   }
   
   if (disbandBtn) {
-    // 既存のイベントリスナーを削除してから追加
-    const newBtn = disbandBtn.cloneNode(true);
-    disbandBtn.parentNode.replaceChild(newBtn, disbandBtn);
-    
-    newBtn.addEventListener("click", () => {
-      if (confirm("ルームを解散してホームに戻りますか？")) {
-        // ルーム同期を停止
-        stopRoomSync();
-        
-        // 結果モーダルを閉じる
-        const modal = document.getElementById("result-modal");
-        if (modal) {
-          modal.classList.add("hidden");
+    // ゲストUIの場合は非表示
+    if (!isGM) {
+      disbandBtn.style.display = "none";
+    } else {
+      disbandBtn.style.display = "";
+      // 既存のイベントリスナーを削除してから追加
+      const newBtn = disbandBtn.cloneNode(true);
+      disbandBtn.parentNode.replaceChild(newBtn, disbandBtn);
+      
+      newBtn.addEventListener("click", () => {
+        if (confirm("ルームを解散してホームに戻りますか？")) {
+          // ルーム同期を停止
+          stopRoomSync();
+          
+          // 結果モーダルを閉じる
+          const modal = document.getElementById("result-modal");
+          if (modal) {
+            modal.classList.add("hidden");
+          }
+          
+          // ホーム画面に戻る
+          const waiting = document.getElementById("waiting-screen");
+          const main = document.getElementById("main-screen");
+          const participant = document.getElementById("participant-screen");
+          
+          if (waiting && waiting.classList.contains("active")) {
+            switchScreen("waiting-screen", "home-screen");
+          } else if (main && main.classList.contains("active")) {
+            switchScreen("main-screen", "home-screen");
+          } else if (participant && participant.classList.contains("active")) {
+            switchScreen("participant-screen", "home-screen");
+          } else {
+            switchScreen("home-screen", "home-screen");
+          }
+          
+          // フォームをリセット
+          const createForm = document.getElementById("create-room-form");
+          const joinForm = document.getElementById("join-room-form");
+          const roomInfo = document.getElementById("room-info");
+          
+          if (createForm) createForm.style.setProperty("display", "none");
+          if (joinForm) joinForm.style.setProperty("display", "none");
+          if (roomInfo) roomInfo.style.setProperty("display", "none");
         }
-        
-        // ホーム画面に戻る
-        const waiting = document.getElementById("waiting-screen");
-        const main = document.getElementById("main-screen");
-        const participant = document.getElementById("participant-screen");
-        
-        if (waiting && waiting.classList.contains("active")) {
-          switchScreen("waiting-screen", "home-screen");
-        } else if (main && main.classList.contains("active")) {
-          switchScreen("main-screen", "home-screen");
-        } else if (participant && participant.classList.contains("active")) {
-          switchScreen("participant-screen", "home-screen");
-        } else {
-          switchScreen("home-screen", "home-screen");
-        }
-        
-        // フォームをリセット
-        const createForm = document.getElementById("create-room-form");
-        const joinForm = document.getElementById("join-room-form");
-        const roomInfo = document.getElementById("room-info");
-        
-        if (createForm) createForm.style.setProperty("display", "none");
-        if (joinForm) joinForm.style.setProperty("display", "none");
-        if (roomInfo) roomInfo.style.setProperty("display", "none");
-      }
-    });
+      });
+    }
   }
 }
 
