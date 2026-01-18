@@ -728,7 +728,7 @@ function refreshRulesSettingsModalControls() {
 
         details.appendChild(body);
         wrap.appendChild(details);
-      }
+  }
 
       wolfActionsEditorEl.appendChild(wrap);
     });
@@ -1080,10 +1080,10 @@ function setupModals() {
           alert(`ステージ範囲（${t}ラウンド目）が不正です。`);
           return;
         }
-        if (min > max) {
+      if (min > max) {
           alert(`ステージ範囲（${t}ラウンド目）の最小章は最大章より大きくできません。`);
-          return;
-        }
+        return;
+      }
         stageRangesByTurn.push({ min, max });
       }
     }
@@ -1126,11 +1126,11 @@ function setupModals() {
           if (a?.requiresRoulette === true) {
             const raw = (get("rouletteOptions")?.value || "").trim();
             const lines = raw
-              .split("\n")
-              .map((v) => v.trim())
-              .filter(Boolean);
+        .split("\n")
+        .map((v) => v.trim())
+        .filter(Boolean);
             // 空なら「誤って消す」を避けるため既存を維持
-            if (lines.length) {
+      if (lines.length) {
               rouletteOptions = lines;
             }
           }

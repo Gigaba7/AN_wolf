@@ -15,6 +15,11 @@ body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: transparent;
+  background-image: url('./bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: #f5f5f7;
 }
 
@@ -22,7 +27,6 @@ body {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  background: transparent;
 }
 
 /* 共有：操作パネル高（= 映像下エリアの高さにも使う） */
@@ -126,7 +130,7 @@ body {
   background: #555;
   opacity: 0.4;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
-}
+  }
 
 @keyframes pulse-glow {
   0%, 100% { 
@@ -135,7 +139,7 @@ body {
       0 0 24px rgba(139, 230, 195, 0.5),
       inset 0 2px 4px rgba(255, 255, 255, 0.3);
   }
-  50% { 
+  50% {
     box-shadow: 
       0 0 18px rgba(139, 230, 195, 1),
       0 0 36px rgba(139, 230, 195, 0.7),
@@ -144,11 +148,11 @@ body {
 }
 
 @keyframes pulse-ring {
-  0%, 100% { 
+  0%, 100% {
     opacity: 0.6;
     transform: scale(1);
   }
-  50% { 
+  50% {
     opacity: 1;
     transform: scale(1.15);
   }
@@ -163,7 +167,7 @@ body {
     inset 0 -1px 0 rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(255, 100, 100, 0.25),
     0 0 18px rgba(255, 100, 100, 0.14);
-}
+  }
 
 /* 人狼妨害（赤い演出）だけを残す：
    通常モーダルのフェード/スライドインを無効化して、二重アニメーションに見えるのを防ぐ */
@@ -186,7 +190,7 @@ body {
     inset 0 -1px 0 rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(255, 100, 100, 0.25),
     0 0 18px rgba(255, 100, 100, 0.14);
-  }
+}
 
 /* ホーム/待機（マッチング）画面は背景を不透明にする */
 body.opaque-bg {
@@ -617,7 +621,7 @@ button {
   align-items: center;
   justify-content: center;
   padding: 20px 32px;
-  background: linear-gradient(145deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
+  background: linear-gradient(145deg, rgba(15, 18, 25, 1), rgba(5, 7, 18, 1));
   border: 2px solid rgba(200, 200, 220, 0.15);
   border-bottom: none;
   height: auto;
@@ -1022,7 +1026,7 @@ button {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  background: rgba(5, 7, 18, 0.95);
+  background: rgba(5, 7, 18, 1);
   border-top: 1px solid rgba(200, 200, 220, 0.1);
 }
 

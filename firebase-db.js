@@ -829,7 +829,7 @@ async function applyFail(roomId) {
     if (!turnLog[turn - 1]) {
       turnLog[turn - 1] = { round: turn, players: [] };
     }
-
+    
     // すでに保留なら「神拳を使わない（失敗確定）」＝×で即次ターン
     // これはGMが「失敗確定（神拳なし）」ボタンを押した場合
     if (pending) {
