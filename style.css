@@ -91,6 +91,69 @@ body {
   }
 }
 
+/* 神拳発動ランプ：パターン1（グローリングドット） */
+.doctor-punch-lamp-active {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #8be6c3 0%, #50c896 100%);
+  box-shadow: 
+    0 0 12px rgba(139, 230, 195, 0.8),
+    0 0 24px rgba(139, 230, 195, 0.5),
+    inset 0 2px 4px rgba(255, 255, 255, 0.3);
+  animation: pulse-glow 2s ease-in-out infinite;
+  position: relative;
+}
+
+.doctor-punch-lamp-active::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 50%;
+  border: 1px solid rgba(139, 230, 195, 0.6);
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+.doctor-punch-lamp-inactive {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #555;
+  opacity: 0.4;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 
+      0 0 12px rgba(139, 230, 195, 0.8),
+      0 0 24px rgba(139, 230, 195, 0.5),
+      inset 0 2px 4px rgba(255, 255, 255, 0.3);
+  }
+  50% { 
+    box-shadow: 
+      0 0 18px rgba(139, 230, 195, 1),
+      0 0 36px rgba(139, 230, 195, 0.7),
+      inset 0 2px 4px rgba(255, 255, 255, 0.4);
+  }
+}
+
+@keyframes pulse-ring {
+  0%, 100% { 
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
 #announcement-modal.wolf-action .modal-content {
   animation: none;
   border: 2px solid rgba(255, 0, 0, 0.55);
@@ -878,9 +941,9 @@ button {
 
 .panel.center-panel {
   gap: 0;
-  /* プレイ映像表示用に、パネル本体は透過（下の映像を見せる） */
-  background: transparent !important;
-  background-color: transparent !important;
+  /* プレイ映像エリア以外の背景 */
+  background: linear-gradient(145deg, rgba(15, 18, 25, 0.98), rgba(5, 7, 18, 0.98)) !important;
+  background-color: rgba(5, 7, 18, 0.98) !important;
   border: 2px solid rgba(200, 200, 220, 0.15) !important;
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.6),
