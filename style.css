@@ -832,7 +832,7 @@ button {
 }
 
 .player-name {
-  font-size: 22px;
+  font-size: 28.6px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
@@ -940,7 +940,7 @@ button {
 
 /* ルール表示エリア */
 .play-video-under-space {
-  height: 55px;
+  height: 110px;
   width: 100%;
   pointer-events: auto;
   position: relative;
@@ -955,7 +955,7 @@ button {
 }
 
 .under-video-info {
-  font-size: 13px;
+  font-size: 26px;
   color: #a0a4ba;
   text-align: center;
 }
