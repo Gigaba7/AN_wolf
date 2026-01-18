@@ -2219,9 +2219,40 @@ function showFinalPhaseModal(roomData) {
   // 投票ボタンを表示
   extraEl.innerHTML = "";
 
-  // 投票中は「ロビーに戻る/解散」などのボタンを表示しない
+  // 投票中は「ロビーに戻る/解散」などのボタンを非表示にするが、ルールブックとログは表示する
   if (actionsEl) {
-    actionsEl.style.display = "none";
+    // 既存のボタンは非表示にするが、actionsEl自体は表示する（ルールブックとログボタン用）
+    const returnBtn = actionsEl.querySelector("#result-return-lobby");
+    const disbandBtn = actionsEl.querySelector("#result-disband");
+    if (returnBtn) returnBtn.style.display = "none";
+    if (disbandBtn) disbandBtn.style.display = "none";
+  }
+  
+  // ルールブックとログボタンを追加（まだ追加されていない場合のみ）
+  if (actionsEl && !actionsEl.querySelector("#final-phase-rulebook-btn")) {
+    const rulebookBtn = document.createElement("button");
+    rulebookBtn.id = "final-phase-rulebook-btn";
+    rulebookBtn.className = "btn ghost small";
+    rulebookBtn.textContent = "ルールブック";
+    rulebookBtn.addEventListener("click", () => {
+      const openRulebook = typeof window !== "undefined" ? window.openRulebook : null;
+      if (openRulebook && typeof openRulebook === "function") {
+        openRulebook();
+      }
+    });
+    actionsEl.appendChild(rulebookBtn);
+    
+    const logBtn = document.createElement("button");
+    logBtn.id = "final-phase-log-btn";
+    logBtn.className = "btn ghost small";
+    logBtn.textContent = "ログを表示";
+    logBtn.addEventListener("click", () => {
+      const showLogModal = typeof window !== "undefined" ? window.showLogModal : null;
+      if (showLogModal && typeof showLogModal === "function") {
+        showLogModal();
+      }
+    });
+    actionsEl.appendChild(logBtn);
   }
   
   // 10分タイマーを表示

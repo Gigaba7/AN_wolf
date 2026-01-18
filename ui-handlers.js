@@ -1315,6 +1315,12 @@ function setupModals() {
       .catch(() => {});
     openModal("rulebook-modal");
   }
+  
+  // windowに公開（最終フェーズの投票画面から呼び出すため）
+  if (typeof window !== "undefined") {
+    window.openRulebook = openRulebook;
+    window.showLogModal = showLogModal;
+  }
 
   $("#rulebook-prev")?.addEventListener("click", () => {
     if (currentRulebookPage > 1) {

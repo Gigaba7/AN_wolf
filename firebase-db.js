@@ -669,6 +669,13 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     updates["gameState.pendingFinalPhaseExplanation"] = true; // 最終フェーズ説明ポップアップ表示用フラグ
     // ターンは進めない（turnは更新しない）
     // phaseはplayingのまま（説明ポップアップのOK押下後にfinal_phaseに移行）
+    
+    // 最終フェーズに突入する場合、最後のターンのログを確実に保存する
+    // （applySuccessやapplyFailで更新されたturnLogを保存）
+    const currentTurnLog = data?.gameState?.turnLog;
+    if (Array.isArray(currentTurnLog)) {
+      updates["gameState.turnLog"] = currentTurnLog;
+    }
   }
   // 次のターンに進む場合 → 会議フェーズを開始（5分）
   // ただし、ターン結果ポップアップが表示されるまで待つため、discussionPhaseは後で設定
