@@ -1490,10 +1490,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
       // 既に勝利画面が表示されている場合はスキップ（重複防止）
       const victoryScreen = document.getElementById("victory-screen");
       if (victoryScreen && victoryScreen.classList.contains("active")) {
-        // 既に表示されている場合は、ボタンのイベントリスナーが設定されているか確認
-        // 念のため、再度設定する（イベントリスナーが失われている可能性があるため）
-        setupVictoryScreenButtons(roomData);
-        return; // 既に表示されているので何もしない
+        // 既に表示されている場合は何もしない（イベントリスナーは既に設定済みのはず）
+        return;
       }
       
       const showVictoryScreen = gameState.showVictoryScreen === true;
@@ -2903,17 +2901,21 @@ function setupVictoryScreenButtons(roomData) {
       newBtn.disabled = true;
       
       const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+      console.log("[ReturnToLobby] Got roomId", { roomId });
       if (!roomId) {
+        console.log("[ReturnToLobby] No roomId, returning");
         newBtn.disabled = false;
         return;
       }
       
       try {
         const userId = getCurrentUserId();
+        console.log("[ReturnToLobby] Got userId", { userId });
         if (!userId) {
           throw new Error("User not authenticated");
         }
         
+        console.log("[ReturnToLobby] Starting Firebase transaction");
         // トランザクションで処理：既存のresultReturnLobbyAcksを保持しつつ、自分のIDだけをtrueに設定
         const roomRef = doc(firestore, "rooms", roomId);
         await runTransaction(firestore, async (tx) => {
@@ -2929,8 +2931,10 @@ function setupVictoryScreenButtons(roomData) {
           
           tx.update(roomRef, updates);
         });
+        console.log("[ReturnToLobby] Firebase transaction completed");
         
         // 画面をロビー（waiting-screen）に戻す
+        console.log("[ReturnToLobby] Switching screen");
         const victoryScreen = document.getElementById("victory-screen");
         const waiting = document.getElementById("waiting-screen");
         const main = document.getElementById("main-screen");
