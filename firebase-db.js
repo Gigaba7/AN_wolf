@@ -312,11 +312,6 @@ async function startGameAsHost(roomId) {
       throw new Error("Only host can start the game");
     }
 
-    const phase = data?.gameState?.phase || "waiting";
-    if (phase !== "waiting") {
-      throw new Error(`Game already started (phase: ${phase})`);
-    }
-
     const playersObj = data?.players || {};
     const playerIds = Object.keys(playersObj);
     const count = playerIds.length;
@@ -332,6 +327,9 @@ async function startGameAsHost(roomId) {
     if (ackedCount > 0 && ackedCount < count) {
       throw new Error(`Not all players have returned to lobby (${ackedCount}/${count})`);
     }
+
+    // phaseチェックを削除：全員がロビーに戻っている場合は、phaseが"finished"でもゲーム開始を許可
+    // （updatesで"revealing"に設定されるため）
 
     // 役職：1狼 + 1ドクター + 残り市民
     const roles = ["wolf", "doctor"];

@@ -344,13 +344,17 @@ function renderWaitingScreen(roomId) {
       const resultReturnLobbyAcks = typeof window !== "undefined" ? window.RoomInfo?.gameState?.resultReturnLobbyAcks : {};
 
       const canStartCount = GameState.players.length >= 3 && GameState.players.length <= 7;
-      const canStartPhase = !phase || phase === "waiting";
       
       // ロビーに戻る確認メカニズム：全員がロビーに戻るまでゲーム開始をブロック
       // ただし、resultReturnLobbyAcksが空の場合は初回起動時とみなしてブロックしない
       const playerIds = GameState.players.map(p => p.id);
       const hasResultReturnLobbyAcks = resultReturnLobbyAcks && Object.keys(resultReturnLobbyAcks).length > 0;
       const allReturnedLobby = !hasResultReturnLobbyAcks || playerIds.every((pid) => resultReturnLobbyAcks[pid] === true);
+      
+      // phaseが"waiting"または"finished"（全員がロビーに戻っている場合）ならゲーム開始可能
+      // phaseが"finished"の場合は、全員がロビーに戻っている場合のみゲーム開始を許可
+      // 注意：ゲーム開始後はphaseが"revealing"→"playing"に更新されるため、"finished"のままになることはない
+      const canStartPhase = !phase || phase === "waiting" || (phase === "finished" && (allReturnedLobby || !hasResultReturnLobbyAcks));
       
       // 初回起動時（resultReturnLobbyAcksが空）の場合は、全員が戻ったかのチェックをスキップ
       const canStart = isHost && canStartCount && canStartPhase && (allReturnedLobby || !hasResultReturnLobbyAcks);
