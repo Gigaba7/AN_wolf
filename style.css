@@ -940,7 +940,7 @@ button {
 
 /* ルール表示エリア */
 .play-video-under-space {
-  height: 110px;
+  height: 220px;
   width: 100%;
   pointer-events: auto;
   position: relative;
