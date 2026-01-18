@@ -324,10 +324,12 @@ async function startGameAsHost(roomId) {
       throw new Error("Player count must be 3-8 to start");
     }
 
-    // 全員がロビーに戻ったかチェック
+    // 前回のゲームが終了している場合のみ、全員がロビーに戻ったかチェック
+    // 初回起動時（resultReturnLobbyAcksが空または未定義）の場合はチェックをスキップ
     const resultReturnLobbyAcks = data?.gameState?.resultReturnLobbyAcks || {};
     const ackedCount = Object.keys(resultReturnLobbyAcks).length;
-    if (ackedCount < count) {
+    // resultReturnLobbyAcksが存在し、かつ全員が戻っていない場合はエラー
+    if (ackedCount > 0 && ackedCount < count) {
       throw new Error(`Not all players have returned to lobby (${ackedCount}/${count})`);
     }
 
