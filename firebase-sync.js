@@ -2920,10 +2920,10 @@ function setupVictoryScreenButtons(roomData) {
     } else {
       returnLobbyBtn.style.display = "";
       // 既存のイベントリスナーを削除してから追加
-    const newBtn = returnLobbyBtn.cloneNode(true);
-    returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
-    
-    newBtn.addEventListener("click", async () => {
+      const newBtn = returnLobbyBtn.cloneNode(true);
+      returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
+      
+      newBtn.addEventListener("click", async () => {
       const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
       if (!roomId) return;
       
@@ -3080,6 +3080,7 @@ function setupVictoryScreenButtons(roomData) {
     }
   }
 }
+}
 
 /**
  * 勝利画面のボタンイベントリスナーを設定
@@ -3102,101 +3103,101 @@ function setupResultModalButtons(roomData) {
       // 既存のイベントリスナーを削除してから追加
       const newBtn = returnLobbyBtn.cloneNode(true);
       returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
-    
-    newBtn.addEventListener("click", async () => {
-      const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-      if (!roomId) return;
       
-      try {
-        const userId = getCurrentUserId();
-        if (!userId) {
-          throw new Error("User not authenticated");
-        }
+      newBtn.addEventListener("click", async () => {
+        const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
+        if (!roomId) return;
         
-        // トランザクションで処理：既存のresultReturnLobbyAcksを保持しつつ、自分のIDだけをtrueに設定
-        const roomRef = doc(firestore, "rooms", roomId);
-        await runTransaction(firestore, async (tx) => {
-          const snap = await tx.get(roomRef);
-          if (!snap.exists()) throw new Error("Room not found");
-          const data = snap.data();
-          
-          // 既存のresultReturnLobbyAcksを取得（なければ空オブジェクト）
-          const existingAcks = data?.gameState?.resultReturnLobbyAcks || {};
-          
-          // 最初のプレイヤーが「ロビーに戻る」を押した場合は、ゲーム状態をリセット
-          // resultReturnLobbyAcksが空または存在しない場合は、ゲーム状態をリセット
-          const shouldResetGameState = Object.keys(existingAcks).length === 0;
-          
-          const updates = {};
-          
-          if (shouldResetGameState) {
-            // まずACKをリセットし、押した本人だけtrueにする（次の試合でも「最初の押下」を判定できるように）
-            updates["gameState.resultReturnLobbyAcks"] = { [userId]: true };
-
-            // ゲーム状態をwaitingフェーズにリセット（すべてのゲームパラメータをリセット）
-            updates["gameState.phase"] = "waiting";
-            updates["gameState.turn"] = 1;
-            updates["gameState.whiteStars"] = 0;
-            updates["gameState.blackStars"] = 0;
-            updates["gameState.currentPlayerIndex"] = 0;
-            updates["gameState.currentStage"] = null;
-            updates["gameState.stageTurn"] = null;
-            updates["gameState.subphase"] = "gm_stage"; // 初期値に戻す
-            updates["gameState.pendingFailure"] = null;
-            updates["gameState.playerOrder"] = null;
-            updates["gameState.wolfDecisionPlayerId"] = null;
-            updates["gameState.wolfActionRequest"] = null;
-            updates["gameState.wolfActionNotification"] = null;
-            updates["gameState.pendingNextPlayerChallenge"] = null;
-            updates["gameState.pendingLastPlayerResult"] = null;
-            updates["gameState.pendingDoctorPunchProceed"] = null;
-            updates["gameState.pendingDoctorPunchSuccess"] = null;
-            updates["gameState.doctorSkipNotification"] = null;
-            updates["gameState.pendingDoctorSkipTurnEnd"] = null;
-            updates["gameState.gameResult"] = null;
-            updates["gameState.turnResult"] = null;
-            updates["gameState.turnResultTurn"] = null;
-            updates["gameState.doctorHasFailed"] = false;
-            updates["gameState.revealAcks"] = {}; // 役職公開の確認をリセット
-            updates["gameState.finalPhaseVotes"] = {}; // 最終フェーズの投票をリセット
-            updates["gameState.finalPhaseVoteCounts"] = null;
-            updates["gameState.finalPhaseDiscussionEndTime"] = null;
-            updates["gameState.pendingFinalPhaseExplanation"] = null;
-            updates["gameState.discussionPhase"] = false; // 会議フェーズをリセット
-            updates["gameState.discussionEndTime"] = null; // 会議フェーズの終了時刻をリセット
-            updates["gameState.pendingFinalPhase"] = false; // 最終フェーズ前の会議フラグをリセット
-            updates["gameState.pendingFinalPhaseDiscussion"] = false; // 最終フェーズ前の10分会議フラグをリセット
-            updates["gameState.lock"] = null; // 排他制御用ロックをリセット
-          }
-          // ロビーに戻る確認を記録（最初以外は既存に追記）
-          if (!shouldResetGameState) {
-            updates[`gameState.resultReturnLobbyAcks.${userId}`] = true;
+        try {
+          const userId = getCurrentUserId();
+          if (!userId) {
+            throw new Error("User not authenticated");
           }
           
-          // ゲーム状態をリセットする場合（最初のプレイヤーが「ロビーに戻る」を押したとき）は、resourcesもリセット
-          if (shouldResetGameState) {
-            const playersObj = data?.players || {};
-            const playerIds = Object.keys(playersObj);
+          // トランザクションで処理：既存のresultReturnLobbyAcksを保持しつつ、自分のIDだけをtrueに設定
+          const roomRef = doc(firestore, "rooms", roomId);
+          await runTransaction(firestore, async (tx) => {
+            const snap = await tx.get(roomRef);
+            if (!snap.exists()) throw new Error("Room not found");
+            const data = snap.data();
             
-            playerIds.forEach((pid) => {
-              const player = playersObj[pid];
-              const role = player?.role;
-              // 役職に応じてresourcesをリセット
-              if (role === "wolf") {
-                updates[`players.${pid}.resources.wolfActionsRemaining`] = 100;
-              }
-              if (role === "doctor") {
-                updates[`players.${pid}.resources.doctorPunchRemaining`] = 5;
-                updates[`players.${pid}.resources.doctorPunchAvailableThisTurn`] = true;
-              }
-              // 役職がない場合はresourcesをクリア
-              if (!role) {
-                updates[`players.${pid}.resources`] = {};
-              }
-            });
-          }
-          
-          tx.update(roomRef, updates);
+            // 既存のresultReturnLobbyAcksを取得（なければ空オブジェクト）
+            const existingAcks = data?.gameState?.resultReturnLobbyAcks || {};
+            
+            // 最初のプレイヤーが「ロビーに戻る」を押した場合は、ゲーム状態をリセット
+            // resultReturnLobbyAcksが空または存在しない場合は、ゲーム状態をリセット
+            const shouldResetGameState = Object.keys(existingAcks).length === 0;
+            
+            const updates = {};
+            
+            if (shouldResetGameState) {
+              // まずACKをリセットし、押した本人だけtrueにする（次の試合でも「最初の押下」を判定できるように）
+              updates["gameState.resultReturnLobbyAcks"] = { [userId]: true };
+
+              // ゲーム状態をwaitingフェーズにリセット（すべてのゲームパラメータをリセット）
+              updates["gameState.phase"] = "waiting";
+              updates["gameState.turn"] = 1;
+              updates["gameState.whiteStars"] = 0;
+              updates["gameState.blackStars"] = 0;
+              updates["gameState.currentPlayerIndex"] = 0;
+              updates["gameState.currentStage"] = null;
+              updates["gameState.stageTurn"] = null;
+              updates["gameState.subphase"] = "gm_stage"; // 初期値に戻す
+              updates["gameState.pendingFailure"] = null;
+              updates["gameState.playerOrder"] = null;
+              updates["gameState.wolfDecisionPlayerId"] = null;
+              updates["gameState.wolfActionRequest"] = null;
+              updates["gameState.wolfActionNotification"] = null;
+              updates["gameState.pendingNextPlayerChallenge"] = null;
+              updates["gameState.pendingLastPlayerResult"] = null;
+              updates["gameState.pendingDoctorPunchProceed"] = null;
+              updates["gameState.pendingDoctorPunchSuccess"] = null;
+              updates["gameState.doctorSkipNotification"] = null;
+              updates["gameState.pendingDoctorSkipTurnEnd"] = null;
+              updates["gameState.gameResult"] = null;
+              updates["gameState.turnResult"] = null;
+              updates["gameState.turnResultTurn"] = null;
+              updates["gameState.doctorHasFailed"] = false;
+              updates["gameState.revealAcks"] = {}; // 役職公開の確認をリセット
+              updates["gameState.finalPhaseVotes"] = {}; // 最終フェーズの投票をリセット
+              updates["gameState.finalPhaseVoteCounts"] = null;
+              updates["gameState.finalPhaseDiscussionEndTime"] = null;
+              updates["gameState.pendingFinalPhaseExplanation"] = null;
+              updates["gameState.discussionPhase"] = false; // 会議フェーズをリセット
+              updates["gameState.discussionEndTime"] = null; // 会議フェーズの終了時刻をリセット
+              updates["gameState.pendingFinalPhase"] = false; // 最終フェーズ前の会議フラグをリセット
+              updates["gameState.pendingFinalPhaseDiscussion"] = false; // 最終フェーズ前の10分会議フラグをリセット
+              updates["gameState.lock"] = null; // 排他制御用ロックをリセット
+            }
+            // ロビーに戻る確認を記録（最初以外は既存に追記）
+            if (!shouldResetGameState) {
+              updates[`gameState.resultReturnLobbyAcks.${userId}`] = true;
+            }
+            
+            // ゲーム状態をリセットする場合（最初のプレイヤーが「ロビーに戻る」を押したとき）は、resourcesもリセット
+            if (shouldResetGameState) {
+              const playersObj = data?.players || {};
+              const playerIds = Object.keys(playersObj);
+              
+              playerIds.forEach((pid) => {
+                const player = playersObj[pid];
+                const role = player?.role;
+                // 役職に応じてresourcesをリセット
+                if (role === "wolf") {
+                  updates[`players.${pid}.resources.wolfActionsRemaining`] = 100;
+                }
+                if (role === "doctor") {
+                  updates[`players.${pid}.resources.doctorPunchRemaining`] = 5;
+                  updates[`players.${pid}.resources.doctorPunchAvailableThisTurn`] = true;
+                }
+                // 役職がない場合はresourcesをクリア
+                if (!role) {
+                  updates[`players.${pid}.resources`] = {};
+                }
+              });
+            }
+            
+            tx.update(roomRef, updates);
         });
         
         // 結果モーダルを閉じる
