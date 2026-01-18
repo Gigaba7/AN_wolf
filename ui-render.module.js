@@ -344,10 +344,13 @@ function renderWaitingScreen(roomId) {
       const canStartPhase = !phase || phase === "waiting";
       
       // ロビーに戻る確認メカニズム：全員がロビーに戻るまでゲーム開始をブロック
+      // ただし、resultReturnLobbyAcksが空の場合は初回起動時とみなしてブロックしない
       const playerIds = GameState.players.map(p => p.id);
       const hasResultReturnLobbyAcks = resultReturnLobbyAcks && Object.keys(resultReturnLobbyAcks).length > 0;
       const allReturnedLobby = !hasResultReturnLobbyAcks || playerIds.every((pid) => resultReturnLobbyAcks[pid] === true);
-      const canStart = isHost && canStartCount && canStartPhase && allReturnedLobby;
+      
+      // 初回起動時（resultReturnLobbyAcksが空）の場合は、全員が戻ったかのチェックをスキップ
+      const canStart = isHost && canStartCount && canStartPhase && (allReturnedLobby || !hasResultReturnLobbyAcks);
 
       startBtn.disabled = !canStart;
       if (!isHost) {
