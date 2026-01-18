@@ -2889,11 +2889,16 @@ function setupVictoryScreenButtons(roomData) {
     
     newBtn.addEventListener("click", async () => {
       // 重複クリック防止
-      if (newBtn.disabled) return;
+      if (newBtn.disabled) {
+        console.log("[ReturnToLobby] Button already disabled, ignoring click");
+        return;
+      }
       newBtn.disabled = true;
+      console.log("[ReturnToLobby] Button clicked, starting return to lobby");
       
       const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
       if (!roomId) {
+        console.error("[ReturnToLobby] No roomId available");
         newBtn.disabled = false;
         return;
       }
@@ -2904,6 +2909,7 @@ function setupVictoryScreenButtons(roomData) {
           throw new Error("User not authenticated");
         }
         
+        console.log("[ReturnToLobby] Updating Firebase ACK", { roomId, userId });
         // トランザクションで処理：既存のresultReturnLobbyAcksを保持しつつ、自分のIDだけをtrueに設定
         const roomRef = doc(firestore, "rooms", roomId);
         await runTransaction(firestore, async (tx) => {
@@ -2919,6 +2925,7 @@ function setupVictoryScreenButtons(roomData) {
           
           tx.update(roomRef, updates);
         });
+        console.log("[ReturnToLobby] Firebase ACK updated successfully");
         
         // 画面をロビー（waiting-screen）に戻す
         const victoryScreen = document.getElementById("victory-screen");
@@ -2926,15 +2933,26 @@ function setupVictoryScreenButtons(roomData) {
         const main = document.getElementById("main-screen");
         const participant = document.getElementById("participant-screen");
         
+        console.log("[ReturnToLobby] Checking active screen", {
+          victoryActive: victoryScreen?.classList.contains("active"),
+          mainActive: main?.classList.contains("active"),
+          participantActive: participant?.classList.contains("active")
+        });
+        
         if (victoryScreen && victoryScreen.classList.contains("active")) {
+          console.log("[ReturnToLobby] Switching from victory-screen to waiting-screen");
           switchScreen("victory-screen", "waiting-screen");
         } else if (main && main.classList.contains("active")) {
+          console.log("[ReturnToLobby] Switching from main-screen to waiting-screen");
           switchScreen("main-screen", "waiting-screen");
         } else if (participant && participant.classList.contains("active")) {
+          console.log("[ReturnToLobby] Switching from participant-screen to waiting-screen");
           switchScreen("participant-screen", "waiting-screen");
         } else {
+          console.log("[ReturnToLobby] Switching from home-screen to waiting-screen");
           switchScreen("home-screen", "waiting-screen");
         }
+        console.log("[ReturnToLobby] Screen switch completed");
         // 次の試合で極秘命令を再表示できるようにリセット
         missionBriefShown = false;
       } catch (e) {
@@ -3018,8 +3036,20 @@ function setupResultModalButtons(roomData) {
     returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
     
     newBtn.addEventListener("click", async () => {
+        // 重複クリック防止
+        if (newBtn.disabled) {
+          console.log("[ReturnToLobby] Button already disabled, ignoring click (result modal)");
+          return;
+        }
+        newBtn.disabled = true;
+        console.log("[ReturnToLobby] Button clicked, starting return to lobby (result modal)");
+        
         const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-        if (!roomId) return;
+        if (!roomId) {
+          console.error("[ReturnToLobby] No roomId available (result modal)");
+          newBtn.disabled = false;
+          return;
+        }
         
         try {
           const userId = getCurrentUserId();
@@ -3027,6 +3057,7 @@ function setupResultModalButtons(roomData) {
             throw new Error("User not authenticated");
           }
           
+          console.log("[ReturnToLobby] Updating Firebase ACK (result modal)", { roomId, userId });
           // トランザクションで処理：既存のresultReturnLobbyAcksを保持しつつ、自分のIDだけをtrueに設定
           const roomRef = doc(firestore, "rooms", roomId);
           await runTransaction(firestore, async (tx) => {
@@ -3044,6 +3075,7 @@ function setupResultModalButtons(roomData) {
             
             tx.update(roomRef, updates);
         });
+        console.log("[ReturnToLobby] Firebase ACK updated successfully (result modal)");
         
         // 結果モーダルを閉じる
         const modal = document.getElementById("result-modal");
