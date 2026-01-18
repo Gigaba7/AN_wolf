@@ -761,6 +761,9 @@ async function applySuccess(roomId) {
     // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う。
     // この待機中に subphase が await_result のままだと、GMが「もう一度成功/失敗を入力すべき？」と誤認しやすいので、
     // 専用の待機サブフェーズ await_next_player にして入力を受け付けないようにする。
+    
+    // 次のプレイヤーのターン開始時に、背水の陣の効果を解除（そのターン中のみの効果）
+    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
     const updates = {
       "gameState.currentPlayerIndex": nextIndex,
       "gameState.turnLog": turnLog, // ログを保存
@@ -770,8 +773,9 @@ async function applySuccess(roomId) {
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
     };
-    
-    // 背水の陣の効果は「次ラウンドまで」継続させるため、ここでは解除しない
+    if (doctorId) {
+      updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+    }
     
     tx.update(roomRef, updates);
   });
@@ -876,7 +880,7 @@ async function applyFail(roomId) {
       updates["gameState.doctorHasFailed"] = true;
     }
     
-    // 背水の陣の効果は「次ラウンドまで」継続させるため、ここでは解除しない
+    // 背水の陣の効果は「そのターン中のみ」のため、次のターン開始時に解除される
     
     endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, updates);
   });
@@ -1004,11 +1008,14 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
       });
       return;
     }
+
+    // 次のプレイヤーのターン開始時に、背水の陣の効果を解除（そのターン中のみの効果）
+    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
     
     // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
     // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う。
     // 専用の待機サブフェーズ await_next_player にして入力を受け付けないようにする。
-    tx.update(roomRef, {
+    const updates = {
       "gameState.currentPlayerIndex": nextIndex,
       "gameState.subphase": "await_next_player",
       "gameState.pendingNextPlayerChallenge": true, // 次のプレイヤーの挑戦開始フラグ
@@ -1017,7 +1024,11 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
       "gameState.pendingDoctorPunchProceed": null, // フラグをクリア
       "gameState.pendingFailure": null, // 念のためpendingFailureもクリア
       "gameState.pendingDoctorPunchSuccess": null, // 成功ポップアップ表示用フラグをクリア
-    });
+    };
+    if (doctorId) {
+      updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
+    }
+    tx.update(roomRef, updates);
   });
 }
 

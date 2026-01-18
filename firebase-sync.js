@@ -228,6 +228,12 @@ function maybeShowDeferredGMAnnouncements() {
   if (typeof window === "undefined") return;
   if (!_isGMClient()) return;
 
+  // 極秘命令ポップアップが表示されている場合は処理をスキップ
+  const missionBriefModal = document.getElementById("mission-brief-modal");
+  if (missionBriefModal && !missionBriefModal.classList.contains("hidden")) {
+    return;
+  }
+
   const roomId = window.getCurrentRoomId ? window.getCurrentRoomId() : null;
   const gs = window.RoomInfo?.gameState || window.GameState || null;
   if (!gs) return;
@@ -614,6 +620,8 @@ function showMissionBrief() {
         false,
         true // GM画面のみ
       );
+      // OKボタンを押した後、ラウンドポップアップなどの処理を開始
+      maybeShowDeferredGMAnnouncements();
       closeBtn.removeEventListener("click", handleClose);
     };
     closeBtn.addEventListener("click", handleClose);
@@ -1012,13 +1020,32 @@ function syncGameStateFromFirebase(roomData) {
               : Object.keys(playersObj);
             const currentPlayerIndex = Number(data?.gameState?.currentPlayerIndex || 0);
             
-            // 人狼の妨害フェーズを設定（人狼のコストが残っている場合のみ）
+            // 人狼の妨害フェーズを設定（コストが残っており、かつ発動可能な妨害がある場合のみ）
             const wolfPlayerId = Object.keys(playersObj).find(pid => playersObj[pid]?.role === "wolf");
             const wolfPlayer = wolfPlayerId ? playersObj[wolfPlayerId] : null;
             const wolfRes = wolfPlayer?.resources || {};
             const wolfRemain = Number(wolfRes.wolfActionsRemaining || 0);
             
+            // 発動可能な妨害があるかチェック
+            let hasAvailableAction = false;
             if (wolfRemain > 0 && wolfPlayerId) {
+              const config = data?.config || {};
+              const wolfActions = Array.isArray(config.wolfActions) ? config.wolfActions : [];
+              
+              // デフォルト妨害リストを取得（マージ処理は後で行うため、ここでは簡易チェック）
+              const defaults = typeof window !== "undefined" ? window.__DEFAULT_WOLF_ACTIONS : null;
+              const allActions = wolfActions.length > 0 ? wolfActions : (Array.isArray(defaults) ? defaults : []);
+              
+              // 発動可能な妨害が1つでもあるかチェック（enabled !== false かつ cost <= wolfRemain）
+              hasAvailableAction = allActions.some(action => {
+                if (typeof action === "string") return wolfRemain >= 1; // 旧形式はコスト1扱い
+                const enabled = action.enabled !== false; // 未定義ならtrue
+                const cost = Number(action.cost || 1);
+                return enabled && cost <= wolfRemain;
+              });
+            }
+            
+            if (wolfRemain > 0 && wolfPlayerId && hasAvailableAction) {
               // 人狼の妨害フェーズ
               tx.update(roomRef, {
                 'gameState.subphase': 'wolf_decision',
@@ -1134,13 +1161,13 @@ function syncGameStateFromFirebase(roomData) {
 
       // 背水の陣：効果説明が旧仕様のままの場合は補正
       if (next.text === "背水の陣") {
-        if (next.oldName === "ドクター神拳使用不可") {
-          next.oldName = "次のラウンドまでドクター神拳使用不可";
+        if (next.oldName === "ドクター神拳使用不可" || next.oldName === "次のラウンドまでドクター神拳使用不可") {
+          next.oldName = "そのターン中ドクター神拳使用不可";
         }
         if (typeof next.announcementSubtitle === "string") {
           next.announcementSubtitle = next.announcementSubtitle.replace(
-            "(ドクター神拳使用不可)",
-            "(次のラウンドまでドクター神拳使用不可)"
+            /(ドクター神拳使用不可|次のラウンドまでドクター神拳使用不可)/g,
+            "そのターン中ドクター神拳使用不可"
           );
         }
       }
