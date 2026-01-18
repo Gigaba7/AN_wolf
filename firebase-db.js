@@ -598,8 +598,15 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
       }
     }
   }
+  // cleanedExtraUpdatesをスプレッドする前に、再度undefinedをチェック
+  const safeExtraUpdates = {};
+  for (const [key, value] of Object.entries(cleanedExtraUpdates)) {
+    if (value !== undefined) {
+      safeExtraUpdates[key] = value;
+    }
+  }
   const updates = {
-    ...cleanedExtraUpdates,
+    ...safeExtraUpdates,
     "gameState.whiteStars": whiteStars,
     "gameState.blackStars": blackStars,
     "gameState.playerOrder": nextOrder,
@@ -699,7 +706,13 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     
     // 次のターンに進む場合も、現在のターンのログを確実に保存する
     // （applySuccessやapplyFailで更新されたturnLogを保存）
-    const currentTurnLog = data?.gameState?.turnLog || extraUpdates?.["gameState.turnLog"];
+    // extraUpdatesにturnLogがあればそれを使用、なければdata.gameState.turnLogを使用
+    let currentTurnLog = null;
+    if (extraUpdates && typeof extraUpdates === 'object' && extraUpdates["gameState.turnLog"] !== undefined) {
+      currentTurnLog = extraUpdates["gameState.turnLog"];
+    } else if (data?.gameState?.turnLog !== undefined) {
+      currentTurnLog = data.gameState.turnLog;
+    }
     if (Array.isArray(currentTurnLog)) {
       updates["gameState.turnLog"] = currentTurnLog;
     }
@@ -784,7 +797,14 @@ async function applySuccess(roomId) {
         "gameState.wolfDecisionPlayerId": null,
         "gameState.wolfActionRequest": null,
       };
-      tx.update(roomRef, updates);
+      // undefinedを除外
+      const cleanedUpdates = {};
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) {
+          cleanedUpdates[key] = value;
+        }
+      }
+      tx.update(roomRef, cleanedUpdates);
       return;
     }
 
@@ -810,7 +830,14 @@ async function applySuccess(roomId) {
       "gameState.wolfActionRequest": null,
     };
     
-    tx.update(roomRef, updates);
+    // undefinedを除外
+    const cleanedUpdates = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanedUpdates[key] = value;
+      }
+    }
+    tx.update(roomRef, cleanedUpdates);
   });
 }
 
@@ -899,7 +926,14 @@ async function applyFail(roomId) {
         updates["gameState.doctorHasFailed"] = true;
       }
       
-      tx.update(roomRef, updates);
+      // undefinedを除外
+      const cleanedUpdates = {};
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) {
+          cleanedUpdates[key] = value;
+        }
+      }
+      tx.update(roomRef, cleanedUpdates);
       return;
     }
 
@@ -913,9 +947,17 @@ async function applyFail(roomId) {
       updates["gameState.doctorHasFailed"] = true;
     }
     
+    // undefinedを除外（endTurnAndPrepareNextでもフィルタリングされるが、念のため）
+    const cleanedUpdates = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanedUpdates[key] = value;
+      }
+    }
+    
     // 背水の陣の効果は「そのターン中のみ」のため、次のターン開始時に解除される
     
-    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, updates);
+    endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, true, cleanedUpdates);
   });
 }
 
@@ -991,7 +1033,14 @@ async function applyDoctorPunch(roomId) {
       ...(nextIndex === 0 ? { "gameState.pendingLastPlayerResult": true } : {}),
     };
     
-    tx.update(roomRef, updates);
+    // undefinedを除外
+    const cleanedUpdates = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanedUpdates[key] = value;
+      }
+    }
+    tx.update(roomRef, cleanedUpdates);
   });
 }
 

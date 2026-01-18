@@ -1,7 +1,7 @@
 // アークナイツ人狼 ツール エントリーポイント
 
 // バージョン情報
-const APP_VERSION = "1.1.95";
+const APP_VERSION = "1.1.98";
 
 import { GameState } from "./game-state.js";
 import { onAuthStateChanged, signInAnonymously } from "./firebase-auth.js";
