@@ -1471,7 +1471,10 @@ function handlePhaseUI(roomData, previousPhase = null) {
     
     const gameResult = gameState.gameResult;
     if (gameResult) {
+      console.log("[syncGameStateFromFirebase] Phase is finished, calling showGameResult with:", gameResult);
       showGameResult(roomData, gameResult);
+    } else {
+      console.warn("[syncGameStateFromFirebase] Phase is finished but gameResult is missing:", gameState);
     }
   }
   
@@ -2550,7 +2553,18 @@ function showGameResult(roomData, gameResult) {
   const voteResultsEl = document.getElementById("victory-vote-results");
   const rolesEl = document.getElementById("victory-roles");
   
-  if (!victoryScreen || !titleEl || !storyEl || !rolesEl) return;
+  if (!victoryScreen || !titleEl || !storyEl || !rolesEl) {
+    console.warn("[showGameResult] Victory screen elements not found:", {
+      victoryScreen: !!victoryScreen,
+      titleEl: !!titleEl,
+      storyEl: !!storyEl,
+      voteResultsEl: !!voteResultsEl,
+      rolesEl: !!rolesEl
+    });
+    return;
+  }
+  
+  console.log("[showGameResult] Showing victory screen for gameResult:", gameResult);
 
   // 勝利画面は背景を不透明にしたいので、ゲストUI透過クラスを確実に外す
   document.body.classList.remove("guest-ui");

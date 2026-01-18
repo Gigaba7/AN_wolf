@@ -696,6 +696,13 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     updates["gameState.discussionEndTime"] = endTime;
     // discussionPhaseは後で設定（turnResult表示後に）
     // ここでは設定しない
+    
+    // 次のターンに進む場合も、現在のターンのログを確実に保存する
+    // （applySuccessやapplyFailで更新されたturnLogを保存）
+    const currentTurnLog = data?.gameState?.turnLog || extraUpdates?.["gameState.turnLog"];
+    if (Array.isArray(currentTurnLog)) {
+      updates["gameState.turnLog"] = currentTurnLog;
+    }
   }
 
   // updatesからundefinedを除外（Firebaseはundefinedを許可しない）
