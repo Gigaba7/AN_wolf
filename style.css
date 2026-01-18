@@ -1000,16 +1000,8 @@ button {
   padding: 12px 16px;
   flex: 1;
   min-height: 0;
-  background: transparent;
-}
-
-/* 背景パネル：プレイ映像エリアの周囲（上下左右）を背景で埋める */
-.play-video-bg-panel {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(145deg, rgba(15, 18, 25, 0.98), rgba(5, 7, 18, 0.98));
-  z-index: 0;
-  pointer-events: none;
+  /* プレイ映像エリアの周囲（上下左右）の背景 */
+  background: linear-gradient(145deg, rgba(15, 18, 25, 0.98), rgba(5, 7, 18, 0.98)) !important;
 }
 
 .play-video-area {
