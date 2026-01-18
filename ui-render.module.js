@@ -650,6 +650,8 @@ function renderUnderVideoInfo() {
     typeof cfg?.ruleText === "string" ? cfg.ruleText : (GameState.options.ruleText || "");
   const ruleText = (rawRuleText || "").trim() ? rawRuleText : DEFAULT_RULE_TEXT;
 
+  const appVersion = typeof window !== "undefined" && window.APP_VERSION ? window.APP_VERSION : "";
+  
   el.innerHTML = `
     <div style="display:flex; gap:16px; height:100%; padding:14px 16px; box-sizing:border-box;">
       <div style="flex: 0 0 42%; min-width: 320px;">
@@ -664,6 +666,7 @@ function renderUnderVideoInfo() {
         <div style="font-size:28px; color:#d4d6e3; line-height:1.6; white-space:pre-wrap; overflow:auto; max-height:100%;">${escapeHtml(ruleText)}</div>
       </div>
     </div>
+    ${appVersion ? `<div id="game-version-display" class="game-version-display">v${escapeHtml(appVersion)}</div>` : ""}
   `;
 }
 

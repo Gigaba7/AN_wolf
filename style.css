@@ -749,6 +749,19 @@ button {
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
+  position: relative;
+}
+
+.game-version-display {
+  position: absolute;
+  bottom: 4px;
+  right: 12px;
+  font-size: 10px;
+  color: rgba(160, 164, 186, 0.5);
+  pointer-events: none;
+  z-index: 100;
+  font-family: monospace;
+  letter-spacing: 0.05em;
 }
 
 .panel {

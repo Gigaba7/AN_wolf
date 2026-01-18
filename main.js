@@ -1,7 +1,7 @@
 // アークナイツ人狼 ツール エントリーポイント
 
 // バージョン情報
-const APP_VERSION = "1.1.57";
+const APP_VERSION = "1.1.59";
 
 import { GameState } from "./game-state.js";
 import { onAuthStateChanged, signInAnonymously } from "./firebase-auth.js";
@@ -39,4 +39,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupMainScreen();
   setupParticipantScreen();
   setupModals();
+  
+  // APP_VERSIONをwindowに公開（他のモジュールから参照できるように）
+  if (typeof window !== "undefined") {
+    window.APP_VERSION = APP_VERSION;
+  }
+  
+  // ゲーム画面にバージョン表示を設定
+  const versionDisplay = document.getElementById("game-version-display");
+  if (versionDisplay) {
+    versionDisplay.textContent = `v${APP_VERSION}`;
+  }
 });
