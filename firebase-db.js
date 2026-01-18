@@ -324,7 +324,12 @@ async function startGameAsHost(roomId) {
       throw new Error("Player count must be 3-8 to start");
     }
 
-    // ロビーに戻る確認メカニズムは削除：全員がロビーに戻るのを待たなくてもゲーム開始可能
+    // 全員がロビーに戻ったかチェック
+    const resultReturnLobbyAcks = data?.gameState?.resultReturnLobbyAcks || {};
+    const ackedCount = Object.keys(resultReturnLobbyAcks).length;
+    if (ackedCount < count) {
+      throw new Error(`Not all players have returned to lobby (${ackedCount}/${count})`);
+    }
 
     // 役職：1狼 + 1ドクター + 残り市民
     const roles = ["wolf", "doctor"];

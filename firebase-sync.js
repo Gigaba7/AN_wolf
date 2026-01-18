@@ -2914,16 +2914,12 @@ function setupVictoryScreenButtons(roomData) {
   const isGM = !!(createdBy && myId && createdBy === myId);
   
   if (returnLobbyBtn) {
-    // ゲストUIの場合は非表示
-    if (!isGM) {
-      returnLobbyBtn.style.display = "none";
-    } else {
-      returnLobbyBtn.style.display = "";
-      // 既存のイベントリスナーを削除してから追加
-      const newBtn = returnLobbyBtn.cloneNode(true);
-      returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
-      
-      newBtn.addEventListener("click", async () => {
+    returnLobbyBtn.style.display = "";
+    // 既存のイベントリスナーを削除してから追加
+    const newBtn = returnLobbyBtn.cloneNode(true);
+    returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
+    
+    newBtn.addEventListener("click", async () => {
       const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
       if (!roomId) return;
       
@@ -3031,7 +3027,7 @@ function setupVictoryScreenButtons(roomData) {
   }
   
   if (disbandBtn) {
-    // ゲストUIの場合は非表示
+    // 解散ボタンはGMのみ
     if (!isGM) {
       disbandBtn.style.display = "none";
     } else {
@@ -3080,7 +3076,6 @@ function setupVictoryScreenButtons(roomData) {
     }
   }
 }
-}
 
 /**
  * 勝利画面のボタンイベントリスナーを設定
@@ -3095,16 +3090,12 @@ function setupResultModalButtons(roomData) {
   const isGM = !!(createdBy && myId && createdBy === myId);
   
   if (returnLobbyBtn) {
-    // ゲストUIの場合は非表示
-    if (!isGM) {
-      returnLobbyBtn.style.display = "none";
-    } else {
-      returnLobbyBtn.style.display = "";
-      // 既存のイベントリスナーを削除してから追加
-      const newBtn = returnLobbyBtn.cloneNode(true);
-      returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
-      
-      newBtn.addEventListener("click", async () => {
+    returnLobbyBtn.style.display = "";
+    // 既存のイベントリスナーを削除してから追加
+    const newBtn = returnLobbyBtn.cloneNode(true);
+    returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
+    
+    newBtn.addEventListener("click", async () => {
         const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
         if (!roomId) return;
         
@@ -3235,11 +3226,10 @@ function setupResultModalButtons(roomData) {
         alert("ロビーに戻るのに失敗しました。");
       }
     });
-    }
   }
   
   if (disbandBtn) {
-    // ゲストUIの場合は非表示
+    // 解散ボタンはGMのみ
     if (!isGM) {
       disbandBtn.style.display = "none";
     } else {
