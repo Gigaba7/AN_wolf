@@ -33,6 +33,16 @@ function switchScreen(fromId, toId) {
     const shouldOpaque = toId !== "main-screen";
     document.body.classList.toggle("opaque-bg", shouldOpaque);
   }
+  
+  // 勝利画面から遷移する場合は、勝利画面の背景クラスを削除
+  if (fromId === "victory-screen") {
+    const victoryScreen = document.getElementById("victory-screen");
+    if (victoryScreen) {
+      victoryScreen.classList.remove("victory-wolf", "victory-citizen");
+    }
+    document.body.classList.remove("victory-wolf-bg", "victory-citizen-bg");
+    document.getElementById("app")?.classList.remove("victory-wolf-bg", "victory-citizen-bg");
+  }
 }
 
 export { openModal, closeModal, closeAllRouletteModals, switchScreen };

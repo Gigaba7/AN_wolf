@@ -1486,6 +1486,14 @@ function handlePhaseUI(roomData, previousPhase = null) {
         processAnnouncementQueue();
       }
     }
+    
+    // 勝利画面のクラスと背景をクリア
+    const victoryScreen = document.getElementById("victory-screen");
+    if (victoryScreen) {
+      victoryScreen.classList.remove("active", "victory-wolf", "victory-citizen");
+    }
+    document.body.classList.remove("victory-wolf-bg", "victory-citizen-bg");
+    document.getElementById("app")?.classList.remove("victory-wolf-bg", "victory-citizen-bg");
   }
 
   // 会議フェーズの処理（final_phaseの時はスキップ）
