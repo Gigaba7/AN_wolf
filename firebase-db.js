@@ -688,7 +688,13 @@ function endTurnAndPrepareNext(tx, roomRef, data, playersObj, order, isFailureTu
     
     // 最終フェーズに突入する場合、最後のターンのログを確実に保存する
     // （applySuccessやapplyFailで更新されたturnLogを保存）
-    const currentTurnLog = data?.gameState?.turnLog;
+    // extraUpdatesにturnLogがあればそれを使用、なければdata.gameState.turnLogを使用
+    let currentTurnLog = null;
+    if (extraUpdates && typeof extraUpdates === 'object' && extraUpdates["gameState.turnLog"] !== undefined) {
+      currentTurnLog = extraUpdates["gameState.turnLog"];
+    } else if (data?.gameState?.turnLog !== undefined) {
+      currentTurnLog = data.gameState.turnLog;
+    }
     if (Array.isArray(currentTurnLog)) {
       updates["gameState.turnLog"] = currentTurnLog;
     }
