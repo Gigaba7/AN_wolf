@@ -232,6 +232,7 @@ body.turn-5 {
 /* ゲストUI（参加者画面）は、パネル外の背景を透過にする */
 body.guest-ui {
   background: transparent !important;
+  background-image: none !important;
   box-shadow: none !important;
   animation: none !important;
 }
