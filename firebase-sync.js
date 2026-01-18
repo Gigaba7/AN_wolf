@@ -2095,9 +2095,12 @@ async function handleDoctorPunchAction(data, roomId) {
   // DB側での処理（subphaseをawait_doctor_punch_resultに変更）のみ実行
   // ポップアップ表示はsyncGameStateFromFirebase側での検知に任せる
   try {
+    console.log("[TurnFlow] doctorPunch (dispatch)", { roomId, data });
     await applyDoctorPunchDB(roomId);
+    console.log("[TurnFlow] doctorPunch (completed)", { roomId });
   } catch (e) {
     console.error("Failed to apply doctor punch:", e);
+    alert(e?.message || "ドクター神拳の処理に失敗しました。");
   }
 }
 

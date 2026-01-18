@@ -81,10 +81,30 @@ async function onFail() {
 }
 
 async function onDoctorPunch() {
-  if (!GameState.players.length || GameState.resultLocked) return;
-  if (!GameState.pendingFailure) return;
-  if (!GameState.doctorPunchAvailableThisTurn) return;
-  if (GameState.doctorPunchRemaining <= 0) return;
+  console.log("[DoctorPunch] onDoctorPunch called", {
+    hasPlayers: !!GameState.players.length,
+    resultLocked: GameState.resultLocked,
+    pendingFailure: GameState.pendingFailure,
+    doctorPunchAvailableThisTurn: GameState.doctorPunchAvailableThisTurn,
+    doctorPunchRemaining: GameState.doctorPunchRemaining
+  });
+  
+  if (!GameState.players.length || GameState.resultLocked) {
+    console.warn("[DoctorPunch] Early return: no players or result locked");
+    return;
+  }
+  if (!GameState.pendingFailure) {
+    console.warn("[DoctorPunch] Early return: no pending failure");
+    return;
+  }
+  if (!GameState.doctorPunchAvailableThisTurn) {
+    console.warn("[DoctorPunch] Early return: doctor punch not available this turn");
+    return;
+  }
+  if (GameState.doctorPunchRemaining <= 0) {
+    console.warn("[DoctorPunch] Early return: no doctor punch remaining");
+    return;
+  }
 
   // 神拳対象は「失敗保留中のプレイヤー」
   const targetId = GameState.pendingFailure?.playerId || null;
@@ -95,13 +115,18 @@ async function onDoctorPunch() {
   const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
   if (roomId) {
     try {
+      console.log("[DoctorPunch] Calling syncToFirebase", { roomId, targetName });
       await syncToFirebase('doctorPunch', { 
         targetPlayerName: targetName,
         roomId
       });
+      console.log("[DoctorPunch] syncToFirebase completed");
     } catch (error) {
       console.error('Failed to sync doctor punch:', error);
+      alert(error?.message || "ドクター神拳の送信に失敗しました。");
     }
+  } else {
+    console.error("[DoctorPunch] No roomId available");
   }
 }
 
