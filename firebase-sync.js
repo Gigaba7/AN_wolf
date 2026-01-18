@@ -1490,6 +1490,9 @@ function handlePhaseUI(roomData, previousPhase = null) {
       // 既に勝利画面が表示されている場合はスキップ（重複防止）
       const victoryScreen = document.getElementById("victory-screen");
       if (victoryScreen && victoryScreen.classList.contains("active")) {
+        // 既に表示されている場合は、ボタンのイベントリスナーが設定されているか確認
+        // 念のため、再度設定する（イベントリスナーが失われている可能性があるため）
+        setupVictoryScreenButtons(roomData);
         return; // 既に表示されているので何もしない
       }
       
@@ -2876,6 +2879,8 @@ function setupVictoryScreenButtons(roomData) {
   const returnLobbyBtn = document.getElementById("victory-return-lobby");
   const disbandBtn = document.getElementById("victory-disband");
   
+  console.log("[setupVictoryScreenButtons] Called", { returnLobbyBtn: !!returnLobbyBtn, disbandBtn: !!disbandBtn });
+  
   // ゲストUIの場合はボタンを非表示
   const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
   const myId = typeof window !== "undefined" ? window.__uid : null;
@@ -2887,7 +2892,10 @@ function setupVictoryScreenButtons(roomData) {
     const newBtn = returnLobbyBtn.cloneNode(true);
     returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
     
+    console.log("[setupVictoryScreenButtons] Button replaced, adding event listener", { newBtn: !!newBtn, disabled: newBtn.disabled });
+    
     newBtn.addEventListener("click", async () => {
+      console.log("[ReturnToLobby] Button clicked!");
       // 重複クリック防止
       if (newBtn.disabled) {
         return;
