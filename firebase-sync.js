@@ -3363,7 +3363,24 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
 }
 
 // identifyWolfDBは既にインポートされているので、そのままエクスポート
-export { createRoomAndStartGame, joinRoomAndSync, syncToFirebase, stopRoomSync, startGameAsHost, acknowledgeRoleReveal, advanceToPlayingIfAllAckedDB, wolfDecision, resolveWolfAction, resolveWolfActionRoulette, activateWolfAction, showGMRolesModal, applyDoctorSkipDB, identifyWolfDB, endDiscussionPhaseDB as endDiscussionPhase, extendDiscussionPhaseDB as extendDiscussionPhase };
+export { 
+  createRoomAndStartGame, 
+  joinRoomAndSync, 
+  syncToFirebase, 
+  stopRoomSync, 
+  startGameAsHost, 
+  acknowledgeRoleReveal, 
+  advanceToPlayingIfAllAckedDB, 
+  wolfDecision, 
+  resolveWolfAction, 
+  resolveWolfActionRoulette, 
+  activateWolfAction, 
+  showGMRolesModal, 
+  applyDoctorSkipDB, 
+  identifyWolfDB, 
+  endDiscussionPhaseDB as endDiscussionPhase, 
+  extendDiscussionPhaseDB as extendDiscussionPhase 
+};
 
 // 新しいデフォルト同期API（チャット追加もここにぶら下げる想定）
 export { roomClient };
