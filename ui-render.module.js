@@ -334,7 +334,10 @@ function renderWaitingScreen(roomId) {
 
     // ゲーム開始ボタンの有効/無効を切り替え
     if (startBtn) {
-      const phase = typeof window !== "undefined" ? window.RoomInfo?.gameState?.phase : null;
+      // phaseはwindow.RoomInfoから取得するが、存在しない場合はGameStateから取得
+      const phase = typeof window !== "undefined" 
+        ? (window.RoomInfo?.gameState?.phase ?? GameState.phase)
+        : GameState.phase;
       const createdBy = typeof window !== "undefined" ? window.RoomInfo?.config?.createdBy : null;
       const myId = typeof window !== "undefined" ? window.__uid : null;
       const isHost = !!(createdBy && myId && createdBy === myId);
