@@ -622,7 +622,7 @@ button {
   align-items: center;
   justify-content: center;
   padding: 20px 32px;
-  background: linear-gradient(145deg, rgba(15, 18, 25, 1), rgba(5, 7, 18, 1));
+  background: linear-gradient(145deg, rgba(15, 18, 25, 0.95), rgba(5, 7, 18, 0.98));
   border: 2px solid rgba(200, 200, 220, 0.15);
   border-bottom: none;
   height: auto;
