@@ -678,10 +678,10 @@ button {
   flex: 1;
   display: grid;
   grid-template-columns: var(--side-panel-width) 1fr;
-  grid-template-rows: 600px auto;
+  grid-template-rows: 1fr auto;
   gap: 12px;
   padding: 12px 16px;
-  height: calc(600px + 12px + 220px + 24px);
+  height: calc(1080px - 24px - 50px - 100px - 110px);
   min-height: 0;
   overflow: hidden;
 }
@@ -722,8 +722,8 @@ button {
 }
 
 .players-panel {
-  height: 600px;
-  max-height: 600px;
+  height: 100%;
+  max-height: 100%;
   padding-top: 10px;
   padding-bottom: 10px;
   grid-row: 1;
