@@ -762,8 +762,13 @@ async function applySuccess(roomId) {
     // この待機中に subphase が await_result のままだと、GMが「もう一度成功/失敗を入力すべき？」と誤認しやすいので、
     // 専用の待機サブフェーズ await_next_player にして入力を受け付けないようにする。
     
-    // 次のプレイヤーのターン開始時に、背水の陣の効果を解除（そのターン中のみの効果）
-    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+    // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
+    // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う。
+    // この待機中に subphase が await_result のままだと、GMが「もう一度成功/失敗を入力すべき？」と誤認しやすいので、
+    // 専用の待機サブフェーズ await_next_player にして入力を受け付けないようにする。
+    // 注意：背水の陣の効果は「そのターン中のみ」だが、ドクター神拳を使用した場合は
+    // doctorPunchAvailableThisTurnがfalseのままなので、ここではtrueにリセットしない
+    // （次のラウンド開始時にendTurnAndPrepareNextでtrueにリセットされる）
     const updates = {
       "gameState.currentPlayerIndex": nextIndex,
       "gameState.turnLog": turnLog, // ログを保存
@@ -773,9 +778,6 @@ async function applySuccess(roomId) {
       "gameState.wolfDecisionPlayerId": null,
       "gameState.wolfActionRequest": null,
     };
-    if (doctorId) {
-      updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
-    }
     
     tx.update(roomRef, updates);
   });
@@ -1009,9 +1011,6 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
       return;
     }
 
-    // 次のプレイヤーのターン開始時に、背水の陣の効果を解除（そのターン中のみの効果）
-    const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
-    
     // 次のプレイヤーは challenge_start から開始（「○○の挑戦です」を表示）
     // ただし、挑戦結果ポップアップが表示されるまで待つため、challenge_startへの移行は後で行う。
     // 専用の待機サブフェーズ await_next_player にして入力を受け付けないようにする。
@@ -1025,9 +1024,9 @@ async function proceedToNextPlayerAfterDoctorPunch(roomId) {
       "gameState.pendingFailure": null, // 念のためpendingFailureもクリア
       "gameState.pendingDoctorPunchSuccess": null, // 成功ポップアップ表示用フラグをクリア
     };
-    if (doctorId) {
-      updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = true;
-    }
+    // 注意：背水の陣の効果は「そのターン中のみ」だが、ドクター神拳を使用した場合は
+    // doctorPunchAvailableThisTurnがfalseのままなので、ここではtrueにリセットしない
+    // （次のラウンド開始時にendTurnAndPrepareNextでtrueにリセットされる）
     tx.update(roomRef, updates);
   });
 }
@@ -1403,6 +1402,18 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
       throw new Error(`Insufficient cost: need ${actionCost}, have ${currentCost}`);
     }
 
+    // 背水の陣の発動条件：ドクター神拳が使用可能な場合のみ発動可能（doctorPunchAvailableThisTurnがfalseの場合は発動不可）
+    if (actionText === "背水の陣") {
+      const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+      if (doctorId) {
+        const doctorRes = playersObj[doctorId]?.resources || {};
+        const doctorPunchAvailable = doctorRes.doctorPunchAvailableThisTurn !== false;
+        if (!doctorPunchAvailable) {
+          throw new Error("背水の陣は、ドクター神拳が使用可能な場合のみ発動できます。");
+        }
+      }
+    }
+
     // 妨害タイトルは「キー(text)」と「コスト(cost)」から自動生成する（ルール設定でタイトル編集しない）
     const computedTitle = `妨害：${actionText}(-${Math.floor(Math.max(0, actionCost))})`;
 
@@ -1410,7 +1421,7 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
     if (requiresRoulette && Array.isArray(rouletteOptions) && rouletteOptions.length > 0) {
       // ルーレットリクエストを設定（GM画面でルーレットを実行）
       const nowTs = Date.now();
-      tx.update(roomRef, {
+      const updates = {
         [`players.${userId}.resources.wolfActionsRemaining`]: currentCost - actionCost,
         "gameState.wolfActionRequest": {
           playerId: userId,
@@ -1429,7 +1440,15 @@ async function activateWolfAction(roomId, actionText, actionCost, requiresRoulet
         },
         "gameState.subphase": "wolf_resolving",
         "gameState.wolfDecisionPlayerId": null,
-      });
+      };
+      // 背水の陣が発動された場合、ドクター神拳使用不可フラグを設定
+      if (actionText === "背水の陣") {
+        const doctorId = Object.keys(playersObj).find((pid) => playersObj?.[pid]?.role === "doctor") || null;
+        if (doctorId) {
+          updates[`players.${doctorId}.resources.doctorPunchAvailableThisTurn`] = false;
+        }
+      }
+      tx.update(roomRef, updates);
       return;
     }
 

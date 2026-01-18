@@ -396,6 +396,10 @@ function renderWolfActionList() {
     ? GameState.options.wolfActions
     : (Array.isArray(GameState.options.wolfActionTexts) ? GameState.options.wolfActionTexts.map(text => ({ text, cost: 1 })) : []);
 
+  // ドクター神拳使用可否を取得（背水の陣の発動条件判定用）
+  const doctorPlayer = GameState.players.find(p => p.role === "doctor");
+  const doctorPunchAvailable = doctorPlayer?.resources?.doctorPunchAvailableThisTurn !== false;
+
   actions.forEach((action, index) => {
     const actionText = typeof action === "string" ? action : action.text;
     const actionCost = typeof action === "string" ? 1 : (action.cost || 1);
@@ -404,7 +408,9 @@ function renderWolfActionList() {
     const requiresRoulette = typeof action === "object" && action.requiresRoulette === true;
     const enabled = typeof action === "object" ? action.enabled !== false : true;
     const canAfford = currentCost >= actionCost;
-    const canUse = enabled && canAfford;
+    // 背水の陣は、ドクター神拳が使用可能な場合のみ発動可能
+    const canUseBackwater = actionText !== "背水の陣" || doctorPunchAvailable;
+    const canUse = enabled && canAfford && canUseBackwater;
 
     const item = document.createElement("div");
     item.className = "wolf-action-item";
