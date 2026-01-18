@@ -1525,6 +1525,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
   }
   
   // waitingフェーズに戻った時もアナウンスをクリア
+  // ただし、勝利画面からロビーに戻る場合は、手動で画面切り替えが行われるため、ここでは自動切り替えしない
+  // （1人がロビーに戻っただけで全員がロビーに戻されるのを防ぐため）
   if (phase === 'waiting' && previousPhase !== 'waiting') {
     const announcementModal = document.getElementById("announcement-modal");
     if (announcementModal && !announcementModal.classList.contains("hidden")) {
@@ -1536,45 +1538,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
       }
     }
     
-    // 勝利画面のクラスと背景をクリア
-    const victoryScreen = document.getElementById("victory-screen");
-    if (victoryScreen) {
-      victoryScreen.classList.remove("active", "victory-wolf", "victory-citizen");
-    }
-    document.body.classList.remove("victory-wolf-bg", "victory-citizen-bg");
-    document.getElementById("app")?.classList.remove("victory-wolf-bg", "victory-citizen-bg");
-    
-    // 勝利画面や他の画面から待機画面に遷移
-    const waiting = document.getElementById("waiting-screen");
-    const main = document.getElementById("main-screen");
-    const participant = document.getElementById("participant-screen");
-    
-    // 現在アクティブな画面を特定して、待機画面に切り替え
-    let currentActiveScreen = null;
-    if (victoryScreen && victoryScreen.classList.contains("active")) {
-      currentActiveScreen = "victory-screen";
-    } else if (main && main.classList.contains("active")) {
-      currentActiveScreen = "main-screen";
-    } else if (participant && participant.classList.contains("active")) {
-      currentActiveScreen = "participant-screen";
-    }
-    
-    // 画面を切り替え（switchScreenは既にimportされている）
-    if (currentActiveScreen && switchScreen) {
-      switchScreen(currentActiveScreen, "waiting-screen");
-    } else if (waiting && !waiting.classList.contains("active")) {
-      // どの画面もアクティブでない場合、待機画面を表示
-      if (victoryScreen) victoryScreen.classList.remove("active");
-      if (main) main.classList.remove("active");
-      if (participant) participant.classList.remove("active");
-      waiting.classList.add("active");
-    }
-    
-    // 待機画面を描画（renderAllが待機画面がアクティブな場合は自動的にrenderWaitingScreenを呼ぶ）
-    const renderAll = typeof window !== "undefined" && window.renderAll ? window.renderAll : null;
-    if (renderAll && typeof renderAll === "function") {
-      renderAll();
-    }
+    // 勝利画面から待機画面への自動切り替えは行わない
+    // （各プレイヤーが個別に「ロビーに戻る」ボタンを押して戻るため）
   }
 
   // 会議フェーズの処理（final_phaseの時はスキップ）
@@ -2923,8 +2888,15 @@ function setupVictoryScreenButtons(roomData) {
     returnLobbyBtn.parentNode.replaceChild(newBtn, returnLobbyBtn);
     
     newBtn.addEventListener("click", async () => {
+      // 重複クリック防止
+      if (newBtn.disabled) return;
+      newBtn.disabled = true;
+      
       const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
-      if (!roomId) return;
+      if (!roomId) {
+        newBtn.disabled = false;
+        return;
+      }
       
       try {
         const userId = getCurrentUserId();
@@ -2968,6 +2940,10 @@ function setupVictoryScreenButtons(roomData) {
       } catch (e) {
         console.error("Failed to return to lobby:", e);
         alert(e?.message || "ロビーに戻る処理に失敗しました。");
+        newBtn.disabled = false;
+      } finally {
+        // 成功時もボタンを再度有効化（必要に応じて）
+        // newBtn.disabled = false;
       }
     });
   }
@@ -3102,6 +3078,10 @@ function setupResultModalButtons(roomData) {
       } catch (e) {
         console.error("Failed to return to lobby:", e);
         alert("ロビーに戻るのに失敗しました。");
+        newBtn.disabled = false;
+      } finally {
+        // 成功時もボタンを再度有効化（必要に応じて）
+        // newBtn.disabled = false;
       }
     });
   }
