@@ -1337,6 +1337,12 @@ button {
   animation: modalFadeIn 0.2s ease-out forwards;
 }
 
+/* ゲストUIのルールブックとログモーダルを最前面に表示（投票画面よりも前面） */
+#rulebook-modal,
+#log-modal {
+  z-index: 60 !important;
+}
+
 .modal.hidden {
   display: none;
   opacity: 0;
