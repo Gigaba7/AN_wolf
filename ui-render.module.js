@@ -653,15 +653,15 @@ function renderUnderVideoInfo() {
   el.innerHTML = `
     <div style="display:flex; gap:16px; height:100%; padding:14px 16px; box-sizing:border-box;">
       <div style="flex: 0 0 42%; min-width: 320px;">
-        <div style="font-weight:700; font-size:16px; color:#f5f5f7; margin-bottom:8px;">このターンの妨害</div>
-        <div style="font-size:14px; color:#d4d6e3; line-height:1.5; white-space:pre-wrap;">
+        <div style="font-weight:700; font-size:32px; color:#f5f5f7; margin-bottom:8px;">このターンの妨害</div>
+        <div style="font-size:28px; color:#d4d6e3; line-height:1.5; white-space:pre-wrap;">
           ${escapeHtml(wolfText || "（妨害なし）")}
         </div>
-        ${wolfSub ? `<div style="margin-top:8px; font-size:12px; color:#a0a4ba; line-height:1.5; white-space:pre-wrap;">${escapeHtml(wolfSub)}</div>` : ""}
+        ${wolfSub ? `<div style="margin-top:8px; font-size:24px; color:#a0a4ba; line-height:1.5; white-space:pre-wrap;">${escapeHtml(wolfSub)}</div>` : ""}
       </div>
       <div style="flex: 1; min-width: 0;">
-        <div style="font-weight:700; font-size:16px; color:#f5f5f7; margin-bottom:8px;">ルール</div>
-        <div style="font-size:14px; color:#d4d6e3; line-height:1.6; white-space:pre-wrap; overflow:auto; max-height:100%;">${escapeHtml(ruleText)}</div>
+        <div style="font-weight:700; font-size:32px; color:#f5f5f7; margin-bottom:8px;">ルール</div>
+        <div style="font-size:28px; color:#d4d6e3; line-height:1.6; white-space:pre-wrap; overflow:auto; max-height:100%;">${escapeHtml(ruleText)}</div>
       </div>
     </div>
   `;

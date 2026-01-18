@@ -681,7 +681,7 @@ button {
   grid-template-rows: 1fr auto;
   gap: 12px;
   padding: 12px 16px;
-  height: calc(1080px - 24px);
+  height: calc(1080px - 24px - 50px);
   min-height: 0;
   overflow: hidden;
 }
