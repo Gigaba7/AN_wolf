@@ -198,7 +198,8 @@ function updateControlPermissions() {
 
   if (isGM) {
     // GM：成功/失敗ボタン（ステージ選出後、結果待ちフェーズで有効）
-    const canJudge = inPlaying && subphase === "await_result";
+    // await_doctor_skip_resultでも成功ボタンは有効（次のプレイヤーが成功した場合など）
+    const canJudge = inPlaying && (subphase === "await_result" || subphase === "await_doctor_skip_result");
     if (btnSuccess) btnSuccess.disabled = !canJudge || !!GameState.pendingFailure;
     if (btnFail) {
       btnFail.disabled = !canJudge;
