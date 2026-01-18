@@ -380,6 +380,7 @@ async function startGameAsHost(roomId) {
       "gameState.finalPhaseVoteCounts": null,
       "gameState.finalPhaseDiscussionEndTime": null,
       "gameState.gameResult": null,
+      "gameState.showVictoryScreen": false, // 新ゲーム開始時に勝利画面フラグをリセット
       "gameState.doctorHasFailed": false,
       "gameState.lock": null,
     };

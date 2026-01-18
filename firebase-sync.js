@@ -432,7 +432,6 @@ function _processNextAnnouncement() {
     if (pendingGameResult) {
       const { roomData, gameResult } = pendingGameResult;
       pendingGameResult = null;
-      console.log("[_processNextAnnouncement] Queue is empty, showing pending game result:", gameResult);
       showGameResult(roomData, gameResult);
     }
     return;
@@ -1488,6 +1487,12 @@ function handlePhaseUI(roomData, previousPhase = null) {
     
     const gameResult = gameState.gameResult;
     if (gameResult) {
+      // 既に勝利画面が表示されている場合はスキップ（重複防止）
+      const victoryScreen = document.getElementById("victory-screen");
+      if (victoryScreen && victoryScreen.classList.contains("active")) {
+        return; // 既に表示されているので何もしない
+      }
+      
       const showVictoryScreen = gameState.showVictoryScreen === true;
       
       // GM画面: キューが空の場合のみ即座に表示、そうでない場合はキューが空になるまで待機
@@ -1496,15 +1501,8 @@ function handlePhaseUI(roomData, previousPhase = null) {
         // キューが空の場合のみ即座に表示、そうでない場合はキューが空になるまで待機
         const queueEmpty = isAnnouncementQueueEmpty();
         if (queueEmpty) {
-          console.log("[syncGameStateFromFirebase] Phase is finished, queue is empty, calling showGameResult with:", gameResult);
           showGameResult(roomData, gameResult);
         } else {
-          // デバッグ情報を出力
-          const debugState = _getAnnouncementQueueDebugState();
-          console.log("[syncGameStateFromFirebase] Phase is finished, queue is not empty, waiting for queue to finish.", {
-            queueLength: announcementQueue.length,
-            debugState
-          });
           // キューが空になるまで待機
           pendingGameResult = { roomData, gameResult };
           // キュー処理が開始されていない場合は開始する
@@ -1515,12 +1513,9 @@ function handlePhaseUI(roomData, previousPhase = null) {
       } else {
         // ゲストUI: showVictoryScreenフラグがtrueの場合のみ表示
         if (showVictoryScreen) {
-          console.log("[syncGameStateFromFirebase] Phase is finished, showVictoryScreen flag is true, calling showGameResult with:", gameResult);
           showGameResult(roomData, gameResult);
         }
       }
-    } else {
-      console.warn("[syncGameStateFromFirebase] Phase is finished but gameResult is missing:", gameState);
     }
   }
   
@@ -1528,6 +1523,14 @@ function handlePhaseUI(roomData, previousPhase = null) {
   // ただし、勝利画面からロビーに戻る場合は、手動で画面切り替えが行われるため、ここでは自動切り替えしない
   // （1人がロビーに戻っただけで全員がロビーに戻されるのを防ぐため）
   if (phase === 'waiting' && previousPhase !== 'waiting') {
+    // 勝利画面を確実に閉じる（phaseがwaitingに変わった時）
+    const victoryScreen = document.getElementById("victory-screen");
+    if (victoryScreen) {
+      victoryScreen.classList.remove("active", "victory-wolf", "victory-citizen");
+    }
+    document.body.classList.remove("victory-wolf-bg", "victory-citizen-bg");
+    document.getElementById("app")?.classList.remove("victory-wolf-bg", "victory-citizen-bg");
+    
     const announcementModal = document.getElementById("announcement-modal");
     if (announcementModal && !announcementModal.classList.contains("hidden")) {
       const titleEl = document.getElementById("announcement-title");
@@ -2612,11 +2615,8 @@ function showGameResult(roomData, gameResult) {
   
   // 既に勝利画面が表示されている場合はスキップ（重複防止）
   if (victoryScreen.classList.contains("active")) {
-    console.log("[showGameResult] Victory screen is already active, skipping");
     return;
   }
-  
-  console.log("[showGameResult] Showing victory screen for gameResult:", gameResult);
 
   // GM画面で勝利画面を表示する時に、Firebaseにフラグを設定してゲストUIにも通知
   const isGM = _isGMClient();
@@ -2890,15 +2890,12 @@ function setupVictoryScreenButtons(roomData) {
     newBtn.addEventListener("click", async () => {
       // 重複クリック防止
       if (newBtn.disabled) {
-        console.log("[ReturnToLobby] Button already disabled, ignoring click");
         return;
       }
       newBtn.disabled = true;
-      console.log("[ReturnToLobby] Button clicked, starting return to lobby");
       
       const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
       if (!roomId) {
-        console.error("[ReturnToLobby] No roomId available");
         newBtn.disabled = false;
         return;
       }
@@ -2909,7 +2906,6 @@ function setupVictoryScreenButtons(roomData) {
           throw new Error("User not authenticated");
         }
         
-        console.log("[ReturnToLobby] Updating Firebase ACK", { roomId, userId });
         // トランザクションで処理：既存のresultReturnLobbyAcksを保持しつつ、自分のIDだけをtrueに設定
         const roomRef = doc(firestore, "rooms", roomId);
         await runTransaction(firestore, async (tx) => {
@@ -2925,7 +2921,6 @@ function setupVictoryScreenButtons(roomData) {
           
           tx.update(roomRef, updates);
         });
-        console.log("[ReturnToLobby] Firebase ACK updated successfully");
         
         // 画面をロビー（waiting-screen）に戻す
         const victoryScreen = document.getElementById("victory-screen");
@@ -2933,26 +2928,15 @@ function setupVictoryScreenButtons(roomData) {
         const main = document.getElementById("main-screen");
         const participant = document.getElementById("participant-screen");
         
-        console.log("[ReturnToLobby] Checking active screen", {
-          victoryActive: victoryScreen?.classList.contains("active"),
-          mainActive: main?.classList.contains("active"),
-          participantActive: participant?.classList.contains("active")
-        });
-        
         if (victoryScreen && victoryScreen.classList.contains("active")) {
-          console.log("[ReturnToLobby] Switching from victory-screen to waiting-screen");
           switchScreen("victory-screen", "waiting-screen");
         } else if (main && main.classList.contains("active")) {
-          console.log("[ReturnToLobby] Switching from main-screen to waiting-screen");
           switchScreen("main-screen", "waiting-screen");
         } else if (participant && participant.classList.contains("active")) {
-          console.log("[ReturnToLobby] Switching from participant-screen to waiting-screen");
           switchScreen("participant-screen", "waiting-screen");
         } else {
-          console.log("[ReturnToLobby] Switching from home-screen to waiting-screen");
           switchScreen("home-screen", "waiting-screen");
         }
-        console.log("[ReturnToLobby] Screen switch completed");
         // 次の試合で極秘命令を再表示できるようにリセット
         missionBriefShown = false;
       } catch (e) {
@@ -3038,15 +3022,12 @@ function setupResultModalButtons(roomData) {
     newBtn.addEventListener("click", async () => {
         // 重複クリック防止
         if (newBtn.disabled) {
-          console.log("[ReturnToLobby] Button already disabled, ignoring click (result modal)");
           return;
         }
         newBtn.disabled = true;
-        console.log("[ReturnToLobby] Button clicked, starting return to lobby (result modal)");
         
         const roomId = typeof window !== 'undefined' && window.getCurrentRoomId ? window.getCurrentRoomId() : null;
         if (!roomId) {
-          console.error("[ReturnToLobby] No roomId available (result modal)");
           newBtn.disabled = false;
           return;
         }
@@ -3057,7 +3038,6 @@ function setupResultModalButtons(roomData) {
             throw new Error("User not authenticated");
           }
           
-          console.log("[ReturnToLobby] Updating Firebase ACK (result modal)", { roomId, userId });
           // トランザクションで処理：既存のresultReturnLobbyAcksを保持しつつ、自分のIDだけをtrueに設定
           const roomRef = doc(firestore, "rooms", roomId);
           await runTransaction(firestore, async (tx) => {
@@ -3075,7 +3055,6 @@ function setupResultModalButtons(roomData) {
             
             tx.update(roomRef, updates);
         });
-        console.log("[ReturnToLobby] Firebase ACK updated successfully (result modal)");
         
         // 結果モーダルを閉じる
         const modal = document.getElementById("result-modal");
