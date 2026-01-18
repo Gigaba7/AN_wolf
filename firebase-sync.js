@@ -29,6 +29,7 @@ let lastFailAnnouncementPlayerIndex = null; // 失敗アナウンスの重複防
 let lastDoctorPunchAnnouncement = null; // ドクター神拳アナウンスの重複防止用
 // let lastChallengeStartAutoAdvanceKey = null; // challenge_start の自動進行（二重実行防止） ※1.0.80以降の挙動（巻き戻し）
 let lastFinalPhaseExplanationKey = null; // 最終フェーズ説明ポップアップ（二重表示防止）
+let pendingGameResult = null; // キュー処理待ちのゲーム結果 { roomData, gameResult }
 
 function _getAnnouncementQueueDebugState() {
   const modal = document.getElementById("announcement-modal");
@@ -426,6 +427,14 @@ function _processNextAnnouncement() {
     isProcessingQueue = false;
     // キューが空になった瞬間に、待機系のGMポップアップ/継続表示を再評価
     maybeShowDeferredGMAnnouncements();
+    
+    // 待機中のゲーム結果があれば表示
+    if (pendingGameResult) {
+      const { roomData, gameResult } = pendingGameResult;
+      pendingGameResult = null;
+      console.log("[_processNextAnnouncement] Queue is empty, showing pending game result:", gameResult);
+      showGameResult(roomData, gameResult);
+    }
     return;
   }
   
@@ -1471,8 +1480,19 @@ function handlePhaseUI(roomData, previousPhase = null) {
     
     const gameResult = gameState.gameResult;
     if (gameResult) {
-      console.log("[syncGameStateFromFirebase] Phase is finished, calling showGameResult with:", gameResult);
-      showGameResult(roomData, gameResult);
+      // キューが空の場合のみ即座に表示、そうでない場合はキューが空になるまで待機
+      if (isAnnouncementQueueEmpty()) {
+        console.log("[syncGameStateFromFirebase] Phase is finished, queue is empty, calling showGameResult with:", gameResult);
+        showGameResult(roomData, gameResult);
+      } else {
+        console.log("[syncGameStateFromFirebase] Phase is finished, queue is not empty, waiting for queue to finish. Queue length:", announcementQueue.length);
+        // キューが空になるまで待機
+        pendingGameResult = { roomData, gameResult };
+        // キュー処理が開始されていない場合は開始する
+        if (!isProcessingQueue) {
+          processAnnouncementQueue();
+        }
+      }
     } else {
       console.warn("[syncGameStateFromFirebase] Phase is finished but gameResult is missing:", gameState);
     }
