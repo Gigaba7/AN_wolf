@@ -1489,6 +1489,13 @@ function handlePhaseUI(roomData, previousPhase = null) {
     if (gameResult) {
       // 既に勝利画面が表示されている場合はスキップ（重複防止）
       const victoryScreen = document.getElementById("victory-screen");
+      const waitingScreen = document.getElementById("waiting-screen");
+      
+      // 待機画面がアクティブな場合は、勝利画面を表示しない（ロビーに戻った後など）
+      if (waitingScreen && waitingScreen.classList.contains("active")) {
+        return;
+      }
+      
       if (victoryScreen && victoryScreen.classList.contains("active")) {
         // 既に表示されている場合は何もしない（イベントリスナーは既に設定済みのはず）
         return;
@@ -2940,6 +2947,12 @@ function setupVictoryScreenButtons(roomData) {
         const main = document.getElementById("main-screen");
         const participant = document.getElementById("participant-screen");
         
+        // 先に待機画面をアクティブにしてから、勝利画面を閉じる
+        // （これにより、syncGameStateFromFirebaseが再実行されても、待機画面がアクティブなので勝利画面が再表示されない）
+        if (waiting) {
+          waiting.classList.add("active");
+        }
+        
         // 勝利画面を確実に閉じる
         if (victoryScreen) {
           victoryScreen.classList.remove("active", "victory-wolf", "victory-citizen");
@@ -2947,20 +2960,9 @@ function setupVictoryScreenButtons(roomData) {
         document.body.classList.remove("victory-wolf-bg", "victory-citizen-bg");
         document.getElementById("app")?.classList.remove("victory-wolf-bg", "victory-citizen-bg");
         
-        if (victoryScreen && victoryScreen.classList.contains("active")) {
-          switchScreen("victory-screen", "waiting-screen");
-        } else if (main && main.classList.contains("active")) {
-          switchScreen("main-screen", "waiting-screen");
-        } else if (participant && participant.classList.contains("active")) {
-          switchScreen("participant-screen", "waiting-screen");
-        } else {
-          switchScreen("home-screen", "waiting-screen");
-        }
-        
-        // 待機画面を確実に表示
-        if (waiting) {
-          waiting.classList.add("active");
-        }
+        // 他の画面を閉じる
+        if (main) main.classList.remove("active");
+        if (participant) participant.classList.remove("active");
         
         // 待機画面を描画
         const renderAll = typeof window !== "undefined" && window.renderAll ? window.renderAll : null;
