@@ -2940,6 +2940,13 @@ function setupVictoryScreenButtons(roomData) {
         const main = document.getElementById("main-screen");
         const participant = document.getElementById("participant-screen");
         
+        // 勝利画面を確実に閉じる
+        if (victoryScreen) {
+          victoryScreen.classList.remove("active", "victory-wolf", "victory-citizen");
+        }
+        document.body.classList.remove("victory-wolf-bg", "victory-citizen-bg");
+        document.getElementById("app")?.classList.remove("victory-wolf-bg", "victory-citizen-bg");
+        
         if (victoryScreen && victoryScreen.classList.contains("active")) {
           switchScreen("victory-screen", "waiting-screen");
         } else if (main && main.classList.contains("active")) {
@@ -2948,6 +2955,11 @@ function setupVictoryScreenButtons(roomData) {
           switchScreen("participant-screen", "waiting-screen");
         } else {
           switchScreen("home-screen", "waiting-screen");
+        }
+        
+        // 待機画面を確実に表示
+        if (waiting) {
+          waiting.classList.add("active");
         }
         
         // 待機画面を描画
