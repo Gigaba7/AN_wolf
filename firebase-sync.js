@@ -1149,7 +1149,7 @@ function syncGameStateFromFirebase(roomData) {
 
     const mergedActions = mergeWolfActions(config.wolfActions, defaults);
 
-    // 既知の不整合を正規化（過去のデフォルト値ミスなど）
+    // enabled は未設定なら ON 扱い
     const normalizedActions = (Array.isArray(mergedActions) ? mergedActions : []).map((a) => {
       if (!a || typeof a !== "object") return a;
       const next = { ...a };
@@ -1157,19 +1157,6 @@ function syncGameStateFromFirebase(roomData) {
       // enabled は未設定なら ON 扱い
       if (next.enabled === undefined) {
         next.enabled = true;
-      }
-
-      // 背水の陣：効果説明が旧仕様のままの場合は補正
-      if (next.text === "背水の陣") {
-        if (next.oldName === "ドクター神拳使用不可" || next.oldName === "次のラウンドまでドクター神拳使用不可") {
-          next.oldName = "そのターン中ドクター神拳使用不可";
-        }
-        if (typeof next.announcementSubtitle === "string") {
-          next.announcementSubtitle = next.announcementSubtitle.replace(
-            /(ドクター神拳使用不可|次のラウンドまでドクター神拳使用不可)/g,
-            "そのターン中ドクター神拳使用不可"
-          );
-        }
       }
 
       return next;
